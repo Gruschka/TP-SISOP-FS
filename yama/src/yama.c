@@ -6,9 +6,19 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <commons/log.h>
 
-int main() {
-	printf("Yama");
+#include "yama.h"
+#include "configuration.h"
 
+yama_configuration configuration;
+t_log *logger;
+
+int main(int argc, char** argv) {
+	loadConfiguration();
 	return EXIT_SUCCESS;
+}
+
+void loadConfiguration() {
+	configuration = fetchConfiguration("conf/yama.conf");
 }
