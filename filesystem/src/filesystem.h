@@ -1,6 +1,10 @@
 #ifndef FILESYSTEM_H_
 #define FILESYSTEM_H_
 
+int fs_format();
+int fs_rm(char *filePath);
+int fs_rm_dir(char *dirPath);
+int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock);
 int fs_rename (char *filePath, char *nombreFinal);
 int fs_mv(char *origFilePath, char *destFilePath);
 int fs_cat(char *filePath);

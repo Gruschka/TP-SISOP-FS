@@ -1,5 +1,31 @@
 #include "filesystem.h"
 
+//Return 0 if success 1 if fails
+
+int fs_format(){
+
+	//Do stuff
+	printf("format\n");
+	return 0;
+
+}
+
+int fs_rm(char *filePath){
+	printf("removing %s as %s\n", filePath);
+
+		return 0;
+}
+int fs_rm_dir(char *dirPath){
+	printf("removing directory %s \n", dirPath);
+
+		return 0;
+}
+int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock){
+	printf("removing block %d whose copy is block %d from file %s\n", blockNumberToRemove, numberOfCopyBlock, filePath);
+
+		return 0;
+}
+
 int fs_rename (char *filePath, char *nombreFinal){
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
 

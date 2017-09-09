@@ -10,6 +10,7 @@ int fs_console_validateOp(char * newLine);
 char *fs_console_getFirstParameterFromLine(char *userInput);
 char *fs_console_getSecondParameterFromLine(char *userInput);
 char *fs_console_getThirdParameterFromLine(char *userInput);
+char *fs_console_getFourthParameterFromLine(char *userInput);
 
 int fs_console_operationEndedSuccessfully(int);
 
@@ -53,12 +54,42 @@ int fs_console_validateOp(char * newLine) {
 
 	int opResult; //0 if success -1 if fails
 
+	/************ format **************/
 	if (strcmp(operation, "format") == 0) {
-		printf("%s\n", newLine);
+		fs_format();
+
 	}
 
+	/************ rm **************/
 	if (!strcmp(operation, "rm")) {
-		printf("%s\n", newLine);
+		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+
+		//-d
+		if (!strcmp(firstParameter, "-d")) {
+			secondParameter = fs_console_getSecondParameterFromLine(newLine);
+			opResult = fs_rm_dir(secondParameter);
+			if (!fs_console_operationEndedSuccessfully(opResult))
+				printf("remove operation failed\n");
+		}
+
+		//-b
+		if (!strcmp(firstParameter, "-b")) {
+			char *fourthParameter = malloc(255);
+			memset(fourthParameter, 0, 255);
+			secondParameter = fs_console_getSecondParameterFromLine(newLine);
+			thirdParameter = fs_console_getThirdParameterFromLine(newLine);
+			fourthParameter = fs_console_getFourthParameterFromLine(newLine);
+
+			opResult = fs_rm_block(secondParameter, thirdParameter, fourthParameter);
+
+			if (!fs_console_operationEndedSuccessfully(opResult))
+							printf("remove operation failed\n");
+
+		}
+
+		//If not -b or -d
+
+		fs_rm(firstParameter);
 
 	}
 
@@ -127,7 +158,8 @@ int fs_console_validateOp(char * newLine) {
 		firstParameter = fs_console_getFirstParameterFromLine(newLine);
 		secondParameter = fs_console_getSecondParameterFromLine(newLine);
 		thirdParameter = fs_console_getThirdParameterFromLine(newLine);
-		opResult = fs_cpblock(firstParameter, atoi(secondParameter), atoi(thirdParameter));
+		opResult = fs_cpblock(firstParameter, atoi(secondParameter),
+				atoi(thirdParameter));
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("cpblock operation failed\n");
 
@@ -159,17 +191,17 @@ int fs_console_validateOp(char * newLine) {
 	}
 
 	if (!strncmp(operation, "exit", 4)) {
-/*
-		free(firstParameter);
-		free(secondParameter);
-		free(thirdParameter);*/
+		/*
+		 free(firstParameter);
+		 free(secondParameter);
+		 free(thirdParameter);*/
 
 		return NULL;
 	}
 
 	/*free(firstParameter);
-	free(secondParameter);
-	free(thirdParameter);*/
+	 free(secondParameter);
+	 free(thirdParameter);*/
 
 	return 1;
 
@@ -223,6 +255,23 @@ char *fs_console_getThirdParameterFromLine(char *userInput) {
 	return output;
 
 }
+
+char *fs_console_getFourthParameterFromLine(char *userInput){
+
+	char * userInputCopy = malloc(strlen(userInput) + 1);
+		strcpy(userInputCopy, userInput);
+		char * output = strtok(userInputCopy, " ");
+
+		output = strtok(NULL, " \n");
+		output = strtok(NULL, " \n");
+		output = strtok(NULL, " \n");
+		output = strtok(NULL, " \n");
+
+		return output;
+
+
+}
+
 
 int fs_console_operationEndedSuccessfully(int operationResult) {
 
