@@ -1,3 +1,7 @@
+/**
+TODO: Validar existencia file paths en cada funcion del fs que los utilice
+TODO: Liberar memoria dentro de validateOp
+ **/
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -7,10 +11,7 @@
 char* fs_console_getOpFromInput(char *userInput);
 void fs_console();
 int fs_console_validateOp(char * newLine);
-char *fs_console_getFirstParameterFromLine(char *userInput);
-char *fs_console_getSecondParameterFromLine(char *userInput);
-char *fs_console_getThirdParameterFromLine(char *userInput);
-char *fs_console_getFourthParameterFromLine(char *userInput);
+char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput);
 
 int fs_console_operationEndedSuccessfully(int);
 
@@ -62,11 +63,11 @@ int fs_console_validateOp(char * newLine) {
 
 	/************ rm **************/
 	if (!strcmp(operation, "rm")) {
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 
 		//-d
 		if (!strcmp(firstParameter, "-d")) {
-			secondParameter = fs_console_getSecondParameterFromLine(newLine);
+			secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 			opResult = fs_rm_dir(secondParameter);
 			if (!fs_console_operationEndedSuccessfully(opResult))
 				printf("remove operation failed\n");
@@ -76,28 +77,31 @@ int fs_console_validateOp(char * newLine) {
 		if (!strcmp(firstParameter, "-b")) {
 			char *fourthParameter = malloc(255);
 			memset(fourthParameter, 0, 255);
-			secondParameter = fs_console_getSecondParameterFromLine(newLine);
-			thirdParameter = fs_console_getThirdParameterFromLine(newLine);
-			fourthParameter = fs_console_getFourthParameterFromLine(newLine);
+			secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
+			thirdParameter = fs_console_getNParameterFromUserInput(3, newLine);
+			fourthParameter = fs_console_getNParameterFromUserInput(4, newLine);
 
-			opResult = fs_rm_block(secondParameter, thirdParameter, fourthParameter);
+			opResult = fs_rm_block(secondParameter, atoi(thirdParameter),
+					atoi(fourthParameter));
 
 			if (!fs_console_operationEndedSuccessfully(opResult))
-							printf("remove operation failed\n");
+				printf("remove operation failed\n");
+
+		} else {
+		//If not -b or -d
+			opResult = fs_rm(firstParameter);
+			if (!fs_console_operationEndedSuccessfully(opResult))
+				printf("remove operation failed\n");
 
 		}
 
-		//If not -b or -d
-
-		fs_rm(firstParameter);
 
 	}
 
 	if (!strcmp(operation, "rename")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
-		secondParameter = fs_console_getSecondParameterFromLine(newLine);
-
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
+		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 		opResult = fs_rename(firstParameter, secondParameter);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
@@ -107,8 +111,9 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "mv")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
-		secondParameter = fs_console_getSecondParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
+		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
+
 		opResult = fs_mv(firstParameter, secondParameter);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
@@ -117,7 +122,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cat")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 		opResult = fs_cat(firstParameter);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
@@ -127,15 +132,15 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "mkdir")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 		opResult = fs_mkdir(firstParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mkdir operation failed\n");
 	}
 	if (!strcmp(operation, "cpfrom")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
-		secondParameter = fs_console_getSecondParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
+		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 
 		opResult = fs_cpfrom(firstParameter, secondParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
@@ -145,8 +150,8 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpto")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
-		secondParameter = fs_console_getSecondParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
+		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 		opResult = fs_cpfrom(firstParameter, secondParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("cpto operation failed\n");
@@ -155,9 +160,9 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpblock")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
-		secondParameter = fs_console_getSecondParameterFromLine(newLine);
-		thirdParameter = fs_console_getThirdParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
+		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
+		thirdParameter = fs_console_getNParameterFromUserInput(3, newLine);
 		opResult = fs_cpblock(firstParameter, atoi(secondParameter),
 				atoi(thirdParameter));
 		if (!fs_console_operationEndedSuccessfully(opResult))
@@ -167,7 +172,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "md5")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 		opResult = fs_md5(firstParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("md5 operation failed\n");
@@ -175,7 +180,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "ls")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 		opResult = fs_ls(firstParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("ls operation failed\n");
@@ -183,7 +188,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "info")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getFirstParameterFromLine(newLine);
+		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 		opResult = fs_info(firstParameter);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("info operation failed\n");
@@ -217,61 +222,20 @@ char* fs_console_getOpFromInput(char *userInput) {
 
 }
 
-char *fs_console_getFirstParameterFromLine(char *userInput) {
+char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput) {
 
 	char * userInputCopy = malloc(strlen(userInput) + 1);
 	strcpy(userInputCopy, userInput);
 	char * output = strtok(userInputCopy, " ");
+	int iterator = 0;
 
-	output = strtok(NULL, " \n");
+	for (iterator = 0; iterator < paramNumber; iterator++) {
+		output = strtok(NULL, " \n");
+	}
 
 	return output;
 
 }
-
-char *fs_console_getSecondParameterFromLine(char *userInput) {
-
-	char * userInputCopy = malloc(strlen(userInput) + 1);
-	strcpy(userInputCopy, userInput);
-	char * output = strtok(userInputCopy, " ");
-
-	output = strtok(NULL, " \n");
-	output = strtok(NULL, " \n");
-
-	return output;
-
-}
-
-char *fs_console_getThirdParameterFromLine(char *userInput) {
-
-	char * userInputCopy = malloc(strlen(userInput) + 1);
-	strcpy(userInputCopy, userInput);
-	char * output = strtok(userInputCopy, " ");
-
-	output = strtok(NULL, " \n");
-	output = strtok(NULL, " \n");
-	output = strtok(NULL, " \n");
-
-	return output;
-
-}
-
-char *fs_console_getFourthParameterFromLine(char *userInput){
-
-	char * userInputCopy = malloc(strlen(userInput) + 1);
-		strcpy(userInputCopy, userInput);
-		char * output = strtok(userInputCopy, " ");
-
-		output = strtok(NULL, " \n");
-		output = strtok(NULL, " \n");
-		output = strtok(NULL, " \n");
-		output = strtok(NULL, " \n");
-
-		return output;
-
-
-}
-
 
 int fs_console_operationEndedSuccessfully(int operationResult) {
 

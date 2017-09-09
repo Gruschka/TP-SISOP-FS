@@ -11,7 +11,7 @@ int fs_format(){
 }
 
 int fs_rm(char *filePath){
-	printf("removing %s as %s\n", filePath);
+	printf("removing %s\n", filePath);
 
 		return 0;
 }
