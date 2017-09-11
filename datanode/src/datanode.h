@@ -17,6 +17,7 @@ typedef struct dataNodeConfig{
 	int fsPortno;
 	int workerPortno;
 	int DataNodePortno;
+	int sizeInMb;
 
 }t_dataNodeConfig;
 
@@ -29,6 +30,7 @@ typedef struct dataNode{
 
 
 int dataNode_loadConfig(t_dataNode *aDataNode);
-
+FILE *dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb);
+void dataNode_connectToFileSystem();
 
 #endif /* DATANODE_H_ */
