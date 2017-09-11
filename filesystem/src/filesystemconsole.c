@@ -1,6 +1,10 @@
 /**
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Liberar memoria dentro de validateOp
+ TODO: Controlar que solo se conecte un YAMA
+ TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
+ TODO: Validar estado seguros
+ TODO: Levantar archivo de configuracion
  **/
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,6 +12,7 @@
 #include <readline/readline.h>
 #include "filesystem.h"
 #include <netinet/in.h>
+#include <pthread.h>
 
 char* fs_console_getOpFromInput(char *userInput);
 void fs_console();
@@ -15,10 +20,11 @@ int fs_console_validateOp(char * newLine);
 char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput);
 
 int fs_console_operationEndedSuccessfully(int);
-void waitForDataNodes();
 
 void main() {
 
+	fs_dataNodeConnectionThread();
+	fs_yamaConnectionThread();
 	fs_console();
 }
 
@@ -31,6 +37,7 @@ void fs_console() {
 
 		userInput = readline(">");
 
+		//fs_console_waitForDataNodes();
 		operationResult = fs_console_validateOp(userInput);
 
 		if (operationResult == NULL)
@@ -246,43 +253,3 @@ int fs_console_operationEndedSuccessfully(int operationResult) {
 	return 0;
 }
 
-void waitForDataNodes() {
-
-	int server_fd, new_socket, valread;
-	struct sockaddr_in address;
-	int opt = 1;
-	int addrlen = sizeof(address);
-	char buffer[1024] = { 0 };
-	char *hello = "Hello from server";
-
-	// Creating socket file descriptor
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-		perror("socket failed");
-		exit(EXIT_FAILURE);
-	}
-
-
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(8080);
-
-	// Forcefully attaching socket to the port 8080
-	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
-		perror("bind failed");
-		exit(EXIT_FAILURE);
-	}
-	if (listen(server_fd, 3) < 0) {
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
-	if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
-			(socklen_t*) &addrlen)) < 0) {
-		perror("accept");
-		exit(EXIT_FAILURE);
-	}
-	valread = read(new_socket, buffer, 1024);
-	printf("%s\n", buffer);
-	send(new_socket, hello, strlen(hello), 0);
-	printf("Hello message sent\n");
-
-}

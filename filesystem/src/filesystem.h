@@ -15,6 +15,10 @@ int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
+void fs_dataNodeConnectionThread();
+void fs_waitForDataNodes();
+void fs_yamaConnectionThread();
+void fs_waitForYama();
 
 
 
