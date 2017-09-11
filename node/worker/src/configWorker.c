@@ -17,7 +17,7 @@ worker_configuration fetchConfiguration(char *filePath) {
 	config.filesystemIP = config_get_string_value(configFile, "IP_FILESYSTEM");
 	config.NodeName = config_get_string_value(configFile, "NOMBRE_NODO");
 	config.workerPort = config_get_int_value(configFile, "PUERTO_WORKER");
-	config.binPath = config_get_string_value(configFile, "RUTA_BIN");
+	config.binPath = config_get_string_value(configFile, "RUTA_DATABIN");
 
 	free(configFile);
 	return config;

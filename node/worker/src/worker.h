@@ -12,4 +12,5 @@ void logDebug(char *);
 void loadConfiguration();
 void signalHandler(int);
 
+
 #endif /* WORKER_H_ */
