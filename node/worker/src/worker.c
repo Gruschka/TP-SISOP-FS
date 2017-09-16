@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <unistd.h>
 #include <commons/log.h>
 #include <errno.h>
 #include <unistd.h>   //close
@@ -20,6 +19,9 @@
 #include <netinet/in.h>
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
 
+#define TRANSFORMACION 1
+#define REDUCCION_LOCAL 2
+#define REDUCCION_GLOBAL 3
 
 
 t_log *logger;
@@ -57,10 +59,9 @@ void logDebug(char *message) {
 	log_debug(logger, message);
 }
 
-void *serverThread_main() {
+void *createServer() {
 	int socket_desc, client_sock, c;
 	struct sockaddr_in server, client;
-
 	// Create socket
 	int iSetOption = 1;
 	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
@@ -91,6 +92,8 @@ void *serverThread_main() {
 
 	while ((client_sock = accept(socket_desc, (struct sockaddr *) &client, (socklen_t*) &c))) {
 		log_debug(logger, "Connection accepted");
+		connectionHandler(client_sock);
+
 	}
 
 	if (client_sock < 0) {
@@ -98,5 +101,62 @@ void *serverThread_main() {
 		return NULL;
 	}
 
+
+
 	return 0;
+}
+
+void connectionHandler(int client_sock){
+	uint32_t operation;
+	char *script;
+	uint32_t scriptLength;
+	uint32_t block;
+	char * buffer;
+	while(1){
+
+		//Recibo toda la informacion necesaria para ejecutar las tareas
+		recv(client_sock,&operation,sizeof(uint32_t), 0);
+		recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
+		script = malloc(scriptLength);
+		recv(client_sock, script,sizeof(scriptLength), 0);
+		recv(client_sock, &block, sizeof(uint32_t), 0);
+		char * blockContent = malloc(1024);
+		readABlock(block, blockContent);
+		switch(operation){
+			case TRANSFORMACION:{
+
+				//buffer = "./transformacion.py {aca va lo que leiste}  | sort > {aca va el path al output}"
+				system(buffer);
+				break;
+			}
+			case REDUCCION_LOCAL:{
+
+				break;
+			}
+			case REDUCCION_GLOBAL:{
+
+				break;
+			}
+			default:
+				log_error(logger, "Operation couldn't be identified");
+		}
+
+	}
+}
+
+void readABlock (uint32_t block, char * blockContent){
+	int blockLocation = block * 1024;
+	FILE *file;
+
+	//Open File
+	file = fopen(configuration.binPath, "rb");
+	if (!file) {
+		log_error(logger, "Couldn't open file: %s", configuration.binPath);
+	}
+
+	fseek(file, blockLocation, SEEK_SET);
+
+	fread(&blockContent, 1024, 1, file);
+
+
 }
