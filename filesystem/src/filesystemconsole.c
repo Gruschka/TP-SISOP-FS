@@ -24,7 +24,15 @@ int fs_console_operationEndedSuccessfully(int);
 void main() {
 
 	fs_dataNodeConnectionThread();
-	fs_yamaConnectionThread();
+
+	while(!fs_isStable()){
+
+		printf("FS not stable. Cant connect to YAMA");
+
+	}
+
+	//fs_yamaConnectionThread();
+
 	fs_console();
 }
 

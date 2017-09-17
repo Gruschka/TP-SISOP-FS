@@ -8,8 +8,7 @@
 #ifndef DATANODE_H_
 #define DATANODE_H_
 
-
-typedef struct dataNodeConfig{
+typedef struct dataNodeConfig {
 
 	char *fsIP;
 	char *nodeName;
@@ -19,18 +18,25 @@ typedef struct dataNodeConfig{
 	int DataNodePortno;
 	int sizeInMb;
 
-}t_dataNodeConfig;
+} t_dataNodeConfig;
 
-typedef struct dataNode{
+typedef struct blockInfo {
 
+	int amountOfBlocks;
+	int freeBlocks;
+	int occupiedBlocks;
+
+} t_dataNodeBlockInfo;
+
+typedef struct dataNode {
+
+	t_dataNodeBlockInfo blockInfo;
 	t_dataNodeConfig config;
 
-}t_dataNode;
-
-
+} t_dataNode;
 
 int dataNode_loadConfig(t_dataNode *aDataNode);
 FILE *dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb);
 void dataNode_connectToFileSystem();
-
+void dataNode_setBlockInformation(t_dataNode *aDataNode);
 #endif /* DATANODE_H_ */

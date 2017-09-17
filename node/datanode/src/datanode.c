@@ -1,9 +1,5 @@
-/*
- * datanode.c
- *
- *  Created on: Sep 8, 2017
- *      Author: Hernan Canzonetta
- */
+//TODO: Levantar info de bloques libres del bitmap
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "datanode.h"
@@ -39,12 +35,11 @@ int main(int argc, char **argv) {
 	dataBinFile = dataNode_openOrCreateDataBinFile(
 			myDataNode.config.databinPath, myDataNode.config.sizeInMb);
 
+	dataNode_setBlockInformation(&myDataNode);
 
 	//Me conecto al FS
 
 	dataNode_connectToFileSystem(myDataNode);
-
-
 
 	return EXIT_SUCCESS;
 }
@@ -118,11 +113,39 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 		exit(1);
 	}
 
-    char *hello = "Hello from client";
-    char buffer[1024] = {0};
-    send(sockfd , hello , strlen(hello) , 0 );
-     printf("Hello message sent\n");
-     int valread = read( sockfd , buffer, 1024);
-     printf("%s\n",buffer );
+	char buffer[1024] = { 0 };
+
+
+	//Send block name
+	send(sockfd, dataNode.config.nodeName, strlen(dataNode.config.nodeName), 0);
+	read(sockfd, buffer, 1024);
+
+	//Send amount of blocks
+	int myInt = dataNode.blockInfo.amountOfBlocks;
+		int tmp = htonl((uint32_t) myInt);
+
+	write(sockfd, &tmp, sizeof(tmp));
+
+	//Send amount of free blocks
+	myInt = dataNode.blockInfo.freeBlocks;
+	tmp = htonl((uint32_t) myInt);
+	write(sockfd, &tmp, sizeof(tmp));
+
+	//Send amount of occupied blocks
+	myInt = dataNode.blockInfo.occupiedBlocks;
+	tmp = htonl((uint32_t) myInt);
+	write(sockfd, &tmp, sizeof(tmp));
+
+	printf("%s\n", buffer);
+
+}
+
+void dataNode_setBlockInformation(t_dataNode *aDataNode) {
+
+	//TODO: Levantar info de bloques libres del bitmap
+	aDataNode->blockInfo.amountOfBlocks = aDataNode->config.sizeInMb;
+	aDataNode->blockInfo.freeBlocks = 5;
+	aDataNode->blockInfo.occupiedBlocks = aDataNode->blockInfo.amountOfBlocks
+			- aDataNode->blockInfo.freeBlocks;
 
 }

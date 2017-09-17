@@ -19,7 +19,7 @@ void fs_dataNodeConnectionThread();
 void fs_waitForDataNodes();
 void fs_yamaConnectionThread();
 void fs_waitForYama();
-
+int fs_isStable();
 
 
 #endif /* FILESYSTEM_H_ */

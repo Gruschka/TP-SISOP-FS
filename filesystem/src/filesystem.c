@@ -107,6 +107,86 @@ void fs_waitForDataNodes() {
 	int opt = 1;
 	int addrlen = sizeof(address);
 	char buffer[1024] = { 0 };
+	char *hello = "You are connected to the FS";
+
+	// Creating socket file descriptor
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+		perror("socket failed");
+		exit(-1);
+	}
+	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt,
+			sizeof(opt))) {
+		perror("setsockopt");
+		exit(-1);
+	}
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = htons(8080);
+
+	// Forcefully attaching socket to the port 8080
+	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+		perror("bind failed");
+		exit(-1);
+	}
+	if (listen(server_fd, 3) < 0) {
+		perror("listen");
+		exit(-1);
+	}
+	if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
+			(socklen_t*) &addrlen)) < 0) {
+		perror("accept");
+		exit(-1);
+	}
+
+	int cant;
+
+	//Read Node name
+	valread = read(new_socket, buffer, 1024);
+	printf("New node connected: %s\n", buffer);
+
+	//Send connection confirmation
+	send(new_socket, hello, strlen(hello), 0);
+
+	//Read amount of blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	printf("Amount of blocks:%d\n", cant);
+
+	//Read amount of free blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	printf("Free blocks: %d\n", cant);
+
+	//Read amount of occupied blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	printf("Occupied blocks: %d\n", cant);
+
+}
+
+void fs_yamaConnectionThread() {
+
+	//Thread ID
+	pthread_t threadId;
+
+	//Create thread attributes
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+
+	//Set to detached
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	//Create thread
+	pthread_create(&threadId, &attr, fs_waitForYama, NULL);
+}
+
+void fs_waitForYama() {
+
+	int server_fd, new_socket, valread;
+	struct sockaddr_in address;
+	int opt = 1;
+	int addrlen = sizeof(address);
+	char buffer[1024] = { 0 };
 	char *hello = "Hello from server";
 
 	// Creating socket file descriptor
@@ -144,63 +224,7 @@ void fs_waitForDataNodes() {
 
 }
 
-void fs_yamaConnectionThread() {
+int fs_isStable() {
 
-	//Thread ID
-	pthread_t threadId;
-
-	//Create thread attributes
-	pthread_attr_t attr;
-	pthread_attr_init(&attr);
-
-	//Set to detached
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-	//Create thread
-	pthread_create(&threadId, &attr, fs_waitForYama, NULL);
-}
-
-
-void fs_waitForYama() {
-
-	int server_fd, new_socket, valread;
-		struct sockaddr_in address;
-		int opt = 1;
-		int addrlen = sizeof(address);
-		char buffer[1024] = { 0 };
-		char *hello = "Hello from server";
-
-		// Creating socket file descriptor
-		if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-			perror("socket failed");
-			exit(-1);
-		}
-
-		address.sin_family = AF_INET;
-		address.sin_addr.s_addr = INADDR_ANY;
-		address.sin_port = htons(8080);
-
-		// Forcefully attaching socket to the port 8080
-		if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
-			perror("bind failed");
-			exit(-1);
-		}
-		if (listen(server_fd, 3) < 0) {
-			perror("listen");
-			exit(-1);
-		}
-		if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
-				(socklen_t*) &addrlen)) < 0) {
-			perror("accept");
-			exit(-1);
-		}
-
-		while (1) {
-			valread = read(new_socket, buffer, 1024);
-			printf("%s\n", buffer);
-			send(new_socket, hello, strlen(hello), 0);
-			printf("Hello message sent\n");
-			sleep(5);
-		}
-
+	return 1;
 }
