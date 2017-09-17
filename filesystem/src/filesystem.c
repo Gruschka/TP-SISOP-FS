@@ -1,3 +1,12 @@
+/**
+ TODO: Validar existencia file paths en cada funcion del fs que los utilice
+ TODO: Liberar memoria dentro de validateOp
+ TODO: Controlar que solo se conecte un YAMA
+ TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
+ TODO: Validar estado seguros
+ TODO: Levantar archivo de configuracion
+ **/
+
 #include "filesystem.h"
 #include <pthread.h>
 #include <netinet/in.h>
@@ -7,6 +16,22 @@
 //Global resources
 t_list *connectedNodes;
 
+void main() {
+
+	connectedNodes = list_create();
+
+	fs_dataNodeConnectionThread();
+
+	while(!fs_isStable()){
+
+		printf("FS not stable. Cant connect to YAMA");
+
+	}
+
+	//fs_yamaConnectionThread();
+
+	fs_console_launch();
+}
 
 int fs_format() {
 
@@ -87,7 +112,6 @@ int fs_info(char *filePath) {
 	return 0;
 
 }
-
 void fs_dataNodeConnectionThread() {
 
 	//Thread ID
@@ -103,7 +127,6 @@ void fs_dataNodeConnectionThread() {
 	//Create thread
 	pthread_create(&threadId, &attr, fs_waitForDataNodes, NULL);
 }
-
 void fs_waitForDataNodes() {
 
 	//Socket connection variables
@@ -179,11 +202,10 @@ void fs_waitForDataNodes() {
 	newDataNode.occupiedBlocks = cant;
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
-	//list_add(connectedNodes, &newDataNode);
+	list_add(connectedNodes, &newDataNode);
 
 
 }
-
 void fs_yamaConnectionThread() {
 
 	//Thread ID
@@ -199,7 +221,6 @@ void fs_yamaConnectionThread() {
 	//Create thread
 	pthread_create(&threadId, &attr, fs_waitForYama, NULL);
 }
-
 void fs_waitForYama() {
 
 	int server_fd, new_socket, valread;
@@ -243,7 +264,6 @@ void fs_waitForYama() {
 	}
 
 }
-
 int fs_isStable() {
 
 	return 1;

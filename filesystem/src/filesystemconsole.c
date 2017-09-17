@@ -15,28 +15,15 @@
 #include <pthread.h>
 
 char* fs_console_getOpFromInput(char *userInput);
-void fs_console();
+void fs_console_launch();
 int fs_console_validateOp(char * newLine);
 char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput);
 
 int fs_console_operationEndedSuccessfully(int);
 
-void main() {
 
-	fs_dataNodeConnectionThread();
 
-	while(!fs_isStable()){
-
-		printf("FS not stable. Cant connect to YAMA");
-
-	}
-
-	//fs_yamaConnectionThread();
-
-	fs_console();
-}
-
-void fs_console() {
+void fs_console_launch() {
 
 	char *userInput;
 	int operationResult;
