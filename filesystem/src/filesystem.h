@@ -1,6 +1,16 @@
 #ifndef FILESYSTEM_H_
 #define FILESYSTEM_H_
 
+
+typedef struct dataNode {
+
+	char *name;
+	int amountOfBlocks;
+	int freeBlocks;
+	int occupiedBlocks;
+
+} t_dataNode;
+
 int fs_format();
 int fs_rm(char *filePath);
 int fs_rm_dir(char *dirPath);

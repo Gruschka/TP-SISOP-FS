@@ -1,8 +1,12 @@
 #include "filesystem.h"
 #include <pthread.h>
 #include <netinet/in.h>
-
+#include <commons/collections/list.h>
 //Return 0 if success 1 if fails
+
+//Global resources
+t_list *connectedNodes;
+
 
 int fs_format() {
 
@@ -102,12 +106,16 @@ void fs_dataNodeConnectionThread() {
 
 void fs_waitForDataNodes() {
 
+	//Socket connection variables
 	int server_fd, new_socket, valread;
 	struct sockaddr_in address;
 	int opt = 1;
 	int addrlen = sizeof(address);
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS";
+
+	//Variable to include new DataNode in the list of currently connected data nodes
+	t_dataNode newDataNode;
 
 	// Creating socket file descriptor
 	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -144,23 +152,35 @@ void fs_waitForDataNodes() {
 	valread = read(new_socket, buffer, 1024);
 	printf("New node connected: %s\n", buffer);
 
+	newDataNode.name = malloc(sizeof(buffer));
+	memset(newDataNode.name, 0, sizeof(newDataNode));
+	strcpy(newDataNode.name,buffer);
+	printf("Node name:%s\n", newDataNode.name);
+
 	//Send connection confirmation
 	send(new_socket, hello, strlen(hello), 0);
 
 	//Read amount of blocks
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
-	printf("Amount of blocks:%d\n", cant);
+	newDataNode.amountOfBlocks = cant;
+	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks );
 
 	//Read amount of free blocks
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
-	printf("Free blocks: %d\n", cant);
+	newDataNode.freeBlocks = cant;
+	printf("Free blocks: %d\n", newDataNode.freeBlocks);
+
 
 	//Read amount of occupied blocks
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
-	printf("Occupied blocks: %d\n", cant);
+	newDataNode.occupiedBlocks = cant;
+	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
+
+	//list_add(connectedNodes, &newDataNode);
+
 
 }
 

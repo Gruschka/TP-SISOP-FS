@@ -138,6 +138,15 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	printf("%s\n", buffer);
 
+
+	//wait for request from fs
+
+	while(1){
+
+		//Codigo para escuchar pedidos del fs aca;lk;lk
+
+	}
+
 }
 
 void dataNode_setBlockInformation(t_dataNode *aDataNode) {
