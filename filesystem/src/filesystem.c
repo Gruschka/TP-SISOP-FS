@@ -21,7 +21,7 @@ void main() {
 
 	connectedNodes = list_create();
 
-	//fs_dataNodeConnectionThread();
+	fs_listenToDataNodes();
 
 	while (!fs_isStable()) {
 
@@ -113,7 +113,7 @@ int fs_info(char *filePath) {
 	return 0;
 
 }
-void fs_dataNodeConnectionThread() {
+void fs_listenToDataNodes() {
 
 	//Thread ID
 	pthread_t threadId;
@@ -131,7 +131,7 @@ void fs_dataNodeConnectionThread() {
 void fs_waitForDataNodes() {
 
 	//Socket connection variables
-	int server_fd, new_socket, valread;
+	int server_fd, new_dataNode_socket, valread;
 	struct sockaddr_in address;
 	int opt = 1;
 	int addrlen = sizeof(address);
@@ -164,60 +164,41 @@ void fs_waitForDataNodes() {
 		perror("listen");
 		exit(-1);
 	}
-	if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
-			(socklen_t*) &addrlen)) < 0) {
-		perror("accept");
-		exit(-1);
+
+	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
+			(socklen_t*) &addrlen)) {
+		puts("New connection accepted\n");
+
+		pthread_t newDataNodeThread;
+
+		// Copy the value of the accepted socket, in order to pass to the thread
+		int new_sock = new_dataNode_socket;
+
+		if (pthread_create(&newDataNodeThread, NULL, fs_dataNodeConnectionHandler,
+				(void*) new_dataNode_socket) < 0) {
+			perror("could not create thread");
+		}
+
+		puts("Handler assigned");
 	}
 
-	int cant;
-
-	//Read Node name
-	valread = read(new_socket, buffer, 1024);
-	printf("New node connected: %s\n", buffer);
-
-	newDataNode.name = malloc(sizeof(buffer));
-	memset(newDataNode.name, 0, sizeof(newDataNode));
-	strcpy(newDataNode.name, buffer);
-	printf("Node name:%s\n", newDataNode.name);
-
-	//Send connection confirmation
-	send(new_socket, hello, strlen(hello), 0);
-
-	//Read amount of blocks
-	read(new_socket, &cant, sizeof(int));
-	cant = ntohl(cant);
-	newDataNode.amountOfBlocks = cant;
-	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks);
-
-	//Read amount of free blocks
-	read(new_socket, &cant, sizeof(int));
-	cant = ntohl(cant);
-	newDataNode.freeBlocks = cant;
-	printf("Free blocks: %d\n", newDataNode.freeBlocks);
-
-	//Read amount of occupied blocks
-	read(new_socket, &cant, sizeof(int));
-	cant = ntohl(cant);
-	newDataNode.occupiedBlocks = cant;
-	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
 	list_add(connectedNodes, &newDataNode);
 
 }
 void fs_yamaConnectionThread() {
 
-	//Thread ID
+//Thread ID
 	pthread_t threadId;
 
-	//Create thread attributes
+//Create thread attributes
 	pthread_attr_t attr;
 	pthread_attr_init(&attr);
 
-	//Set to detached
+//Set to detached
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-	//Create thread
+//Create thread
 	pthread_create(&threadId, &attr, fs_waitForYama, NULL);
 }
 void fs_waitForYama() {
@@ -229,7 +210,7 @@ void fs_waitForYama() {
 	char buffer[1024] = { 0 };
 	char *hello = "Hello from server";
 
-	// Creating socket file descriptor
+// Creating socket file descriptor
 	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
 		perror("socket failed");
 		exit(-1);
@@ -239,7 +220,7 @@ void fs_waitForYama() {
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons(8080);
 
-	// Forcefully attaching socket to the port 8080
+// Forcefully attaching socket to the port 8080
 	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
 		perror("bind failed");
 		exit(-1);
@@ -269,7 +250,6 @@ int fs_isStable() {
 }
 void fs_show_connected_nodes() {
 
-
 	int listSize = list_size(connectedNodes);
 	int i;
 	t_dataNode * aux;
@@ -284,6 +264,59 @@ void fs_show_connected_nodes() {
 
 void fs_print_connected_node_info(t_dataNode *aDataNode) {
 
-printf("Name:[%s] - Amount of blocks:[%d] - Free blocks:[%d] - Occupied blocks:[%d]\n", aDataNode->name, aDataNode->amountOfBlocks, aDataNode->freeBlocks, aDataNode->occupiedBlocks);
+	printf(
+			"Name:[%s] - Amount of blocks:[%d] - Free blocks:[%d] - Occupied blocks:[%d]\n",
+			aDataNode->name, aDataNode->amountOfBlocks, aDataNode->freeBlocks,
+			aDataNode->occupiedBlocks);
 
+}
+
+void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
+
+	int valread,cant;
+	char buffer[1024] = { 0 };
+	char *hello = "You are connected to the FS";
+	int new_socket = (int *) dataNodeSocket;
+
+
+
+
+	t_dataNode newDataNode;
+
+//Read Node name
+	valread = read(new_socket, buffer, 1024);
+	printf("New node connected: %s\n", buffer);
+
+	newDataNode.name = malloc(sizeof(buffer));
+	memset(newDataNode.name, 0, sizeof(newDataNode));
+	strcpy(newDataNode.name, buffer);
+	printf("Node name:%s\n", newDataNode.name);
+
+//Send connection confirmation
+	send(new_socket, hello, strlen(hello), 0);
+
+//Read amount of blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	newDataNode.amountOfBlocks = cant;
+	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks);
+
+//Read amount of free blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	newDataNode.freeBlocks = cant;
+	printf("Free blocks: %d\n", newDataNode.freeBlocks);
+
+//Read amount of occupied blocks
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
+	newDataNode.occupiedBlocks = cant;
+	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
+
+	while(1){
+
+		printf("DataNOde conectado a FS en espera");
+		sleep(15);
+
+	}
 }

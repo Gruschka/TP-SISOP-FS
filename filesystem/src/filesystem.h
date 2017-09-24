@@ -25,12 +25,12 @@ int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
-void fs_dataNodeConnectionThread();
+void fs_listenToDataNodes();
 void fs_waitForDataNodes();
 void fs_yamaConnectionThread();
 void fs_waitForYama();
 int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
-
+void fs_dataNodeConnectionHandler(void *dataNodeSocket);
 #endif /* FILESYSTEM_H_ */
