@@ -4,6 +4,13 @@
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
  TODO: Validar estado seguros
  TODO: Levantar archivo de configuracion
+TODO: Implementar bitmap
+TODO: Implementar montaje de FS
+TODO: Implementar tabla de directorios
+TODO:Implementar tabla de archivos
+TODO: Implementar tabla de nodos
+TODO: Logear actividad del FS sin mostrar por pantalla
+
 
  **/
 
