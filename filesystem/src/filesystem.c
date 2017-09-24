@@ -275,7 +275,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	int valread,cant;
 	char buffer[1024] = { 0 };
-	char *hello = "You are connected to the FS";
+	char *hello = "You are connected to the FS ss";
 	int new_socket = (int *) dataNodeSocket;
 
 
