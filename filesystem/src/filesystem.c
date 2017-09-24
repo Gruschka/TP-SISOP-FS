@@ -1,11 +1,10 @@
 /**
- TODO: Hacer que se conecten muchos nodos
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
- TODO: Liberar memoria dentro de validateOp
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
  TODO: Validar estado seguros
  TODO: Levantar archivo de configuracion
+
  **/
 
 #include "filesystem.h"
@@ -15,13 +14,14 @@
 //Return 0 if success 1 if fails
 
 //Global resources
-t_list *connectedNodes;
+t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
+t_FS myFS; //Global struct containing the information of the FS
 
 void main() {
 
 	connectedNodes = list_create();
 
-	fs_listenToDataNodes();
+	fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
 
@@ -113,7 +113,7 @@ int fs_info(char *filePath) {
 	return 0;
 
 }
-void fs_listenToDataNodes() {
+void fs_listenToDataNodesThread() {
 
 	//Thread ID
 	pthread_t threadId;
@@ -183,7 +183,6 @@ void fs_waitForDataNodes() {
 		puts("Handler assigned");
 	}
 
-	list_add(connectedNodes, &newDataNode);
 
 }
 void fs_yamaConnectionThread() {
@@ -310,10 +309,18 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.occupiedBlocks = cant;
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
+	list_add(connectedNodes, &newDataNode);
+
 	while (1) {
 
-		printf("DataNOde conectado a FS en espera");
-		sleep(15);
+		printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
+
+		sleep(5);
+
+
+
+
+
 
 	}
 }

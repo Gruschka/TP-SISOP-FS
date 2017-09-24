@@ -1,5 +1,7 @@
-//TODO: Levantar info de bloques libres del bitmap
+/*TODO: Levantar info de bloques libres del bitmap
+TODO: Setear bien cantidad de nodos libres
 
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include "datanode.h"
@@ -145,8 +147,8 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 	while(1){
 
 		//Codigo para escuchar pedidos del fs aca;lk;lk
-		printf("DataNode %s esperando pedidos del FS",dataNode.config.nodeName);
-		sleep(15);
+		printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
+		sleep(5);
 
 	}
 
