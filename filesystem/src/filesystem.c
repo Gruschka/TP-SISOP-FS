@@ -1,4 +1,5 @@
 /**
+ TODO: Hacer que se conecten muchos nodos
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Liberar memoria dentro de validateOp
  TODO: Controlar que solo se conecte un YAMA
@@ -20,9 +21,9 @@ void main() {
 
 	connectedNodes = list_create();
 
-	fs_dataNodeConnectionThread();
+	//fs_dataNodeConnectionThread();
 
-	while(!fs_isStable()){
+	while (!fs_isStable()) {
 
 		printf("FS not stable. Cant connect to YAMA");
 
@@ -177,7 +178,7 @@ void fs_waitForDataNodes() {
 
 	newDataNode.name = malloc(sizeof(buffer));
 	memset(newDataNode.name, 0, sizeof(newDataNode));
-	strcpy(newDataNode.name,buffer);
+	strcpy(newDataNode.name, buffer);
 	printf("Node name:%s\n", newDataNode.name);
 
 	//Send connection confirmation
@@ -187,14 +188,13 @@ void fs_waitForDataNodes() {
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
 	newDataNode.amountOfBlocks = cant;
-	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks );
+	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks);
 
 	//Read amount of free blocks
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
 	newDataNode.freeBlocks = cant;
 	printf("Free blocks: %d\n", newDataNode.freeBlocks);
-
 
 	//Read amount of occupied blocks
 	read(new_socket, &cant, sizeof(int));
@@ -203,7 +203,6 @@ void fs_waitForDataNodes() {
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
 	list_add(connectedNodes, &newDataNode);
-
 
 }
 void fs_yamaConnectionThread() {
@@ -267,4 +266,24 @@ void fs_waitForYama() {
 int fs_isStable() {
 
 	return 1;
+}
+void fs_show_connected_nodes() {
+
+
+	int listSize = list_size(connectedNodes);
+	int i;
+	t_dataNode * aux;
+	if (listSize == 0)
+		printf("No data nodes connected\n");
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(connectedNodes, i);
+		fs_print_connected_node_info(aux);
+
+	}
+}
+
+void fs_print_connected_node_info(t_dataNode *aDataNode) {
+
+printf("Name:[%s] - Amount of blocks:[%d] - Free blocks:[%d] - Occupied blocks:[%d]\n", aDataNode->name, aDataNode->amountOfBlocks, aDataNode->freeBlocks, aDataNode->occupiedBlocks);
+
 }

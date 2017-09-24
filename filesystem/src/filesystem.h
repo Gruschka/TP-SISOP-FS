@@ -30,6 +30,7 @@ void fs_waitForDataNodes();
 void fs_yamaConnectionThread();
 void fs_waitForYama();
 int fs_isStable();
-
+void fs_show_connected_nodes();
+void fs_print_connected_node_info(t_dataNode *aDataNode);
 
 #endif /* FILESYSTEM_H_ */

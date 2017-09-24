@@ -10,9 +10,13 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <readline/readline.h>
+#include <readline/history.h>
+
 #include "filesystem.h"
 #include <netinet/in.h>
 #include <pthread.h>
+#include <commons/string.h>
+
 
 char* fs_console_getOpFromInput(char *userInput);
 void fs_console_launch();
@@ -32,6 +36,9 @@ void fs_console_launch() {
 
 		userInput = readline(">");
 
+	      if(userInput)
+	        add_history(userInput);
+
 		//fs_console_waitForDataNodes();
 		operationResult = fs_console_validateOp(userInput);
 
@@ -45,18 +52,13 @@ void fs_console_launch() {
 
 int fs_console_validateOp(char * newLine) {
 
-	char *operation = malloc(25);
-	memset(operation, 0, 25);
-	operation = fs_console_getOpFromInput(newLine);
+    char** parameter_list = string_split(newLine," ");
+    int sizeof_parameter_list = cantidadDe(parameter_list);
 
-	char *firstParameter = malloc(255);
-	memset(firstParameter, 0, 255);
-
-	char *secondParameter = malloc(255);
-	memset(secondParameter, 0, 255);
-
-	char *thirdParameter = malloc(255);
-	memset(thirdParameter, 0, 255);
+	char *operation = malloc(sizeof(parameter_list[0]));
+	memset(operation, 0, sizeof(parameter_list[0]));
+	strcpy(operation, parameter_list[0]);
+	//operation = fs_console_getOpFromInput(newLine);
 
 	int opResult; //0 if success -1 if fails
 
@@ -68,33 +70,26 @@ int fs_console_validateOp(char * newLine) {
 
 	/************ rm **************/
 	if (!strcmp(operation, "rm")) {
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
 
 		//-d
-		if (!strcmp(firstParameter, "-d")) {
-			secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
-			opResult = fs_rm_dir(secondParameter);
+		if (!strcmp(parameter_list[1], "-d")) {
+			opResult = fs_rm_dir(parameter_list[2]);
 			if (!fs_console_operationEndedSuccessfully(opResult))
 				printf("remove operation failed\n");
 		}
 
 		//-b
-		if (!strcmp(firstParameter, "-b")) {
-			char *fourthParameter = malloc(255);
-			memset(fourthParameter, 0, 255);
-			secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
-			thirdParameter = fs_console_getNParameterFromUserInput(3, newLine);
-			fourthParameter = fs_console_getNParameterFromUserInput(4, newLine);
+		if (!strcmp(parameter_list[1], "-b")) {
 
-			opResult = fs_rm_block(secondParameter, atoi(thirdParameter),
-					atoi(fourthParameter));
+			opResult = fs_rm_block(parameter_list[2], atoi(parameter_list[3]),
+					atoi(parameter_list[4]));
 
 			if (!fs_console_operationEndedSuccessfully(opResult))
 				printf("remove operation failed\n");
 
 		} else {
 			//If not -b or -d
-			opResult = fs_rm(firstParameter);
+			opResult = fs_rm(parameter_list[1]);
 			if (!fs_console_operationEndedSuccessfully(opResult))
 				printf("remove operation failed\n");
 
@@ -104,9 +99,8 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "rename")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
-		opResult = fs_rename(firstParameter, secondParameter);
+
+		opResult = fs_rename(parameter_list[1], parameter_list[2]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("rename operation failed\n");
@@ -115,10 +109,8 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "mv")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 
-		opResult = fs_mv(firstParameter, secondParameter);
+		opResult = fs_mv(parameter_list[1], parameter_list[2]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mv operation failed\n");
@@ -126,8 +118,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cat")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		opResult = fs_cat(firstParameter);
+		opResult = fs_cat(parameter_list[1]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mv operation failed\n");
@@ -136,17 +127,14 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "mkdir")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		opResult = fs_mkdir(firstParameter);
+		opResult = fs_mkdir(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mkdir operation failed\n");
 	}
 	if (!strcmp(operation, "cpfrom")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
 
-		opResult = fs_cpfrom(firstParameter, secondParameter);
+		opResult = fs_cpfrom(parameter_list[1], parameter_list[2]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mkdir operation failed\n");
 
@@ -154,9 +142,8 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpto")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
-		opResult = fs_cpfrom(firstParameter, secondParameter);
+
+		opResult = fs_cpfrom(parameter_list[1], parameter_list[2]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("cpto operation failed\n");
 
@@ -164,11 +151,9 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpblock")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		secondParameter = fs_console_getNParameterFromUserInput(2, newLine);
-		thirdParameter = fs_console_getNParameterFromUserInput(3, newLine);
-		opResult = fs_cpblock(firstParameter, atoi(secondParameter),
-				atoi(thirdParameter));
+
+		opResult = fs_cpblock(parameter_list[1], atoi(parameter_list[2]),
+				atoi(parameter_list[3]));
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("cpblock operation failed\n");
 
@@ -176,41 +161,41 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "md5")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		opResult = fs_md5(firstParameter);
+		opResult = fs_md5(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("md5 operation failed\n");
 	}
 
 	if (!strcmp(operation, "ls")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		opResult = fs_ls(firstParameter);
+		opResult = fs_ls(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("ls operation failed\n");
 	}
 
 	if (!strcmp(operation, "info")) {
 		printf("OPERATION: %s\n", operation);
-		firstParameter = fs_console_getNParameterFromUserInput(1, newLine);
-		opResult = fs_info(firstParameter);
+		opResult = fs_info(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("info operation failed\n");
 
 	}
 
-	if (!strncmp(operation, "exit", 4)) {
-		/*
-		 free(firstParameter);
-		 free(secondParameter);
-		 free(thirdParameter);*/
+	if (!strcmp(operation, "shownodes")) {
+			printf("OPERATION: %s\n", operation);
+			fs_show_connected_nodes();
 
+		}
+
+	if (!strncmp(operation, "exit", 4)) {
+
+		free(parameter_list);
 		return NULL;
 	}
 
-	/*free(firstParameter);
-	 free(secondParameter);
-	 free(thirdParameter);*/
+
+	free(operation);
+	free(parameter_list);
 
 	return 1;
 
@@ -241,10 +226,25 @@ char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput) {
 
 }
 
+char *fs_console_getNParameterFromList(int index, char **list) {
+
+
+
+}
 int fs_console_operationEndedSuccessfully(int operationResult) {
 
 	if (operationResult == 0)
 		return 1;
 	return 0;
+}
+
+int cantidadDe(char** algo)
+{
+    int i=0;
+    while(algo[i])
+    {
+        i++;
+    }
+    return i;
 }
 

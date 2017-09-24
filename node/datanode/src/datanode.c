@@ -74,6 +74,7 @@ FILE *dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 	} else { //No puede abrirlo => Lo crea
 		printf("NoExiste el data.bin");
 
+
 		log_debug(logger,
 				"Data.bin file not found. Creating with parameters of config file");
 		dataBinFileDescriptor = fopen(dataBinPath, "w+");
