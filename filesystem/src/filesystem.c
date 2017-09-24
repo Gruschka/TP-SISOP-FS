@@ -174,14 +174,14 @@ void fs_waitForDataNodes() {
 		// Copy the value of the accepted socket, in order to pass to the thread
 		int new_sock = new_dataNode_socket;
 
-		if (pthread_create(&newDataNodeThread, NULL, fs_dataNodeConnectionHandler,
-				(void*) new_dataNode_socket) < 0) {
+		if (pthread_create(&newDataNodeThread, NULL,
+				fs_dataNodeConnectionHandler, (void*) new_dataNode_socket)
+				< 0) {
 			perror("could not create thread");
 		}
 
 		puts("Handler assigned");
 	}
-
 
 	list_add(connectedNodes, &newDataNode);
 
@@ -273,13 +273,10 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 
 void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
-	int valread,cant;
+	int valread, cant;
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS ss";
 	int new_socket = (int *) dataNodeSocket;
-
-
-
 
 	t_dataNode newDataNode;
 
@@ -313,7 +310,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.occupiedBlocks = cant;
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
-	while(1){
+	while (1) {
 
 		printf("DataNOde conectado a FS en espera");
 		sleep(15);
