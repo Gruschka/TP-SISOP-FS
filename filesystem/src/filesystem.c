@@ -33,11 +33,12 @@ t_log *logger;
 void main() {
 	char *logFile = tmpnam(NULL);
 
+
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
 
 	fs_mount(&myFS);
-
+	//fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 	fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
@@ -295,7 +296,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	t_dataNode newDataNode;
 
-
 //Read Node name
 	valread = read(new_socket, buffer, 1024);
 	printf("New node connected: %s\n", buffer);
@@ -330,8 +330,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	FILE *nodeTableFile = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 
-
-
+	fs_updateNodeTable(newDataNode, nodeTableFile);
 
 	while (1) {
 
@@ -395,7 +394,7 @@ FILE *fs_openOrCreateNodeTableFile(char *directory) {
 		log_debug(logger, "found node table file");
 		return output;
 	} else { //No puede abrirlo => Lo crea
-		log_debug(logger, "node table file not found creating with parameters");
+		log_debug(logger, "node table file not found creating from scratch");
 		output = fopen(directory, "w+");
 
 		memset(buffer, 0, 50);
@@ -417,3 +416,32 @@ FILE *fs_openOrCreateNodeTableFile(char *directory) {
 	return NULL;
 }
 
+int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
+
+	char lineBuffer[255];
+	char bufferAux[255];
+
+	fseek(nodeTableFile, 0, SEEK_SET);
+	fgets(bufferAux, sizeof bufferAux, nodeTableFile); //Guardo toda la primer linea
+	char **nodeTableParameter =string_split(bufferAux,"="); //Separo los elementos despues del =
+
+	char *tamanioConNewline = malloc(strlen(nodeTableParameter[1])+1);//Creo un *char auxiliar que va a tener el numero y el \n
+	strcpy(tamanioConNewline,nodeTableParameter[1]); //Copio al char auxiliar
+
+	//Le saco el \n al tamanio actual del nodeTable
+	size_t ln = strlen(tamanioConNewline)-1;
+	if (tamanioConNewline[ln] == '\n')
+		tamanioConNewline[ln] = '\0';
+
+	int tamanioAcumulado = atoi(tamanioConNewline); //Guardo en un int el tamanio acumulado
+	fseek(nodeTableFile, 0, SEEK_SET);
+
+	//Updates Size information on metadata
+	memset(lineBuffer, 0, 255);
+	sprintf(lineBuffer, "TAMANIO=%d\n", aDataNode.amountOfBlocks + tamanioAcumulado);
+	fputs(lineBuffer, nodeTableFile);
+	//fwrite(lineBuffer, sizeof(char), strlen(lineBuffer)+1, nodeTableFile);
+	fflush(nodeTableFile);
+	return 0;
+
+}

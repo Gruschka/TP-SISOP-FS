@@ -36,7 +36,7 @@ struct t_directory {
 int fs_mount(t_FS *FS);
 int fs_openOrCreateDirectory(char * directory);
 FILE *fs_openOrCreateNodeTableFile(char *directory);
-
+int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile);
 
 //Console commands
 int fs_format();
