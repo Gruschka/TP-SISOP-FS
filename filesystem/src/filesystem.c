@@ -4,31 +4,38 @@
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
  TODO: Validar estado seguros
  TODO: Levantar archivo de configuracion
-TODO: Implementar bitmap
-TODO: Implementar montaje de FS
-TODO: Implementar tabla de directorios
-TODO:Implementar tabla de archivos
-TODO: Implementar tabla de nodos
-TODO: Logear actividad del FS sin mostrar por pantalla
+ TODO: Implementar bitmap
+ TODO: Implementar tabla de directorios
+ TODO:Implementar tabla de archivos
+ TODO: Implementar tabla de nodos
+ TODO: Logear actividad del FS sin mostrar por pantalla
 
 
  **/
 
+//Includes
 #include "filesystem.h"
 #include <pthread.h>
 #include <netinet/in.h>
 #include <commons/collections/list.h>
-//Return 0 if success 1 if fails
+#include <commons/log.h>
+#include <sys/types.h>
+#include <dirent.h>
+#include <errno.h>
 
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
-t_FS myFS; //Global struct containing the information of the FS
+t_FS myFS = {"/mnt/FS/","/mnt/FS/metadata", "/mnt/FS/metadata/archivos","/mnt/FS/metadata/directorios","/mnt/FS/metadata/bitmaps"}; //Global struct containing the information of the FS
+t_log *logger;
 
 void main() {
+	char *logFile = tmpnam(NULL);
 
+	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
 
-	fs_listenToDataNodesThread();
+	fs_mount(&myFS);
+    fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
 
@@ -190,7 +197,6 @@ void fs_waitForDataNodes() {
 		puts("Handler assigned");
 	}
 
-
 }
 void fs_yamaConnectionThread() {
 
@@ -324,10 +330,91 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 		sleep(5);
 
-
-
-
-
-
 	}
+}
+int fs_mount(t_FS *FS) {
+
+	/****************************    MOUNT DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.mountDirectoryPath);
+
+	/****************************    METADATA DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.MetadataDirectoryPath);
+
+	/****************************    ARCHIVOS DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.filesDirectoryPath);
+
+	/****************************    DIRECTORIES DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.directoryPath);
+
+	/****************************    BITMAP DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.bitmapFilePath);
+
+	return 0;
+
+}
+
+int fs_openOrCreateMetadata(t_FS *FS) { //Abre o crea la carpeta Metadata
+	// open/create metadata dir
+
+	FS->MetadataDirectoryPath = "/metadata/";
+
+	char *buffer = malloc(
+			strlen(FS->mountDirectoryPath) + strlen(FS->MetadataDirectoryPath)
+					+ 1);
+
+	buffer[0] = '\0';
+	FS->MetadataDirectoryPath = malloc(sizeof(buffer));
+	FS->MetadataDirectoryPath = "/metadata/";
+
+	strcat(buffer, FS->mountDirectoryPath);
+	strcat(buffer, FS->MetadataDirectoryPath + 1);
+
+	strcpy(FS->MetadataDirectoryPath, buffer);
+
+	DIR *metadataDirectory;
+
+	metadataDirectory = opendir(FS->MetadataDirectoryPath);
+	if (metadataDirectory == NULL) {
+		// doesnt exist then create
+		int error = mkdir(FS->MetadataDirectoryPath, 511);
+		chmod(FS->MetadataDirectoryPath, 511);
+		if (!error) {
+			log_debug(logger, "Metadata directory created on directory %s",
+					FS->MetadataDirectoryPath);
+		} else {
+			log_error(logger, "Error creating metadata directory: %s",
+					strerror(errno));
+			return -1;
+		}
+	}
+	//created or found
+	log_debug(logger, "Found and opened Metadata directory %s",
+			FS->MetadataDirectoryPath);
+	closedir(metadataDirectory);
+
+	free(buffer);
+	return 0;
+}
+
+int fs_openOrCreateDirectory(char * directory) {
+
+	DIR *newDirectory = opendir(directory);
+
+	//check if mount path exists then open
+	if (newDirectory == NULL) {
+		// doesnt exist then create
+		int error = mkdir(directory, 511);
+		// 511 is decimal for mode 777 (octal)
+		chmod(directory, 511);
+		if (!error) {
+			log_debug(logger, "FS path created on directory %s",
+					myFS.mountDirectoryPath);
+		} else {
+			log_error(logger, "error creating path %s", strerror(errno));
+			return -1;
+		}
+	}
+	log_debug(logger, "found FS mount path");
+	closedir(newDirectory);
+
 }

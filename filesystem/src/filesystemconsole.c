@@ -226,11 +226,6 @@ char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput) {
 
 }
 
-char *fs_console_getNParameterFromList(int index, char **list) {
-
-
-
-}
 int fs_console_operationEndedSuccessfully(int operationResult) {
 
 	if (operationResult == 0)

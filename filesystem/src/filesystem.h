@@ -15,10 +15,13 @@ typedef struct dataNode {
 typedef struct FS {
 	char *mountDirectoryPath;
 	char *MetadataDirectoryPath;
+	char *filesDirectoryPath;
+	char *directoryPath;
+
+	char *bitmapFilePath;
+
 	char *FSMetadataFileName;
 	char *bitmapFileName;
-	char *filesDirectoryPath;
-	char *dataDirectoryPath;
 	t_bitarray *bitmap;
 	int bitmapFileDescriptor;
 } t_FS;
@@ -29,6 +32,12 @@ struct t_directory {
 	int parent;
 };
 
+//FS commands
+int fs_mount(t_FS *FS);
+int fs_openOrCreateMetadata(t_FS *FS);
+
+
+//Console commands
 int fs_format();
 int fs_rm(char *filePath);
 int fs_rm_dir(char *dirPath);
@@ -43,6 +52,8 @@ int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
+
+//Connection functions
 void fs_listenToDataNodesThread();
 void fs_waitForDataNodes();
 void fs_yamaConnectionThread();
