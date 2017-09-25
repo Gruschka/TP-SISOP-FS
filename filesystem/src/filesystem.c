@@ -25,7 +25,9 @@
 
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
-t_FS myFS = {"/mnt/FS/","/mnt/FS/metadata", "/mnt/FS/metadata/archivos","/mnt/FS/metadata/directorios","/mnt/FS/metadata/bitmaps"}; //Global struct containing the information of the FS
+t_FS myFS = { "/mnt/FS/", "/mnt/FS/metadata", "/mnt/FS/metadata/archivos",
+		"/mnt/FS/metadata/directorios", "/mnt/FS/metadata/bitmaps",
+		"/mnt/FS/metadata/nodos.bin" }; //Global struct containing the information of the FS
 t_log *logger;
 
 void main() {
@@ -35,7 +37,8 @@ void main() {
 	connectedNodes = list_create();
 
 	fs_mount(&myFS);
-    fs_listenToDataNodesThread();
+
+	fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
 
@@ -292,6 +295,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	t_dataNode newDataNode;
 
+
 //Read Node name
 	valread = read(new_socket, buffer, 1024);
 	printf("New node connected: %s\n", buffer);
@@ -324,6 +328,11 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	list_add(connectedNodes, &newDataNode);
 
+	FILE *nodeTableFile = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
+
+
+
+
 	while (1) {
 
 		printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
@@ -353,49 +362,6 @@ int fs_mount(t_FS *FS) {
 
 }
 
-int fs_openOrCreateMetadata(t_FS *FS) { //Abre o crea la carpeta Metadata
-	// open/create metadata dir
-
-	FS->MetadataDirectoryPath = "/metadata/";
-
-	char *buffer = malloc(
-			strlen(FS->mountDirectoryPath) + strlen(FS->MetadataDirectoryPath)
-					+ 1);
-
-	buffer[0] = '\0';
-	FS->MetadataDirectoryPath = malloc(sizeof(buffer));
-	FS->MetadataDirectoryPath = "/metadata/";
-
-	strcat(buffer, FS->mountDirectoryPath);
-	strcat(buffer, FS->MetadataDirectoryPath + 1);
-
-	strcpy(FS->MetadataDirectoryPath, buffer);
-
-	DIR *metadataDirectory;
-
-	metadataDirectory = opendir(FS->MetadataDirectoryPath);
-	if (metadataDirectory == NULL) {
-		// doesnt exist then create
-		int error = mkdir(FS->MetadataDirectoryPath, 511);
-		chmod(FS->MetadataDirectoryPath, 511);
-		if (!error) {
-			log_debug(logger, "Metadata directory created on directory %s",
-					FS->MetadataDirectoryPath);
-		} else {
-			log_error(logger, "Error creating metadata directory: %s",
-					strerror(errno));
-			return -1;
-		}
-	}
-	//created or found
-	log_debug(logger, "Found and opened Metadata directory %s",
-			FS->MetadataDirectoryPath);
-	closedir(metadataDirectory);
-
-	free(buffer);
-	return 0;
-}
-
 int fs_openOrCreateDirectory(char * directory) {
 
 	DIR *newDirectory = opendir(directory);
@@ -418,3 +384,36 @@ int fs_openOrCreateDirectory(char * directory) {
 	closedir(newDirectory);
 
 }
+
+FILE *fs_openOrCreateNodeTableFile(char *directory) {
+
+	FILE *output;
+	char buffer[50];
+
+	//Intenta abrir
+	if (output = fopen(directory, "r+")) { //Existe el archivo de metadata
+		log_debug(logger, "found node table file");
+		return output;
+	} else { //No puede abrirlo => Lo crea
+		log_debug(logger, "node table file not found creating with parameters");
+		output = fopen(directory, "w+");
+
+		memset(buffer, 0, 50);
+		sprintf(buffer, "TAMANIO=0\n");
+		fputs(buffer, output);
+
+		memset(buffer, 0, 50);
+		sprintf(buffer, "LIBRE=0\n");
+		fputs(buffer, output);
+
+		memset(buffer, 0, 50);
+		sprintf(buffer, "NODOS=[]\n");
+		fputs(buffer, output);
+
+		fflush(output);
+		return output;
+	}
+
+	return NULL;
+}
+

@@ -2,6 +2,7 @@
 #define FILESYSTEM_H_
 
 #include <commons/bitarray.h>
+#include <stdio.h>
 
 typedef struct dataNode {
 
@@ -17,9 +18,8 @@ typedef struct FS {
 	char *MetadataDirectoryPath;
 	char *filesDirectoryPath;
 	char *directoryPath;
-
 	char *bitmapFilePath;
-
+	char *nodeTablePath;
 	char *FSMetadataFileName;
 	char *bitmapFileName;
 	t_bitarray *bitmap;
@@ -34,7 +34,8 @@ struct t_directory {
 
 //FS commands
 int fs_mount(t_FS *FS);
-int fs_openOrCreateMetadata(t_FS *FS);
+int fs_openOrCreateDirectory(char * directory);
+FILE *fs_openOrCreateNodeTableFile(char *directory);
 
 
 //Console commands
