@@ -2,6 +2,7 @@
 #define FILESYSTEM_H_
 
 #include <commons/bitarray.h>
+#include <commons/collections/list.h>
 #include <stdio.h>
 
 typedef struct dataNode {
@@ -37,6 +38,7 @@ int fs_mount(t_FS *FS);
 int fs_openOrCreateDirectory(char * directory);
 FILE *fs_openOrCreateNodeTableFile(char *directory);
 int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile);
+int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes);
 
 //Console commands
 int fs_format();

@@ -5,12 +5,11 @@ TODO: Setear bien cantidad de nodos libres
 #include <stdio.h>
 #include <stdlib.h>
 #include "datanode.h"
-#include <commons/config.h>
 #include <commons/log.h>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <netinet/in.h>
-
+#include<commons/config.h>
 t_log *logger;
 t_config *config;
 t_dataNode myDataNode;
@@ -116,8 +115,8 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 		exit(1);
 	}
 
-	char buffer[1024] = { 0 };
 
+	char buffer[1024] = { 0 };
 
 	//Send block name
 	send(sockfd, dataNode.config.nodeName, strlen(dataNode.config.nodeName), 0);

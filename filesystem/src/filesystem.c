@@ -17,8 +17,10 @@
 #include "filesystem.h"
 #include <pthread.h>
 #include <netinet/in.h>
-#include <commons/collections/list.h>
+
 #include <commons/log.h>
+#include <commons/config.h>
+
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
@@ -29,10 +31,10 @@ t_FS myFS = { "/mnt/FS/", "/mnt/FS/metadata", "/mnt/FS/metadata/archivos",
 		"/mnt/FS/metadata/directorios", "/mnt/FS/metadata/bitmaps",
 		"/mnt/FS/metadata/nodos.bin" }; //Global struct containing the information of the FS
 t_log *logger;
+t_config *nodeTableConfig; //Create pointer to t_config containing the nodeTable information
 
 void main() {
 	char *logFile = tmpnam(NULL);
-
 
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
@@ -421,27 +423,69 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 	char lineBuffer[255];
 	char bufferAux[255];
 
-	fseek(nodeTableFile, 0, SEEK_SET);
-	fgets(bufferAux, sizeof bufferAux, nodeTableFile); //Guardo toda la primer linea
-	char **nodeTableParameter =string_split(bufferAux,"="); //Separo los elementos despues del =
+	nodeTableConfig = config_create(myFS.nodeTablePath);
 
-	char *tamanioConNewline = malloc(strlen(nodeTableParameter[1])+1);//Creo un *char auxiliar que va a tener el numero y el \n
-	strcpy(tamanioConNewline,nodeTableParameter[1]); //Copio al char auxiliar
+	char * tamanioOriginal = config_get_string_value(nodeTableConfig,
+			"TAMANIO"); //Stores original value of TAMANIO
 
-	//Le saco el \n al tamanio actual del nodeTable
-	size_t ln = strlen(tamanioConNewline)-1;
-	if (tamanioConNewline[ln] == '\n')
-		tamanioConNewline[ln] = '\0';
+	int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
 
-	int tamanioAcumulado = atoi(tamanioConNewline); //Guardo en un int el tamanio acumulado
-	fseek(nodeTableFile, 0, SEEK_SET);
+	char *tamanioFinal = string_from_format("%d", tamanioAcumulado);
 
-	//Updates Size information on metadata
-	memset(lineBuffer, 0, 255);
-	sprintf(lineBuffer, "TAMANIO=%d\n", aDataNode.amountOfBlocks + tamanioAcumulado);
-	fputs(lineBuffer, nodeTableFile);
-	//fwrite(lineBuffer, sizeof(char), strlen(lineBuffer)+1, nodeTableFile);
+	//@DESC: Setea el valor en el archivo de config, a la key asociada.
+
+	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal);
+	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes);
+
+	char *libreTotalFinal = string_from_format("%d", libresFinal);
+
+	config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
+	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+	/*
+	 fseek(nodeTableFile, 0, SEEK_SET);
+	 fgets(bufferAux, sizeof bufferAux, nodeTableFile); //Guardo toda la primer linea
+	 char **nodeTableParameter =string_split(bufferAux,"="); //Separo los elementos despues del =
+
+	 char *tamanioConNewline = malloc(strlen(nodeTableParameter[1])+1);//Creo un *char auxiliar que va a tener el numero y el \n
+	 strcpy(tamanioConNewline,nodeTableParameter[1]); //Copio al char auxiliar
+
+	 //Le saco el \n al tamanio actual del nodeTable
+	 size_t ln = strlen(tamanioConNewline)-1;
+	 if (tamanioConNewline[ln] == '\n')
+	 tamanioConNewline[ln] = '\0';
+
+	 int tamanioAcumulado = atoi(tamanioConNewline); //Guardo en un int el tamanio acumulado
+	 fseek(nodeTableFile, 0, SEEK_SET);
+
+	 //Updates Size information on metadata
+	 memset(lineBuffer, 0, 255);
+	 sprintf(lineBuffer, "TAMANIO=%d\n", aDataNode.amountOfBlocks + tamanioAcumulado);
+	 fputs(lineBuffer, nodeTableFile);
+	 //fwrite(lineBuffer, sizeof(char), strlen(lineBuffer)+1, nodeTableFile);*/
+
 	fflush(nodeTableFile);
 	return 0;
+
+}
+
+int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes) {
+
+	int listSize = list_size(connectedNodes);
+	int i;
+	int totalFreeBlocks = 0;
+	t_dataNode * aux;
+	if (listSize == 0){
+		log_error(logger,"No data nodes connected. Cant get total amount of free b\n");
+		return -1;
+
+	}
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(connectedNodes, i);
+		totalFreeBlocks += aux->freeBlocks;
+	}
+	return totalFreeBlocks;
 
 }
