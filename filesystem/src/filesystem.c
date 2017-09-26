@@ -454,7 +454,7 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 	memset(listaNodosAux, 0, 200);
 	char *nodoConComa = malloc(strlen(aDataNode.name) + 2);
 	strcpy(nodoConComa, aDataNode.name);
-	strcat(nodoConComa, ", ");
+	strcat(nodoConComa, ",");
 	int i = 0;
 
 	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro.
