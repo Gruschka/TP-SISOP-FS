@@ -9,8 +9,7 @@
  TODO:Implementar tabla de archivos
  TODO: Implementar tabla de nodos
  TODO: Logear actividad del FS sin mostrar por pantalla
-
-
+TODO: Hacer que listaNodos de la funcion updateNodeTable reserve el tamanio justo y no un valor fijo
  **/
 
 //Includes
@@ -452,21 +451,21 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 			* sizeof(listaNodosArray);
 	char *listaNodosAux = malloc(200);
 	memset(listaNodosAux, 0, 200);
-	char *nodoConComa = malloc(strlen(aDataNode.name) + 2);
-	strcpy(nodoConComa, aDataNode.name);
-	strcat(nodoConComa, ",");
+
 	int i = 0;
 
 	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro.
 
-		listaNodosFinal = string_from_format("[%s,]", aDataNode.name);
+		listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 		config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
 
 		if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
+
 			log_debug(logger, "DataNode is already in DataNode Table\n");
+
 		} else { //Si no esta en la lista lo agrego
 			//listaNodosArray = ["NODOA","NODOB"] y quiero meter "NODOC"
 
@@ -475,7 +474,7 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 				strcat(listaNodosAux, ",");
 			}
 
-			strcat(listaNodosAux, nodoConComa); //concatena el nuevo nodo con coma y espacio
+			strcat(listaNodosAux, aDataNode.name); //concatena el nuevo nodo con coma y espacio
 
 			listaNodosFinal = string_from_format("[%s]", listaNodosAux);
 			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
