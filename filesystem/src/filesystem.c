@@ -9,7 +9,7 @@
  TODO:Implementar tabla de archivos
  TODO: Implementar tabla de nodos
  TODO: Logear actividad del FS sin mostrar por pantalla
-TODO: Hacer que listaNodos de la funcion updateNodeTable reserve el tamanio justo y no un valor fijo
+ TODO: Hacer que listaNodos de la funcion updateNodeTable reserve el tamanio justo y no un valor fijo
  **/
 
 //Includes
@@ -327,12 +327,13 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.occupiedBlocks = cant;
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
+	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 
-	FILE *nodeTableFile = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
+	if (openNodeTable == -1)
+		log_error(logger, "Error when opening Node Table");
 
-	fs_updateNodeTable(newDataNode, nodeTableFile);
+	fs_updateNodeTable(newDataNode);
 	list_add(connectedNodes, &newDataNode);
-
 
 	while (1) {
 
@@ -386,7 +387,7 @@ int fs_openOrCreateDirectory(char * directory) {
 
 }
 
-FILE *fs_openOrCreateNodeTableFile(char *directory) {
+int fs_openOrCreateNodeTableFile(char *directory) {
 
 	FILE *output;
 	char buffer[50];
@@ -412,15 +413,15 @@ FILE *fs_openOrCreateNodeTableFile(char *directory) {
 		fputs(buffer, output);
 
 		fflush(output);
-		return output;
+		fclose(output);
+		return 0;
 	}
 
-	return NULL;
+	return -1;
 }
 
-int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
+int fs_updateNodeTable(t_dataNode aDataNode) {
 
-	char lineBuffer[255];
 	char bufferAux[255];
 
 	//Crea archivo config
@@ -484,7 +485,51 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 
 	}
 
-	fflush(nodeTableFile);
+	/*************** ACTUALIZA INFORMACION DEL NODO ***************/
+
+	char *nombreAux1 = malloc(sizeof(aDataNode.name)); //le reserva espacio para nombre + total o libre
+	strcpy(nombreAux1, aDataNode.name);
+
+	char *nombreAux2 = malloc(sizeof(aDataNode.name)); //le reserva espacio para nombre + total o libre
+	strcpy(nombreAux2, aDataNode.name);
+	//Crea el string Nodo+Libre=
+	char *libres = malloc(strlen(nombreAux1) + strlen("Libre="));
+	strcpy(libres, "Libre=");
+	libres = strcat(nombreAux1, libres);
+	char *bloquesLibresFinal = string_from_format("%d", aDataNode.freeBlocks); //Pasa la cantidad de bloques libres a string
+
+	//Crea el string Nodo+Total=
+	char *total = malloc(strlen(nombreAux2) + strlen("Total="));
+	strcpy(total, "Total=");
+	total = strcat(nombreAux2, total);
+	char *bloquesTotalesFinal = string_from_format("%d",
+			aDataNode.amountOfBlocks); //Pasa la cantidad de bloques libres a string
+
+	char lineBuffer[255];
+
+	if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) {	//Si esta en la lista, solo tengo que actualizar su informacion
+
+		config_set_value(nodeTableConfig, libres, bloquesLibresFinal);
+		config_set_value(nodeTableConfig, total, bloquesTotalesFinal);
+		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+	} else { //No esta en la lista entonces tengo que crear nueva entrada
+
+		FILE *nodeTableFile = fopen(myFS.nodeTablePath, "a"); //Abre el archivo para appendear al final del mismo. el stream esta posicionado en eof
+		//Agrega libres
+		memset(lineBuffer, 0, 255);
+		sprintf(lineBuffer, "%s%s\n", libres, bloquesLibresFinal);
+		fputs(lineBuffer, nodeTableFile);
+
+		//Agrega totales
+		memset(lineBuffer, 0, 255);
+		sprintf(lineBuffer, "%s%s\n", total, bloquesTotalesFinal);
+		fputs(lineBuffer, nodeTableFile);
+
+		fclose(nodeTableFile);
+
+	}
+
 	return 0;
 
 }
