@@ -332,8 +332,9 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	if (openNodeTable == -1)
 		log_error(logger, "Error when opening Node Table");
 
-	fs_updateNodeTable(newDataNode);
 	list_add(connectedNodes, &newDataNode);
+
+	fs_updateNodeTable(newDataNode);
 
 	while (1) {
 
@@ -422,7 +423,6 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 
 int fs_updateNodeTable(t_dataNode aDataNode) {
 
-	char bufferAux[255];
 
 	//Crea archivo config
 	nodeTableConfig = config_create(myFS.nodeTablePath);
@@ -434,13 +434,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
 	char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
-	config_save_in_file(nodeTableConfig, myFS.nodeTablePath); //Lo guarda en archivo
+//	config_save_in_file(nodeTableConfig, myFS.nodeTablePath); //Lo guarda en archivo
 
 	/*************** ACTUALIZA LIBRE ***************/
 	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes); //Suma todos los bloques libres usando la lista de bloques conectados
 	char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
 	config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
-	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+//	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	/*************** ACTUALIZA LISTA NODOS ***************/
 
@@ -459,7 +459,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 		listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 		config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
-		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+		//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
 
@@ -479,11 +479,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 			listaNodosFinal = string_from_format("[%s]", listaNodosAux);
 			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
-			config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+			//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 		}
 
 	}
+	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
 
 	/*************** ACTUALIZA INFORMACION DEL NODO ***************/
 
