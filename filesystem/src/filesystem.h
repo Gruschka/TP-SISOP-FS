@@ -39,6 +39,8 @@ int fs_openOrCreateDirectory(char * directory);
 FILE *fs_openOrCreateNodeTableFile(char *directory);
 int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile);
 int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes);
+int fs_amountOfElementsInArray(char** array);
+int fs_arrayContainsString(char **array, char *string);
 
 //Console commands
 int fs_format();

@@ -20,6 +20,7 @@
 
 #include <commons/log.h>
 #include <commons/config.h>
+#include <commons/collections/list.h>
 
 #include <sys/types.h>
 #include <dirent.h>
@@ -35,7 +36,6 @@ t_config *nodeTableConfig; //Create pointer to t_config containing the nodeTable
 
 void main() {
 	char *logFile = tmpnam(NULL);
-
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
 
@@ -328,11 +328,12 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.occupiedBlocks = cant;
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
-	list_add(connectedNodes, &newDataNode);
 
 	FILE *nodeTableFile = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 
 	fs_updateNodeTable(newDataNode, nodeTableFile);
+	list_add(connectedNodes, &newDataNode);
+
 
 	while (1) {
 
@@ -392,7 +393,7 @@ FILE *fs_openOrCreateNodeTableFile(char *directory) {
 	char buffer[50];
 
 	//Intenta abrir
-	if (output = fopen(directory, "r+")) { //Existe el archivo de metadata
+	if (output = fopen(directory, "r+")) { //Existe el nodes.bin
 		log_debug(logger, "found node table file");
 		return output;
 	} else { //No puede abrirlo => Lo crea
@@ -423,48 +424,66 @@ int fs_updateNodeTable(t_dataNode aDataNode, FILE *nodeTableFile) {
 	char lineBuffer[255];
 	char bufferAux[255];
 
+	//Crea archivo config
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
+	/*************** ACTUALIZA TAMANIO ***************/
 	char * tamanioOriginal = config_get_string_value(nodeTableConfig,
 			"TAMANIO"); //Stores original value of TAMANIO
 
 	int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
+	char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
+	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
+	config_save_in_file(nodeTableConfig, myFS.nodeTablePath); //Lo guarda en archivo
 
-	char *tamanioFinal = string_from_format("%d", tamanioAcumulado);
-
-	//@DESC: Setea el valor en el archivo de config, a la key asociada.
-
-	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal);
-	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
-	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes);
-
-	char *libreTotalFinal = string_from_format("%d", libresFinal);
-
+	/*************** ACTUALIZA LIBRE ***************/
+	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes); //Suma todos los bloques libres usando la lista de bloques conectados
+	char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
 	config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
-	/*
-	 fseek(nodeTableFile, 0, SEEK_SET);
-	 fgets(bufferAux, sizeof bufferAux, nodeTableFile); //Guardo toda la primer linea
-	 char **nodeTableParameter =string_split(bufferAux,"="); //Separo los elementos despues del =
+	/*************** ACTUALIZA LISTA NODOS ***************/
 
-	 char *tamanioConNewline = malloc(strlen(nodeTableParameter[1])+1);//Creo un *char auxiliar que va a tener el numero y el \n
-	 strcpy(tamanioConNewline,nodeTableParameter[1]); //Copio al char auxiliar
+	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
+			"NODOS"); //"[Nodo1, Nodo2]"
+	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
+	char *listaNodosFinal;
+	int tamanioArrayNuevo = (fs_amountOfElementsInArray(listaNodosArray) + 1)
+			* sizeof(listaNodosArray);
+	char *listaNodosAux = malloc(200);
+	memset(listaNodosAux, 0, 200);
+	char *nodoConComa = malloc(strlen(aDataNode.name) + 2);
+	strcpy(nodoConComa, aDataNode.name);
+	strcat(nodoConComa, ", ");
+	int i = 0;
 
-	 //Le saco el \n al tamanio actual del nodeTable
-	 size_t ln = strlen(tamanioConNewline)-1;
-	 if (tamanioConNewline[ln] == '\n')
-	 tamanioConNewline[ln] = '\0';
+	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro.
 
-	 int tamanioAcumulado = atoi(tamanioConNewline); //Guardo en un int el tamanio acumulado
-	 fseek(nodeTableFile, 0, SEEK_SET);
+		listaNodosFinal = string_from_format("[%s,]", aDataNode.name);
+		config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
+		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
-	 //Updates Size information on metadata
-	 memset(lineBuffer, 0, 255);
-	 sprintf(lineBuffer, "TAMANIO=%d\n", aDataNode.amountOfBlocks + tamanioAcumulado);
-	 fputs(lineBuffer, nodeTableFile);
-	 //fwrite(lineBuffer, sizeof(char), strlen(lineBuffer)+1, nodeTableFile);*/
+	} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
+
+		if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
+			log_debug(logger, "DataNode is already in DataNode Table\n");
+		} else { //Si no esta en la lista lo agrego
+			//listaNodosArray = ["NODOA","NODOB"] y quiero meter "NODOC"
+
+			for (i = 0; i < fs_amountOfElementsInArray(listaNodosArray); i++) { //Vuelco a listaNodosAux todos los nodos del array
+				strcat(listaNodosAux, listaNodosArray[i]);
+				strcat(listaNodosAux, ",");
+			}
+
+			strcat(listaNodosAux, nodoConComa); //concatena el nuevo nodo con coma y espacio
+
+			listaNodosFinal = string_from_format("[%s]", listaNodosAux);
+			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
+			config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+		}
+
+	}
 
 	fflush(nodeTableFile);
 	return 0;
@@ -477,8 +496,9 @@ int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes) {
 	int i;
 	int totalFreeBlocks = 0;
 	t_dataNode * aux;
-	if (listSize == 0){
-		log_error(logger,"No data nodes connected. Cant get total amount of free b\n");
+	if (listSize == 0) {
+		log_error(logger,
+				"No data nodes connected. Cant get total amount of free b\n");
 		return -1;
 
 	}
@@ -489,3 +509,22 @@ int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes) {
 	return totalFreeBlocks;
 
 }
+
+int fs_amountOfElementsInArray(char** array) {
+	int i = 0;
+	while (array[i]) {
+		i++;
+	}
+	return i;
+}
+
+int fs_arrayContainsString(char **array, char *string) {
+	int i = 0;
+	while (array[i]) {
+		if (!strcmp(array[i], string))			//Si lo encuentra
+			return 0;
+		i++;
+	}
+	return -1;
+}
+
