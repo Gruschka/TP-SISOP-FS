@@ -13,6 +13,11 @@ typedef struct dataNode {
 	int occupiedBlocks;
 
 } t_dataNode;
+typedef struct t_directory {
+	int index;
+	char name[255];
+	int parent;
+} t_directory;
 
 typedef struct FS {
 	char *mountDirectoryPath;
@@ -21,17 +26,14 @@ typedef struct FS {
 	char *directoryPath;
 	char *bitmapFilePath;
 	char *nodeTablePath;
+	char *directoryTablePath;
 	char *FSMetadataFileName;
 	char *bitmapFileName;
 	t_bitarray *bitmap;
+	t_directory directoryTable[100];
 	int bitmapFileDescriptor;
 } t_FS;
 
-struct t_directory {
-	int index;
-	char name[255];
-	int parent;
-};
 
 //FS commands
 int fs_mount(t_FS *FS);
@@ -41,6 +43,11 @@ int fs_updateNodeTable(t_dataNode aDataNode);
 int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes);
 int fs_amountOfElementsInArray(char** array);
 int fs_arrayContainsString(char **array, char *string);
+int fs_openOrCreateDirectoryTableFile(char *path);
+int fs_includeDirectoryOnDirectoryFileTable(char *directory, t_directory *directoryFileTable);
+int fs_isDirectoryIncludedInDirectoryTable(char *directory, t_directory *directoryFileTable);
+int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable);
+int fs_updateDirectoryTableElement(int indexToUpdate, int parent, char *directory, t_directory *directoryTable);
 
 //Console commands
 int fs_format();

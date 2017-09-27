@@ -1,4 +1,5 @@
 /**
+ TODO: Hacer que la tabla de directorios se actualice al levantar el FS para poder validar basura
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
@@ -6,21 +7,19 @@
  TODO: Levantar archivo de configuracion
  TODO: Implementar bitmap
  TODO: Implementar tabla de directorios
- TODO:Implementar tabla de archivos
- TODO: Implementar tabla de nodos
+ TODO: Implementar tabla de archivos
  TODO: Logear actividad del FS sin mostrar por pantalla
  TODO: Hacer que listaNodos de la funcion updateNodeTable reserve el tamanio justo y no un valor fijo
+ TODO: Ejecutar filesystem con flags?
  **/
 
 //Includes
 #include "filesystem.h"
 #include <pthread.h>
 #include <netinet/in.h>
-
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/collections/list.h>
-
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
@@ -29,17 +28,16 @@
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
 t_FS myFS = { "/mnt/FS/", "/mnt/FS/metadata", "/mnt/FS/metadata/archivos",
 		"/mnt/FS/metadata/directorios", "/mnt/FS/metadata/bitmaps",
-		"/mnt/FS/metadata/nodos.bin" }; //Global struct containing the information of the FS
+		"/mnt/FS/metadata/nodos.bin", "/mnt/FS/metadata/directorios.dat" }; //Global struct containing the information of the FS
 t_log *logger;
 t_config *nodeTableConfig; //Create pointer to t_config containing the nodeTable information
-
 void main() {
+
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
-
+	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos", myFS.directoryTablePath);
 	fs_mount(&myFS);
-	//fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 	fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
@@ -358,6 +356,8 @@ int fs_mount(t_FS *FS) {
 	/****************************    DIRECTORIES DIRECTORY ****************************/
 	fs_openOrCreateDirectory(myFS.directoryPath);
 
+	/****************************    DIRECTORY TABLE PATH ****************************/
+	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
 	/****************************    BITMAP DIRECTORY ****************************/
 	fs_openOrCreateDirectory(myFS.bitmapFilePath);
 
@@ -423,7 +423,6 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 
 int fs_updateNodeTable(t_dataNode aDataNode) {
 
-
 	//Crea archivo config
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
@@ -485,7 +484,6 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
 
 	/*************** ACTUALIZA INFORMACION DEL NODO ***************/
 
@@ -574,3 +572,92 @@ int fs_arrayContainsString(char **array, char *string) {
 	return -1;
 }
 
+int fs_openOrCreateDirectoryTableFile(char *directory) {
+	FILE *directoryTableFile;
+	char buffer[50];
+
+	//Intenta abrir
+	if (directoryTableFile = fopen(directory, "r+")) { //Existe el directorios.dat
+		log_debug(logger, "found directories table file");
+		return 0;
+	} else { //No puede abrirlo => Lo crea
+		log_debug(logger,
+				"directory table file not found creating from scratch");
+		directoryTableFile = fopen(directory, "w+");
+		fclose(directoryTableFile);
+		return 0;
+	}
+
+	log_error(logger, "directory table file not found or created!");
+
+	return -1;
+}
+
+int fs_includeDirectoryOnDirectoryFileTable(char *directory,
+		t_directory *directoryTable) {
+
+
+	char ** subDirectories = string_split(directory, "/");
+	int amountOfDirectoriesToInclude = fs_amountOfElementsInArray(subDirectories);
+	int i = 0;
+	int index;
+	for (i = 0; i < amountOfDirectoriesToInclude; i++) { //Por cada subdirectorio del directorio pasado como parametro
+
+		if (!fs_isDirectoryIncludedInDirectoryTable(subDirectories[i],
+				directoryTable)) { //No esta incluido en la tabla
+
+			//Me fijo cual es la primer posicion libre del array
+			index = fs_getFirstFreeIndexOfDirectoryTable(directoryTable); //Guardo en index la posicion a actualizar en la tabla
+			if (index == -1) {
+				log_error(logger,
+						"Limit of directory table reached. Aborting directory table update\n");
+				return -1;
+			}
+
+			fs_updateDirectoryTableElement(index,i,subDirectories[i],directoryTable);
+
+		}
+
+	}
+
+}
+
+int fs_isDirectoryIncludedInDirectoryTable(char *directory,
+		t_directory *directoryTable) {
+
+	int i = 0;
+
+	while (directoryTable[i].name != NULL) {
+		if (!strcmp(directory), directoryTable[i].name) //Lo encontro
+			return 0;
+		i++;
+	}
+
+	return -1; // no lo encontro
+}
+
+int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable) {
+
+	int i = 0;
+	for (i = 0; i < 100; i++) {
+		if (directoryTable[i].name == NULL)
+			return i;
+	}
+
+	log_error(logger, "Limit of directory table reached\n");
+	return -1;
+
+}
+
+int fs_updateDirectoryTableElement(int indexToUpdate, int parent,
+		char *directory, t_directory *directoryTable) {
+
+	//Si se invoca esta funcion ya se valido que no se haya excedido el limite de la tabla. No hace falta error checking
+
+	directoryTable[indexToUpdate].index = indexToUpdate;
+	strcpy(directoryTable[indexToUpdate].name, directory);
+	directoryTable[indexToUpdate].parent = parent;
+
+	return 0;
+
+}
