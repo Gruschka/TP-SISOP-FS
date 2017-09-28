@@ -22,9 +22,9 @@
 #include <netinet/in.h>
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
 #include <sys/wait.h>
-#define TRANSFORMACION 1
-#define REDUCCION_LOCAL 2
-#define REDUCCION_GLOBAL 3
+#define TRANSFORMATION 1
+#define LOCAL_REDUCTION 2
+#define GLOBAL_REDUCTION 3
 
 
 t_log *logger;
@@ -32,6 +32,13 @@ worker_configuration configuration;
 t_list * fileList;
 
 int main() {
+	char *template = "Voy a mostrar %d";
+	int count = snprintf(NULL, 0, template, 10);
+	printf("Para 10 me dio %d", count);
+	count = snprintf(NULL, 0, template, 100);
+	printf("Para 100 me dio %d", count);
+	count = snprintf(NULL, 0, template, 1000);
+	printf("ble %s | grep ble %s ", count, a, e);
 	logger = log_create(tmpnam(NULL), "WORKER", 1, LOG_LEVEL_DEBUG);
 		loadConfiguration();
 
@@ -122,7 +129,6 @@ void connectionHandler(int client_sock){
 	char * buffer;
 	char * temporalName;
 	uint32_t temporalNameLength;
-
 	//TO DO: Implementar esto con un fork ya que despues de la etapa hay que matar al proceso
 	if((pid=fork()) == 0){
 
@@ -133,16 +139,19 @@ void connectionHandler(int client_sock){
 		recv(client_sock, script, sizeof(scriptLength), 0);
 		bytesToRead = (block * blockSize) + blockSize;
 		switch(operation){
-			case TRANSFORMACION:{
+			case TRANSFORMATION:{
 				fileNode * file = malloc (sizeof(fileNode));
 				recv(client_sock, &block, sizeof(uint32_t), 0);
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
 				temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
+				file->filePath = malloc(temporalNameLength);
 				memcpy(file->filePath, temporalName, temporalNameLength);
-				buffer = malloc(58 + scriptLength + sizeof(long int) + sizeof(int) + temporalNameLength);
-				sprintf(buffer, "head -c %li /home/utnso/data.bin | tail -c %d | %s > %s", bytesToRead, blockSize, script, temporalName);
-				//buffer = "./transformacion.py {aca va lo que leiste}  | sort > {aca va el path al output}"
+				char * template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, script, temporalName);
+				buffer = malloc(templateSize + 1);
+				sprintf(buffer, template, bytesToRead, blockSize, script, temporalName);
+				buffer[templateSize] = '\0';
 				system(buffer);
 				list_add(fileList, file);
 				free(buffer);
@@ -151,11 +160,11 @@ void connectionHandler(int client_sock){
 				free(script);
 				break;
 			}
-			case REDUCCION_LOCAL:{
+			case LOCAL_REDUCTION:{
 
 				break;
 			}
-			case REDUCCION_GLOBAL:{
+			case GLOBAL_REDUCTION:{
 
 				break;
 			}
