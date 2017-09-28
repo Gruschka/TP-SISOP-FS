@@ -2,8 +2,11 @@
  * master.c
  *
  *  Created on: Sep 8, 2017
- *      Author: Hernan Canzonetta
+ *      Author: Federico Trimboli
+ *
+ *      Insanely great master process.
  */
+
 #include <stdio.h>
 #include <stdlib.h>
 
