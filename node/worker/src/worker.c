@@ -2,15 +2,18 @@
  * worker.c
  *
  *  Created on: Sep 8, 2017
- *      Author: Hernan Canzonetta
+ *      Author: Agustin Coda
+ *      Description: An exploited Worker
  */
 
 #include "worker.h"
 #include "configWorker.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <commons/log.h>
+#include <commons/collections/list.h>
 #include <errno.h>
 #include <unistd.h>   //close
 #include <arpa/inet.h>    //close
@@ -18,7 +21,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
-
+#include <sys/wait.h>
 #define TRANSFORMACION 1
 #define REDUCCION_LOCAL 2
 #define REDUCCION_GLOBAL 3
@@ -26,7 +29,7 @@
 
 t_log *logger;
 worker_configuration configuration;
-
+t_list * fileList;
 
 int main() {
 	logger = log_create(tmpnam(NULL), "WORKER", 1, LOG_LEVEL_DEBUG);
@@ -36,7 +39,8 @@ int main() {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
-
+		fileList = list_create();
+		createServer();
 
 
 
@@ -107,26 +111,44 @@ void *createServer() {
 }
 
 void connectionHandler(int client_sock){
+	pid_t pid;
+	int status;
 	uint32_t operation;
 	char *script;
 	uint32_t scriptLength;
 	uint32_t block;
+	long int bytesToRead;
+	const int blockSize = 1024*1024;
 	char * buffer;
-	while(1){
+	char * temporalName;
+	uint32_t temporalNameLength;
+
+	//TO DO: Implementar esto con un fork ya que despues de la etapa hay que matar al proceso
+	if((pid=fork()) == 0){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
 		recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
 		script = malloc(scriptLength);
-		recv(client_sock, script,sizeof(scriptLength), 0);
-		recv(client_sock, &block, sizeof(uint32_t), 0);
-		char * blockContent = malloc(1024);
-		readABlock(block, blockContent);
+		recv(client_sock, script, sizeof(scriptLength), 0);
+		bytesToRead = (block * blockSize) + blockSize;
 		switch(operation){
 			case TRANSFORMACION:{
-
+				fileNode * file = malloc (sizeof(fileNode));
+				recv(client_sock, &block, sizeof(uint32_t), 0);
+				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
+				temporalName = malloc(temporalNameLength);
+				recv(client_sock, temporalName, temporalNameLength, 0);
+				memcpy(file->filePath, temporalName, temporalNameLength);
+				buffer = malloc(58 + scriptLength + sizeof(long int) + sizeof(int) + temporalNameLength);
+				sprintf(buffer, "head -c %li /home/utnso/data.bin | tail -c %d | %s > %s", bytesToRead, blockSize, script, temporalName);
 				//buffer = "./transformacion.py {aca va lo que leiste}  | sort > {aca va el path al output}"
 				system(buffer);
+				list_add(fileList, file);
+				free(buffer);
+				free(temporalName);
+				free(file);
+				free(script);
 				break;
 			}
 			case REDUCCION_LOCAL:{
@@ -140,10 +162,17 @@ void connectionHandler(int client_sock){
 			default:
 				log_error(logger, "Operation couldn't be identified");
 		}
-
 	}
+	else
+	{
+		close(client_sock);
+		waitpid(pid, &status, 0);
+	}
+
 }
 
+// De momento no me sirve esto
+/*
 void readABlock (uint32_t block, char * blockContent){
 	int blockLocation = block * 1024;
 	FILE *file;
@@ -160,3 +189,5 @@ void readABlock (uint32_t block, char * blockContent){
 
 
 }
+*/
+

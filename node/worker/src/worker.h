@@ -14,11 +14,18 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+typedef struct file {
+	char * filePath;
+}fileNode;
+
 void logDebug(char *);
 void loadConfiguration();
 void signalHandler(int);
 void connectionHandler(int client_fd);
-void readABlock(uint32_t block, char *blockContent);
+void pairingFiles();
+void *createServer();
 
+
+//void readABlock(uint32_t block, char *blockContent);
 
 #endif /* WORKER_H_ */
