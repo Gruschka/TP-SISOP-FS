@@ -16,7 +16,7 @@
 //Includes
 #include "filesystem.h"
 #include <pthread.h>
-#include <netinet/in.h>
+#include <netinet/in.h>s
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/collections/list.h>
@@ -39,6 +39,14 @@ void main() {
 	fs_mount(&myFS);
 	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
 			myFS.directoryTable);
+	fs_includeDirectoryOnDirectoryFileTable("user/juan/porn",
+				myFS.directoryTable);
+	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
+			myFS.directoryTable);
+	fs_includeDirectoryOnDirectoryFileTable("Soy un path con parent 0",
+				myFS.directoryTable);
+	fs_includeDirectoryOnDirectoryFileTable("caca/Soy un path con parent 1",
+					myFS.directoryTable);
 
 	fs_listenToDataNodesThread();
 
@@ -610,6 +618,7 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 			subDirectories);
 	int i = 0;
 	int index;
+
 	for (i = 0; i < amountOfDirectoriesToInclude; i++) { //Por cada subdirectorio del directorio pasado como parametro
 
 		if (!fs_isDirectoryIncludedInDirectoryTable(subDirectories[i],
@@ -622,12 +631,27 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 				return -1;
 			}
 
-			fs_updateDirectoryTableElement(index, i, subDirectories[i],
+			fs_updateDirectoryTableArrayElement(index, i, subDirectories[i],
 					directoryTable);
 
 		}
 
 	}
+
+	i = 0;
+	FILE *directoryTableFile = fopen(myFS.directoryTablePath, "w+");
+	char *buffer = malloc(sizeof(t_directory));
+	memset(buffer, 0, sizeof(buffer));
+
+	while(directoryTable[i].index != 100){
+		sprintf(buffer, "%d %s %d\n", directoryTable[i].index, directoryTable[i].name, directoryTable[i].parent);
+		fputs(buffer, directoryTableFile);
+		memset(buffer, 0, sizeof(buffer));
+		i++;
+	}
+
+	fclose(directoryTableFile);
+	return 0;
 
 }
 
@@ -637,8 +661,8 @@ int fs_isDirectoryIncludedInDirectoryTable(char *directory,
 	int i = 0;
 
 	while (directoryTable[i].index != 100) {
-		if (!strcmp(directory, directoryTable[i].name)){//Lo encontro
-			log_debug(logger,"Directory is included in Directory Table\n");
+		if (!strcmp(directory, directoryTable[i].name)) { //Lo encontro
+			log_debug(logger, "Directory is included in Directory Table\n");
 			return 1;
 
 		}
@@ -666,7 +690,7 @@ int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable) {
 
 }
 
-int fs_updateDirectoryTableElement(int indexToUpdate, int parent,
+int fs_updateDirectoryTableArrayElement(int indexToUpdate, int parent,
 		char *directory, t_directory *directoryTable) {
 
 	//Si se invoca esta funcion ya se valido que no se haya excedido el limite de la tabla. No hace falta error checking
