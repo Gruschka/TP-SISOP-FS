@@ -32,13 +32,6 @@ worker_configuration configuration;
 t_list * fileList;
 
 int main() {
-	char *template = "Voy a mostrar %d";
-	int count = snprintf(NULL, 0, template, 10);
-	printf("Para 10 me dio %d", count);
-	count = snprintf(NULL, 0, template, 100);
-	printf("Para 100 me dio %d", count);
-	count = snprintf(NULL, 0, template, 1000);
-	printf("ble %s | grep ble %s ", count, a, e);
 	logger = log_create(tmpnam(NULL), "WORKER", 1, LOG_LEVEL_DEBUG);
 		loadConfiguration();
 
