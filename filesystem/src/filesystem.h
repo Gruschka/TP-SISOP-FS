@@ -48,6 +48,7 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory, t_directory *direct
 int fs_isDirectoryIncludedInDirectoryTable(char *directory, t_directory *directoryFileTable);
 int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable);
 int fs_updateDirectoryTableElement(int indexToUpdate, int parent, char *directory, t_directory *directoryTable);
+int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index);
 
 //Console commands
 int fs_format();

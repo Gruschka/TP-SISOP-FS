@@ -36,8 +36,10 @@ void main() {
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
-	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos", myFS.directoryTablePath);
 	fs_mount(&myFS);
+	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
+			myFS.directoryTable);
+
 	fs_listenToDataNodesThread();
 
 	while (!fs_isStable()) {
@@ -579,12 +581,19 @@ int fs_openOrCreateDirectoryTableFile(char *directory) {
 	//Intenta abrir
 	if (directoryTableFile = fopen(directory, "r+")) { //Existe el directorios.dat
 		log_debug(logger, "found directories table file");
+		/*Si la tabla de directorios ya esta creada cuando levanto el FS
+		 * => tengo que limpiar el vector de la directory table desde la ultima posicion*/
+
 		return 0;
 	} else { //No puede abrirlo => Lo crea
 		log_debug(logger,
 				"directory table file not found creating from scratch");
 		directoryTableFile = fopen(directory, "w+");
 		fclose(directoryTableFile);
+
+		/*Si tengo que crear la tabla significa que es la primera vez que  levanto el FS
+		 * => tengo que limpiar el vector de la directory table desde el principio*/
+		fs_wipeDirectoryTableFromIndex(myFS.directoryTable, 0);
 		return 0;
 	}
 
@@ -596,16 +605,15 @@ int fs_openOrCreateDirectoryTableFile(char *directory) {
 int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 		t_directory *directoryTable) {
 
-
 	char ** subDirectories = string_split(directory, "/");
-	int amountOfDirectoriesToInclude = fs_amountOfElementsInArray(subDirectories);
+	int amountOfDirectoriesToInclude = fs_amountOfElementsInArray(
+			subDirectories);
 	int i = 0;
 	int index;
 	for (i = 0; i < amountOfDirectoriesToInclude; i++) { //Por cada subdirectorio del directorio pasado como parametro
 
 		if (!fs_isDirectoryIncludedInDirectoryTable(subDirectories[i],
 				directoryTable)) { //No esta incluido en la tabla
-
 			//Me fijo cual es la primer posicion libre del array
 			index = fs_getFirstFreeIndexOfDirectoryTable(directoryTable); //Guardo en index la posicion a actualizar en la tabla
 			if (index == -1) {
@@ -614,7 +622,8 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 				return -1;
 			}
 
-			fs_updateDirectoryTableElement(index,i,subDirectories[i],directoryTable);
+			fs_updateDirectoryTableElement(index, i, subDirectories[i],
+					directoryTable);
 
 		}
 
@@ -627,21 +636,29 @@ int fs_isDirectoryIncludedInDirectoryTable(char *directory,
 
 	int i = 0;
 
-	while (directoryTable[i].name != NULL) {
-		if (!strcmp(directory), directoryTable[i].name) //Lo encontro
-			return 0;
+	while (directoryTable[i].index != 100) {
+		if (!strcmp(directory, directoryTable[i].name)){//Lo encontro
+			log_debug(logger,"Directory is included in Directory Table\n");
+			return 1;
+
+		}
 		i++;
 	}
 
-	return -1; // no lo encontro
+	return 0; // no lo encontro
 }
 
 int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable) {
 
 	int i = 0;
 	for (i = 0; i < 100; i++) {
-		if (directoryTable[i].name == NULL)
+		if (directoryTable[i].index == 100) {
+
+			log_debug(logger, "Theres a free space on directory table\n");
+
 			return i;
+
+		}
 	}
 
 	log_error(logger, "Limit of directory table reached\n");
@@ -657,6 +674,19 @@ int fs_updateDirectoryTableElement(int indexToUpdate, int parent,
 	directoryTable[indexToUpdate].index = indexToUpdate;
 	strcpy(directoryTable[indexToUpdate].name, directory);
 	directoryTable[indexToUpdate].parent = parent;
+
+	return 0;
+
+}
+
+int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index) {
+
+	int i = 0;
+	for (i = index; i < 100; i++) {
+		directoryTable[i].index = 100;
+		directoryTable[i].name[0] = '\0';
+		directoryTable[i].parent = 100;
+	}
 
 	return 0;
 
