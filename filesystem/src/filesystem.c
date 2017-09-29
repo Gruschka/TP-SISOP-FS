@@ -1,6 +1,4 @@
-/**
- TODO: Hacer que la tabla de directorios se actualice al levantar el FS para poder validar basura
- TODO: Limitar directorios a 100
+/*
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
@@ -12,7 +10,7 @@
  TODO: Logear actividad del FS sin mostrar por pantalla
  TODO: Hacer que listaNodos de la funcion updateNodeTable reserve el tamanio justo y no un valor fijo
  TODO: Ejecutar filesystem con flags?
- **/
+ */
 
 //Includes
 #include "filesystem.h"
@@ -581,7 +579,7 @@ int fs_arrayContainsString(char **array, char *string) {
 
 int fs_openOrCreateDirectoryTableFile(char *directory) {
 	FILE *directoryTableFile;
-	char buffer [255];
+	char buffer[255];
 	char **lineBuffer;
 	memset(buffer, 0, sizeof(buffer));
 	int i = 0;
@@ -590,16 +588,17 @@ int fs_openOrCreateDirectoryTableFile(char *directory) {
 		log_debug(logger, "found directories table file");
 		/*Si la tabla de directorios ya esta creada cuando levanto el FS
 		 * => tengo que limpiar el vector de la directory table desde la ultima posicion*/
-		while (fgets(buffer, sizeof(buffer), directoryTableFile) != NULL) {//Guardo en el vector del FS la informacion del archivo
-			lineBuffer = string_split(buffer," ");
+		while (fgets(buffer, sizeof(buffer), directoryTableFile) != NULL) { //Guardo en el vector del FS la informacion del archivo
+			lineBuffer = string_split(buffer, " ");
 			myFS.directoryTable[i].index = i;
-			strcpy(myFS.directoryTable[i].name,lineBuffer[1]);
+			strcpy(myFS.directoryTable[i].name, lineBuffer[1]);
 			myFS.directoryTable[i].parent = atoi(lineBuffer[2]);
 			i++; //i es el equivalente al indice y tambien indica cual es el ultimo indice usado
 
 		}
 		int firstFreePositionOfDirectoryTable = i;
-		fs_wipeDirectoryTableFromIndex(myFS.directoryTable,firstFreePositionOfDirectoryTable);
+		fs_wipeDirectoryTableFromIndex(myFS.directoryTable,
+				firstFreePositionOfDirectoryTable);
 
 		return 0;
 	} else { //No puede abrirlo => Lo crea
@@ -631,6 +630,13 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 			subDirectories);
 	int i = 0;
 	int index;
+	int firstFreeIndex = fs_getFirstFreeIndexOfDirectoryTable(directoryTable);
+	int availableDirectories = 100 - firstFreeIndex; //100 es el maximo de directorios. First free index es el primer indice donde puede escribirse un nuevo directorio
+	if (amountOfDirectoriesToInclude > availableDirectories) {
+		log_error(logger,
+				"Limit of directory table reached. Aborting directory table update\n");
+		return -1;
+	}
 
 	for (i = 0; i < amountOfDirectoriesToInclude; i++) { //Por cada subdirectorio del directorio pasado como parametro
 
