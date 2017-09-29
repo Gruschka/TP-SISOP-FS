@@ -1,5 +1,6 @@
 /**
  TODO: Hacer que la tabla de directorios se actualice al levantar el FS para poder validar basura
+ TODO: Limitar directorios a 100
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
@@ -40,13 +41,9 @@ void main() {
 	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
 			myFS.directoryTable);
 	fs_includeDirectoryOnDirectoryFileTable("user/juan/porn",
-				myFS.directoryTable);
+			myFS.directoryTable);
 	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
 			myFS.directoryTable);
-	fs_includeDirectoryOnDirectoryFileTable("Soy un path con parent 0",
-				myFS.directoryTable);
-	fs_includeDirectoryOnDirectoryFileTable("caca/Soy un path con parent 1",
-					myFS.directoryTable);
 
 	fs_listenToDataNodesThread();
 
@@ -584,13 +581,25 @@ int fs_arrayContainsString(char **array, char *string) {
 
 int fs_openOrCreateDirectoryTableFile(char *directory) {
 	FILE *directoryTableFile;
-	char buffer[50];
-
+	char buffer [255];
+	char **lineBuffer;
+	memset(buffer, 0, sizeof(buffer));
+	int i = 0;
 	//Intenta abrir
 	if (directoryTableFile = fopen(directory, "r+")) { //Existe el directorios.dat
 		log_debug(logger, "found directories table file");
 		/*Si la tabla de directorios ya esta creada cuando levanto el FS
 		 * => tengo que limpiar el vector de la directory table desde la ultima posicion*/
+		while (fgets(buffer, sizeof(buffer), directoryTableFile) != NULL) {//Guardo en el vector del FS la informacion del archivo
+			lineBuffer = string_split(buffer," ");
+			myFS.directoryTable[i].index = i;
+			strcpy(myFS.directoryTable[i].name,lineBuffer[1]);
+			myFS.directoryTable[i].parent = atoi(lineBuffer[2]);
+			i++; //i es el equivalente al indice y tambien indica cual es el ultimo indice usado
+
+		}
+		int firstFreePositionOfDirectoryTable = i;
+		fs_wipeDirectoryTableFromIndex(myFS.directoryTable,firstFreePositionOfDirectoryTable);
 
 		return 0;
 	} else { //No puede abrirlo => Lo crea
@@ -602,6 +611,10 @@ int fs_openOrCreateDirectoryTableFile(char *directory) {
 		/*Si tengo que crear la tabla significa que es la primera vez que  levanto el FS
 		 * => tengo que limpiar el vector de la directory table desde el principio*/
 		fs_wipeDirectoryTableFromIndex(myFS.directoryTable, 0);
+		myFS.directoryTable[0].index = 0;
+		strcpy(myFS.directoryTable[0].name, "root");
+		myFS.directoryTable[0].parent = -1;
+
 		return 0;
 	}
 
@@ -643,8 +656,9 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 	char *buffer = malloc(sizeof(t_directory));
 	memset(buffer, 0, sizeof(buffer));
 
-	while(directoryTable[i].index != 100){
-		sprintf(buffer, "%d %s %d\n", directoryTable[i].index, directoryTable[i].name, directoryTable[i].parent);
+	while (directoryTable[i].index != 100) {
+		sprintf(buffer, "%d %s %d\n", directoryTable[i].index,
+				directoryTable[i].name, directoryTable[i].parent);
 		fputs(buffer, directoryTableFile);
 		memset(buffer, 0, sizeof(buffer));
 		i++;
