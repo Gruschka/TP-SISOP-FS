@@ -327,7 +327,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	cant = ntohl(cant);
 	newDataNode.occupiedBlocks = cant;
 
-
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
 	if (openNodeTable == -1)
@@ -335,9 +334,10 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
-	if(nodeTableUpdate == -1){
+	if (nodeTableUpdate == -1) {
 		//Matar hilo
-		log_error(logger,"Se intento conectar un nodo ya conectado. Abortando datanode.\n");
+		log_error(logger,
+				"Se intento conectar un nodo ya conectado. Abortando datanode.\n");
 	}
 
 	newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
@@ -355,27 +355,28 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 int fs_mount(t_FS *FS) {
 
 	/****************************    MOUNT DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.mountDirectoryPath);
+	fs_openOrCreateDirectory(myFS.mountDirectoryPath,0);
 
 	/****************************    METADATA DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.MetadataDirectoryPath);
+	fs_openOrCreateDirectory(myFS.MetadataDirectoryPath,0);
 
 	/****************************    ARCHIVOS DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.filesDirectoryPath);
+	fs_openOrCreateDirectory(myFS.filesDirectoryPath,0);
 
 	/****************************    DIRECTORIES DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.directoryPath);
+	fs_openOrCreateDirectory(myFS.directoryPath,0);
+
+	/****************************    BITMAP DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.bitmapFilePath,0);
 
 	/****************************    DIRECTORY TABLE PATH ****************************/
 	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
-	/****************************    BITMAP DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.bitmapFilePath);
 
 	return 0;
 
 }
 
-int fs_openOrCreateDirectory(char * directory) {
+int fs_openOrCreateDirectory(char * directory, int includeInTable) {
 
 	DIR *newDirectory = opendir(directory);
 
@@ -393,9 +394,13 @@ int fs_openOrCreateDirectory(char * directory) {
 			return -1;
 		}
 	}
-	log_debug(logger, "found FS mount path");
-	//fs_includeDirectoryOnDirectoryFileTable(directory, myFS.directoryTablePath);
+	log_debug(logger, "found path");
 	closedir(newDirectory);
+
+	if(includeInTable)
+		fs_includeDirectoryOnDirectoryFileTable(directory, myFS.directoryTablePath);
+
+	return 0;
 
 }
 
@@ -441,7 +446,8 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 			"NODOS"); //"[Nodo1, Nodo2]"
 	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
 
-	if (fs_arrayContainsString(listaNodosArray, aDataNode.name) == 0 && fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
+	if (fs_arrayContainsString(listaNodosArray, aDataNode.name) == 0
+			&& fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
 
 		log_debug(logger, "DataNode is already in DataNode Table\n");
 		return -1;
