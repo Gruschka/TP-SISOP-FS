@@ -1,4 +1,6 @@
 /*
+ * TODO: Matar hilo de un datanode ya conectado
+ * TODO: Ingresar a la tabla de directorios en el openor create directory
  TODO: Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
@@ -15,19 +17,28 @@
 //Includes
 #include "filesystem.h"
 #include <pthread.h>
-#include <netinet/in.h>s
+#include <netinet/in.h>
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/collections/list.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <errno.h>
+#include <sys/stat.h> //para bitmap
+#include <sys/types.h> //para bitmap
+#include <fcntl.h> //para bitmap
+#include <sys/mman.h> //para bitmap
 
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
-t_FS myFS = { "/mnt/FS/", "/mnt/FS/metadata", "/mnt/FS/metadata/archivos",
-		"/mnt/FS/metadata/directorios", "/mnt/FS/metadata/bitmaps",
-		"/mnt/FS/metadata/nodos.bin", "/mnt/FS/metadata/directorios.dat" }; //Global struct containing the information of the FS
+t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
+		"/mnt/FS/metadata", .filesDirectoryPath = "/mnt/FS/metadata/archivos",
+		.directoryPath = "/mnt/FS/metadata/directorios", .bitmapFilePath =
+				"/mnt/FS/metadata/bitmaps/", .nodeTablePath =
+				"/mnt/FS/metadata/nodos.bin", .directoryTablePath =
+				"/mnt/FS/metadata/directorios.dat", .totalAmountOfBlocks = 0,
+		.freeBlocks = 0, .occupiedBlocks = 0 }; //Global struct containing the information of the FS
+
 t_log *logger;
 t_config *nodeTableConfig; //Create pointer to t_config containing the nodeTable information
 void main() {
@@ -36,12 +47,6 @@ void main() {
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();
 	fs_mount(&myFS);
-	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
-			myFS.directoryTable);
-	fs_includeDirectoryOnDirectoryFileTable("user/juan/porn",
-			myFS.directoryTable);
-	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
-			myFS.directoryTable);
 
 	fs_listenToDataNodesThread();
 
@@ -55,7 +60,6 @@ void main() {
 
 	fs_console_launch();
 }
-
 int fs_format() {
 
 	//Do stuff
@@ -63,7 +67,6 @@ int fs_format() {
 	return 0;
 
 }
-
 int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
@@ -80,13 +83,11 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 
 	return 0;
 }
-
 int fs_rename(char *filePath, char *nombreFinal) {
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
 
 	return 0;
 }
-
 int fs_mv(char *origFilePath, char *destFilePath) {
 	printf("moving %s to %s\n", origFilePath, destFilePath);
 	return 0;
@@ -97,7 +98,6 @@ int fs_cat(char *filePath) {
 	return -1;
 
 }
-
 int fs_mkdir(char *directoryPath) {
 	printf("Creating directory c %s\n", directoryPath);
 	return 0;
@@ -281,7 +281,6 @@ void fs_show_connected_nodes() {
 
 	}
 }
-
 void fs_print_connected_node_info(t_dataNode *aDataNode) {
 
 	printf(
@@ -290,12 +289,11 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 			aDataNode->occupiedBlocks);
 
 }
-
 void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	int valread, cant;
 	char buffer[1024] = { 0 };
-	char *hello = "You are connected to the FS ss";
+	char *hello = "You are connected to the FS";
 	int new_socket = (int *) dataNodeSocket;
 
 	t_dataNode newDataNode;
@@ -328,16 +326,23 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
 	newDataNode.occupiedBlocks = cant;
+
+
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
-
 	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
-
 	if (openNodeTable == -1)
 		log_error(logger, "Error when opening Node Table");
 
-	list_add(connectedNodes, &newDataNode);
+	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
-	fs_updateNodeTable(newDataNode);
+	if(nodeTableUpdate == -1){
+		//Matar hilo
+		log_error(logger,"Se intento conectar un nodo ya conectado. Abortando datanode.\n");
+	}
+
+	newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
+	fs_dumpDataNodeBitmap(newDataNode);
+	list_add(connectedNodes, &newDataNode); //Si el add va despues del fs_updateNodeTable puede fallar. Debuggear.
 
 	while (1) {
 
@@ -389,6 +394,7 @@ int fs_openOrCreateDirectory(char * directory) {
 		}
 	}
 	log_debug(logger, "found FS mount path");
+	//fs_includeDirectoryOnDirectoryFileTable(directory, myFS.directoryTablePath);
 	closedir(newDirectory);
 
 }
@@ -431,6 +437,16 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	//Crea archivo config
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
+	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
+			"NODOS"); //"[Nodo1, Nodo2]"
+	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
+
+	if (fs_arrayContainsString(listaNodosArray, aDataNode.name) == 0 && fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
+
+		log_debug(logger, "DataNode is already in DataNode Table\n");
+		return -1;
+
+	}
 	/*************** ACTUALIZA TAMANIO ***************/
 	char * tamanioOriginal = config_get_string_value(nodeTableConfig,
 			"TAMANIO"); //Stores original value of TAMANIO
@@ -439,18 +455,25 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
 //	config_save_in_file(nodeTableConfig, myFS.nodeTablePath); //Lo guarda en archivo
+	myFS.totalAmountOfBlocks = tamanioAcumulado;
 
 	/*************** ACTUALIZA LIBRE ***************/
 	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes); //Suma todos los bloques libres usando la lista de bloques conectados
-	char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
-	config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
-//	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+	if (libresFinal == -1) { //Si la lista esta vacia osea que es el primer data node en conectarse
+		char *libreTotalFinal = string_from_format("%d", aDataNode.freeBlocks); //La pasa a string
+		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
+		myFS.freeBlocks = aDataNode.freeBlocks;
+	} else {
+		char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
+		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
+		myFS.freeBlocks = libresFinal;
+	}
+
+	myFS.occupiedBlocks = myFS.totalAmountOfBlocks - myFS.freeBlocks;
 
 	/*************** ACTUALIZA LISTA NODOS ***************/
 
-	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
-			"NODOS"); //"[Nodo1, Nodo2]"
-	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
 	char *listaNodosFinal;
 	int tamanioArrayNuevo = (fs_amountOfElementsInArray(listaNodosArray) + 1)
 			* sizeof(listaNodosArray);
@@ -570,7 +593,7 @@ int fs_amountOfElementsInArray(char** array) {
 int fs_arrayContainsString(char **array, char *string) {
 	int i = 0;
 	while (array[i]) {
-		if (!strcmp(array[i], string))			//Si lo encuentra
+		if (!strcmp(array[i], string))	//Si lo encuentra
 			return 0;
 		i++;
 	}
@@ -733,5 +756,98 @@ int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index) {
 	}
 
 	return 0;
+
+}
+
+int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio del archivo antes del mmap matchea con el tamanio del bitmap
+	char *buffer = malloc(N);
+
+	memset(buffer, C, N);
+	fwrite(buffer, N, 1, fileDescriptor);
+	return 0;
+}
+t_bitarray *fs_openOrCreateBitmap(t_FS FS, t_dataNode aDataNode) {
+
+	char * fullBitmapPath = malloc(
+			strlen(myFS.bitmapFilePath) + strlen(aDataNode.name)
+					+ strlen(".dat"));
+	memset(fullBitmapPath, 0, sizeof(fullBitmapPath));
+	char * fullBitmapPathBuffer = string_from_format("%s%s.dat",
+			myFS.bitmapFilePath, aDataNode.name);
+	strcpy(fullBitmapPath, fullBitmapPathBuffer);
+
+	FILE * bitmapPath;
+
+	t_bitarray *output;
+	int bitmapFileDescriptor = 0;
+	if (bitmapPath = fopen(fullBitmapPath, "rb+")) { //Abre bitmap
+
+		fclose(bitmapPath);
+
+		bitmapFileDescriptor = open(fullBitmapPath, O_RDWR);
+
+		struct stat fileStats;
+		fstat(bitmapFileDescriptor, &fileStats);
+
+		//Mappea el bitmap a memoria para que se actualice automaticamente al modificar la memoria
+		char *mapPointer = mmap(0, fileStats.st_size, PROT_WRITE, MAP_SHARED,
+				bitmapFileDescriptor, 0);
+
+		//Actualiza el bitarray pasando el puntero que devuelve el map
+		output = bitarray_create_with_mode(mapPointer,
+				aDataNode.amountOfBlocks / 8, LSB_FIRST);
+
+		log_debug(logger, "opened bitmap from disk");
+		free(fullBitmapPath);
+		return output;
+
+	} else { //Si no pudo abrir bit map (no lo encuentra) lo crea
+		log_debug(logger, "bitmap file not found creating with parameters");
+		bitmapFileDescriptor = fopen(fullBitmapPath, "wb+");
+		chmod(fullBitmapPath, 511);
+
+		int error = fs_writeNBytesOfXToFile(bitmapFileDescriptor,
+				aDataNode.amountOfBlocks, 0);
+
+		if (error == -1) {
+			fclose(bitmapFileDescriptor);
+			log_error(logger, "Error calling lseek() to 'stretch' the file: %s",
+					strerror(errno));
+			return -1;
+		}
+		fclose(bitmapFileDescriptor);
+
+		int mmapFileDescriptor = open(fullBitmapPath, O_RDWR);
+		bitmapFileDescriptor = mmapFileDescriptor;
+		struct stat scriptMap;
+		fstat(mmapFileDescriptor, &scriptMap);
+
+		char* mapPointer = mmap(0, scriptMap.st_size, PROT_WRITE, MAP_SHARED,
+				mmapFileDescriptor, 0);
+
+		output = bitarray_create_with_mode(mapPointer,
+				aDataNode.amountOfBlocks / 8, LSB_FIRST);
+
+		log_debug(logger, "bitmap created with parameters");
+		return output;
+	}
+
+	return NULL;
+
+}
+
+void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
+
+	int i = 0;
+	int unBit = 0;
+
+	while (i < myFS.totalAmountOfBlocks) {
+		unBit = bitarray_test_bit(aDataNode.bitmap, i);
+		printf("%d.[%d]", i, unBit);
+		i++;
+	}
+	printf("\n");
+
+	fflush(stdout);
 
 }
