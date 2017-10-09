@@ -1,7 +1,9 @@
 /*
- * TODO: Matar hilo de un datanode ya conectado
- * TODO: Ingresar a la tabla de directorios en el openor create directory
- TODO: Validar existencia file paths en cada funcion del fs que los utilice
+ * TODO: Restaurar FS de un estado anterior (Si no falla el update Node Table)
+ * TODO: El ingresar directorio a la tabla esta mal por el tema del parent
+ * TODO: Bitarray no se esta escribiendo bien al archivo (por la cantidad de elementos que devuelve fs_AmountOfElements
+ TODO: Cambiar disenio de los hilos de conexion de yama y datanodes
+ TODO:Validar existencia file paths en cada funcion del fs que los utilice
  TODO: Controlar que solo se conecte un YAMA
  TODO: Controlar que se conecte un YAMA solo despues que se conecte un DataNode
  TODO: Validar estado seguros
@@ -40,17 +42,22 @@ t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
 		.freeBlocks = 0, .occupiedBlocks = 0 }; //Global struct containing the information of the FS
 
 t_log *logger;
-t_config *nodeTableConfig; //Create pointer to t_config containing the nodeTable information
+t_config *nodeTableConfig; //Para levantar la tabla de nodos como un archivo de config
+
+//Enums
+enum flags {EMPTY = 100, DIRECTORY_TABLE_MAX_AMOUNT = 100};
 void main() {
 
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
-	connectedNodes = list_create();
-	fs_mount(&myFS);
+	connectedNodes = list_create();//Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
+	fs_mount(&myFS);//Crea los directorios del FS
 
-	fs_listenToDataNodesThread();
+	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
+	  			myFS.directoryTable);
+	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
-	while (!fs_isStable()) {
+	while (!fs_isStable()) { //Placeholder hardcodeado durlock
 
 		printf("FS not stable. Cant connect to YAMA");
 
@@ -337,7 +344,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	if (nodeTableUpdate == -1) {
 		//Matar hilo
 		log_error(logger,
-				"Se intento conectar un nodo ya conectado. Abortando datanode.\n");
+				"Node table update failed.\n");
 	}
 
 	newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
@@ -355,19 +362,16 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 int fs_mount(t_FS *FS) {
 
 	/****************************    MOUNT DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.mountDirectoryPath,0);
+	fs_openOrCreateDirectory(myFS.mountDirectoryPath, 0);
 
 	/****************************    METADATA DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.MetadataDirectoryPath,0);
+	fs_openOrCreateDirectory(myFS.MetadataDirectoryPath, 0);
 
-	/****************************    ARCHIVOS DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.filesDirectoryPath,0);
-
-	/****************************    DIRECTORIES DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.directoryPath,0);
+	/****************************    FILES DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.filesDirectoryPath, 0);
 
 	/****************************    BITMAP DIRECTORY ****************************/
-	fs_openOrCreateDirectory(myFS.bitmapFilePath,0);
+	fs_openOrCreateDirectory(myFS.bitmapFilePath, 0);
 
 	/****************************    DIRECTORY TABLE PATH ****************************/
 	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
@@ -397,8 +401,9 @@ int fs_openOrCreateDirectory(char * directory, int includeInTable) {
 	log_debug(logger, "found path");
 	closedir(newDirectory);
 
-	if(includeInTable)
-		fs_includeDirectoryOnDirectoryFileTable(directory, myFS.directoryTablePath);
+	if (includeInTable)
+		fs_includeDirectoryOnDirectoryFileTable(directory,
+				myFS.directoryTablePath);
 
 	return 0;
 
@@ -439,7 +444,7 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 
 int fs_updateNodeTable(t_dataNode aDataNode) {
 
-	//Crea archivo config
+	//Crea archivo config para levantar la node table
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
 	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
@@ -450,6 +455,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 			&& fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
 
 		log_debug(logger, "DataNode is already in DataNode Table\n");
+
 		return -1;
 
 	}
@@ -460,7 +466,6 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
 	char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
-//	config_save_in_file(nodeTableConfig, myFS.nodeTablePath); //Lo guarda en archivo
 	myFS.totalAmountOfBlocks = tamanioAcumulado;
 
 	/*************** ACTUALIZA LIBRE ***************/
@@ -471,14 +476,15 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = aDataNode.freeBlocks;
 	} else {
-		char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
+		int bloquesLibresTotales = aDataNode.freeBlocks + libresFinal;
+		char *libreTotalFinal = string_from_format("%d", bloquesLibresTotales); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = libresFinal;
 	}
 
 	myFS.occupiedBlocks = myFS.totalAmountOfBlocks - myFS.freeBlocks;
 
-	/*************** ACTUALIZA LISTA NODOS ***************/
+	/*************** ACTUALIZA LISTA NODOS EN NODE TABLE ***************/
 
 	char *listaNodosFinal;
 	int tamanioArrayNuevo = (fs_amountOfElementsInArray(listaNodosArray) + 1)
@@ -488,7 +494,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	int i = 0;
 
-	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro.
+	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro del archivo node table
 
 		listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 		config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
@@ -519,7 +525,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	}
 	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
-	/*************** ACTUALIZA INFORMACION DEL NODO ***************/
+	/*************** ACTUALIZA INFORMACION DE BLOQUES DEL NODO EN NODE TABLE ***************/
 
 	char *nombreAux1 = malloc(sizeof(aDataNode.name)); //le reserva espacio para nombre + total o libre
 	strcpy(nombreAux1, aDataNode.name);
@@ -563,6 +569,12 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		fclose(nodeTableFile);
 
 	}
+
+	free(nombreAux1);
+	free(nombreAux2);
+	free(libres);
+	free(total);
+
 
 	return 0;
 
@@ -709,7 +721,7 @@ int fs_isDirectoryIncludedInDirectoryTable(char *directory,
 
 	int i = 0;
 
-	while (directoryTable[i].index != 100) {
+	while (directoryTable[i].index != EMPTY) {
 		if (!strcmp(directory, directoryTable[i].name)) { //Lo encontro
 			log_debug(logger, "Directory is included in Directory Table\n");
 			return 1;
@@ -724,8 +736,8 @@ int fs_isDirectoryIncludedInDirectoryTable(char *directory,
 int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable) {
 
 	int i = 0;
-	for (i = 0; i < 100; i++) {
-		if (directoryTable[i].index == 100) {
+	for (i = 0; i < DIRECTORY_TABLE_MAX_AMOUNT; i++) {
+		if (directoryTable[i].index == EMPTY) {
 
 			log_debug(logger, "Theres a free space on directory table\n");
 
@@ -755,10 +767,10 @@ int fs_updateDirectoryTableArrayElement(int indexToUpdate, int parent,
 int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index) {
 
 	int i = 0;
-	for (i = index; i < 100; i++) {
-		directoryTable[i].index = 100;
+	for (i = index; i < DIRECTORY_TABLE_MAX_AMOUNT; i++) {
+		directoryTable[i].index = EMPTY;
 		directoryTable[i].name[0] = '\0';
-		directoryTable[i].parent = 100;
+		directoryTable[i].parent = EMPTY;
 	}
 
 	return 0;
