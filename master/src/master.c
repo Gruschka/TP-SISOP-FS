@@ -15,7 +15,8 @@
 
 int main() {
 	printf("Master");
-	int sockfd = ipc_createAndConnect(8888, "0.0.0.0");
+	initialize();
+	int sockfd = ipc_createAndConnect(8888, "127.0.0.1");
 	ipc_struct_test_message testMessage;
 	testMessage.blah = 'A';
 	testMessage.bleh = strdup("QTI AMIGO");

@@ -31,8 +31,8 @@ char *serializeTestMessage(void *data, int *size){
     memcpy(buffer, testMessage->bleh, offset = strlen(testMessage->bleh)+1 );
     memcpy(buffer+offset, &testMessage->blah, sizeof(char));
 
-    free(testMessage->bleh);
-	free(data);
+//    free(testMessage->bleh);
+//	free(data);
 	return buffer;
 }
 

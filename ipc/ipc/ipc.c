@@ -55,7 +55,6 @@ int ipc_sendMessage(int sockfd, int type, void *content) {
 	header.type = type;
 	header.length = *size;
 
-
 	memmove(buffer, &header, sizeof(ipc_struct_header));
 	memcpy(buffer + sizeof(ipc_struct_header), serialized, *size);
 

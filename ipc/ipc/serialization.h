@@ -12,14 +12,15 @@
 
 #define OPERATIONS_COUNT 1
 
-#define TEST_MESSAGE 1
-
+typedef enum ipc_operation {
+	TEST_MESSAGE
+} ipc_operation;
 
 typedef void *(*DeserializationFunction)(char *buffer);
-typedef char *(*SerializationFunction)(void *data, int *tamanio);
+typedef char *(*SerializationFunction)(void *data, int *size);
 
-static SerializationFunction serializationArray[OPERATIONS_COUNT];
-static DeserializationFunction deserializationArray[OPERATIONS_COUNT];
+SerializationFunction serializationArray[OPERATIONS_COUNT];
+DeserializationFunction deserializationArray[OPERATIONS_COUNT];
 
 typedef struct {
 	char type;
