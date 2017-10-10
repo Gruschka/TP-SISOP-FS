@@ -69,11 +69,11 @@ void *createServer() {
 	// Create socket
 	int iSetOption = 1;
 	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));
+	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption, sizeof(iSetOption));
 	if (socket_desc == -1) {
-		log_error(logger, "No se pudo crear el socket.");
+		log_error(logger, "Couldn't create socket.");
 	}
-	log_debug(logger, "Se creó el socket correctamente.");
+	log_debug(logger, "Socket correctly created");
 
 	// Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
@@ -83,6 +83,7 @@ void *createServer() {
 	// Bind
 	if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
 		log_error(logger, "Couldn't Bind.");
+		printf("\n\n %d", errno);
 		return NULL;
 	}
 
@@ -122,7 +123,6 @@ void connectionHandler(int client_sock){
 	char * buffer;
 	char * temporalName;
 	uint32_t temporalNameLength;
-	//TO DO: Implementar esto con un fork ya que despues de la etapa hay que matar al proceso
 	if((pid=fork()) == 0){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
@@ -130,11 +130,11 @@ void connectionHandler(int client_sock){
 		recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
 		script = malloc(scriptLength);
 		recv(client_sock, script, sizeof(scriptLength), 0);
-		bytesToRead = (block * blockSize) + blockSize;
 		switch(operation){
 			case TRANSFORMATION:{
 				fileNode * file = malloc (sizeof(fileNode));
 				recv(client_sock, &block, sizeof(uint32_t), 0);
+				bytesToRead = (block * blockSize) + blockSize;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
 				temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
@@ -192,4 +192,7 @@ void readABlock (uint32_t block, char * blockContent){
 
 }
 */
-
+// Apareo de Archivos
+void pairingFiles(){
+	int n = list_size(fileList);
+}

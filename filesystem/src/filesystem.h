@@ -11,8 +11,10 @@ typedef struct dataNode {
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
+	t_bitarray *bitmap;
 
 } t_dataNode;
+
 typedef struct t_directory {
 	int index;
 	char name[255];
@@ -28,8 +30,9 @@ typedef struct FS {
 	char *nodeTablePath;
 	char *directoryTablePath;
 	char *FSMetadataFileName;
-	char *bitmapFileName;
-	t_bitarray *bitmap;
+	int totalAmountOfBlocks;
+	int freeBlocks;
+	int occupiedBlocks;
 	t_directory directoryTable[100];
 	int bitmapFileDescriptor;
 } t_FS;
@@ -37,7 +40,7 @@ typedef struct FS {
 
 //FS commands
 int fs_mount(t_FS *FS);
-int fs_openOrCreateDirectory(char * directory);
+int fs_openOrCreateDirectory(char * directory, int includeFlag);
 int fs_openOrCreateNodeTableFile(char *directory);
 int fs_updateNodeTable(t_dataNode aDataNode);
 int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes);
@@ -49,6 +52,9 @@ int fs_isDirectoryIncludedInDirectoryTable(char *directory, t_directory *directo
 int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable);
 int fs_updateDirectoryTableArrayElement(int indexToUpdate, int parent, char *directory, t_directory *directoryTable);
 int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index);
+t_bitarray *fs_openOrCreateBitmap(t_FS FS, t_dataNode aDataNode);
+int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int n, int c);
+void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 
 //Console commands
 int fs_format();
