@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <stdio.h>
 
 typedef struct file {
 	char * filePath;
@@ -22,10 +23,9 @@ void logDebug(char *);
 void loadConfiguration();
 void signalHandler(int);
 void connectionHandler(int client_fd);
+
 void pairingFiles();
 void *createServer();
 
-
-//void readABlock(uint32_t block, char *blockContent);
 
 #endif /* WORKER_H_ */
