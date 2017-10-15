@@ -5,6 +5,8 @@
 #include <commons/collections/list.h>
 #include <stdio.h>
 
+#define BLOCK_SIZE 1024;
+
 typedef struct dataNode {
 
 	char *name;
@@ -30,11 +32,13 @@ typedef struct FS {
 	char *nodeTablePath;
 	char *directoryTablePath;
 	char *FSMetadataFileName;
+	char *FSFileList;
 	int totalAmountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
 	t_directory directoryTable[100];
 	int bitmapFileDescriptor;
+	int nodeTableFileDescriptor;
 } t_FS;
 
 
@@ -55,6 +59,9 @@ int fs_wipeDirectoryTableFromIndex(t_directory *directoryTable, int index);
 t_bitarray *fs_openOrCreateBitmap(t_FS FS, t_dataNode aDataNode);
 int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int n, int c);
 void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
+int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber);
+t_dataNode *fs_getNodeFromNodeName(char *nodeName);
+
 
 //Console commands
 int fs_format();

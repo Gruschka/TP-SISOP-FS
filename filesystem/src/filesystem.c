@@ -30,22 +30,27 @@
 #include <sys/types.h> //para bitmap
 #include <fcntl.h> //para bitmap
 #include <sys/mman.h> //para bitmap
+#include <stdlib.h>
 
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
-t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
-		"/mnt/FS/metadata", .filesDirectoryPath = "/mnt/FS/metadata/archivos",
-		.directoryPath = "/mnt/FS/metadata/directorios", .bitmapFilePath =
-				"/mnt/FS/metadata/bitmaps/", .nodeTablePath =
-				"/mnt/FS/metadata/nodos.bin", .directoryTablePath =
-				"/mnt/FS/metadata/directorios.dat", .totalAmountOfBlocks = 0,
-		.freeBlocks = 0, .occupiedBlocks = 0 }; //Global struct containing the information of the FS
+t_FS myFS = { 	.mountDirectoryPath = "/mnt/FS/",
+				.MetadataDirectoryPath = "/mnt/FS/metadata",
+				.filesDirectoryPath = "/mnt/FS/metadata/archivos",
+				.directoryPath = "/mnt/FS/metadata/directorios",
+				.bitmapFilePath = "/mnt/FS/metadata/bitmaps/",
+				.nodeTablePath = "/mnt/FS/metadata/nodos.bin",
+				.directoryTablePath = "/mnt/FS/metadata/directorios.dat",
+				.FSFileList = "/mnt/FS/metadata/archivos/archivos.txt",
+				.totalAmountOfBlocks = 0,
+				.freeBlocks = 0,
+				.occupiedBlocks = 0 }; //Global struct containing the information of the FS
 
 t_log *logger;
 t_config *nodeTableConfig; //Para levantar la tabla de nodos como un archivo de config
 
 //Enums
-enum flags {EMPTY = 100, DIRECTORY_TABLE_MAX_AMOUNT = 100};
+enum flags {EMPTY = 100, DIRECTORY_TABLE_MAX_AMOUNT = 100, DATANODE_ALREADY_CONNECTED=-1};
 void main() {
 
 	char *logFile = tmpnam(NULL);
@@ -53,14 +58,12 @@ void main() {
 	connectedNodes = list_create();//Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
 	fs_mount(&myFS);//Crea los directorios del FS
 
-	fs_includeDirectoryOnDirectoryFileTable("user/juan/datos",
-	  			myFS.directoryTable);
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
-	while (!fs_isStable()) { //Placeholder hardcodeado durlock
+	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
-		printf("FS not stable. Cant connect to YAMA");
-
+		log_debug(logger,"FS not stable. Cant connect to YAMA, will try again in 5 seconds-");
+		sleep(5);
 	}
 
 	//fs_yamaConnectionThread();
@@ -272,8 +275,66 @@ void fs_waitForYama() {
 
 }
 int fs_isStable() {
+	FILE *fileListFileDescriptor = fopen(myFS.FSFileList,"r+");
+	char buffer[255];
+	memset(buffer,0,255);
+	int size;
+	int blockCount;
+	int iterator;
+	int copy;
+	char * mountPathCopy = "/mnt/FS/";
+	t_config *fileMetadata;
+	while(fgets(buffer,255,fileListFileDescriptor)){
+		if(buffer[strlen(buffer)-1] == '\n'){
+			buffer[strlen(buffer)-1] = '\0';
+		}
 
-	return 1;
+		char *fullFilePath = string_from_format("/mnt/FS/%s",buffer);
+		fileMetadata = config_create(fullFilePath);
+		char *sizeString = config_get_string_value(fileMetadata,"TAMANIO");
+		size = atoi(sizeString);
+
+		blockCount = size / BLOCK_SIZE;
+
+		iterator = 0;
+		copy = 0;
+
+		while(iterator < blockCount){
+			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d", iterator,copy);
+			char *nodeBlockTupleAsString = config_get_string_value(fileMetadata,blockToSearch);
+			char **nodeBlockTupleAsArray = string_get_string_as_array(nodeBlockTupleAsString);
+
+			int blockNumber = atoi(nodeBlockTupleAsArray[1]);
+
+			//si tenes el nodo y el nodo tiene el bloque esta OK, me chupa un huevo la data
+			if(!fs_checkNodeBlockTupleConsistency(nodeBlockTupleAsArray[0],blockNumber)){
+				free(blockToSearch);
+				free(nodeBlockTupleAsString);
+				//free(nodeBlockTupleAsArray);
+				iterator++;
+				copy=0;
+			}else{
+				if(!copy){
+					copy = 1;
+				}else{
+					//no pudo armar el bloque
+					log_debug(logger,"consistency error for file %s",buffer);
+					log_debug(logger,"missing block no. %s",blockToSearch);
+					config_destroy(fileMetadata);
+					free(sizeString);
+					//free(fullFilePath);
+					return EXIT_FAILURE;
+				}
+			}
+		}
+		config_destroy(fileMetadata);
+		free(sizeString);
+		free(fullFilePath);
+	}
+
+	fclose(fileListFileDescriptor);
+
+	return EXIT_SUCCESS;
 }
 void fs_show_connected_nodes() {
 
@@ -335,20 +396,21 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.occupiedBlocks = cant;
 
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
-	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
-	if (openNodeTable == -1)
-		log_error(logger, "Error when opening Node Table");
+
 
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
-	if (nodeTableUpdate == -1) {
-		//Matar hilo
+	/*if (nodeTableUpdate == DATANODE_ALREADY_CONNECTED) {
 		log_error(logger,
 				"Node table update failed.\n");
-	}
 
-	newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
-	fs_dumpDataNodeBitmap(newDataNode);
+		//Matar hilo
+
+		return;
+	}*/
+
+	//newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
+//	fs_dumpDataNodeBitmap(newDataNode);
 	list_add(connectedNodes, &newDataNode); //Si el add va despues del fs_updateNodeTable puede fallar. Debuggear.
 
 	while (1) {
@@ -360,7 +422,9 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	}
 }
 int fs_mount(t_FS *FS) {
-
+	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
+	if (openNodeTable == -1)
+		log_error(logger, "Error when opening Node Table");
 	/****************************    MOUNT DIRECTORY ****************************/
 	fs_openOrCreateDirectory(myFS.mountDirectoryPath, 0);
 
@@ -417,7 +481,8 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 	//Intenta abrir
 	if (output = fopen(directory, "r+")) { //Existe el nodes.bin
 		log_debug(logger, "found node table file");
-		return output;
+		myFS.nodeTableFileDescriptor = output->_fileno;
+		return 0;
 	} else { //No puede abrirlo => Lo crea
 		log_debug(logger, "node table file not found creating from scratch");
 		output = fopen(directory, "w+");
@@ -456,7 +521,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 		log_debug(logger, "DataNode is already in DataNode Table\n");
 
-		return -1;
+		return DATANODE_ALREADY_CONNECTED;
 
 	}
 	/*************** ACTUALIZA TAMANIO ***************/
@@ -570,11 +635,12 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 
+	/*
 	free(nombreAux1);
 	free(nombreAux2);
 	free(libres);
 	free(total);
-
+	*/
 
 	return 0;
 
@@ -868,4 +934,38 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
 
 	fflush(stdout);
 
+}
+
+int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber){ //No puede abrirlo => Lo crea
+	t_dataNode *connectedNode;
+	connectedNode = fs_getNodeFromNodeName(dataNodeName);
+	if(connectedNode == NULL){
+		return EXIT_FAILURE;
+	}
+
+	if(connectedNode->amountOfBlocks >= blockNumber){
+		return EXIT_SUCCESS;
+	}
+
+	return EXIT_FAILURE;
+}
+
+t_dataNode *fs_getNodeFromNodeName(char *nodeName){
+	int listSize = list_size(connectedNodes);
+	if(!listSize){
+		return NULL;
+	}
+
+	int iterator = 0;
+	t_dataNode *nodeToReturn;
+
+	while(iterator < listSize){
+		nodeToReturn = list_get(connectedNodes,iterator);
+		if(!strcmp(nodeName,nodeToReturn->name)){
+			return nodeToReturn;
+		}
+		iterator++;
+	}
+
+	return NULL;
 }
