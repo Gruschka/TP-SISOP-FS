@@ -5,7 +5,7 @@
 #include <commons/collections/list.h>
 #include <stdio.h>
 
-#define BLOCK_SIZE 1024;
+#define BLOCK_SIZE 1024
 
 typedef struct dataNode {
 
@@ -61,7 +61,8 @@ int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int n, int c);
 void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber);
 t_dataNode *fs_getNodeFromNodeName(char *nodeName);
-
+t_list *fs_getPreviouslyConnectedNodesNames();
+float fs_bytesToMegaBytes(int bytes);
 
 //Console commands
 int fs_format();

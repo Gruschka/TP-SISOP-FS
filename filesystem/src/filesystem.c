@@ -30,10 +30,12 @@
 #include <sys/types.h> //para bitmap
 #include <fcntl.h> //para bitmap
 #include <sys/mman.h> //para bitmap
-#include <stdlib.h>
+#include <stdlib.h> //Para EXIT_SUCCESS y EXIT_FAILURE
+#include <math.h> //Para redondear los bits
 
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
+t_list *previouslyConnectedNodesNames; //Only the names
 t_FS myFS = { 	.mountDirectoryPath = "/mnt/FS/",
 				.MetadataDirectoryPath = "/mnt/FS/metadata",
 				.filesDirectoryPath = "/mnt/FS/metadata/archivos",
@@ -56,6 +58,9 @@ void main() {
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create();//Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
+	previouslyConnectedNodesNames = list_create();
+	previouslyConnectedNodesNames = fs_getPreviouslyConnectedNodesNames();
+
 	fs_mount(&myFS);//Crea los directorios del FS
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
@@ -282,7 +287,6 @@ int fs_isStable() {
 	int blockCount;
 	int iterator;
 	int copy;
-	char * mountPathCopy = "/mnt/FS/";
 	t_config *fileMetadata;
 	while(fgets(buffer,255,fileListFileDescriptor)){
 		if(buffer[strlen(buffer)-1] == '\n'){
@@ -294,12 +298,12 @@ int fs_isStable() {
 		char *sizeString = config_get_string_value(fileMetadata,"TAMANIO");
 		size = atoi(sizeString);
 
-		blockCount = size / BLOCK_SIZE;
-
+		blockCount = ceilf(fs_bytesToMegaBytes(size)); //Convierto a MB y como cada bloque es de 1MB la relacion es 1 a 1 (no hace falta dividir por block/size)
+		//Uso ceilf por si usa una parte de otro bloque (ej 1,17 son 2 bloques).
 		iterator = 0;
 		copy = 0;
 
-		while(iterator < blockCount){
+		while(iterator < blockCount){ //Si blockCount es 1 => son 2 bloques (0,1) por lo que debe ser menor o igual
 			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d", iterator,copy);
 			char *nodeBlockTupleAsString = config_get_string_value(fileMetadata,blockToSearch);
 			char **nodeBlockTupleAsArray = string_get_string_as_array(nodeBlockTupleAsString);
@@ -309,8 +313,6 @@ int fs_isStable() {
 			//si tenes el nodo y el nodo tiene el bloque esta OK, me chupa un huevo la data
 			if(!fs_checkNodeBlockTupleConsistency(nodeBlockTupleAsArray[0],blockNumber)){
 				free(blockToSearch);
-				free(nodeBlockTupleAsString);
-				//free(nodeBlockTupleAsArray);
 				iterator++;
 				copy=0;
 			}else{
@@ -321,14 +323,12 @@ int fs_isStable() {
 					log_debug(logger,"consistency error for file %s",buffer);
 					log_debug(logger,"missing block no. %s",blockToSearch);
 					config_destroy(fileMetadata);
-					free(sizeString);
-					//free(fullFilePath);
+					free(fullFilePath);
 					return EXIT_FAILURE;
 				}
 			}
 		}
 		config_destroy(fileMetadata);
-		free(sizeString);
 		free(fullFilePath);
 	}
 
@@ -411,7 +411,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	//newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
 //	fs_dumpDataNodeBitmap(newDataNode);
-	list_add(connectedNodes, &newDataNode); //Si el add va despues del fs_updateNodeTable puede fallar. Debuggear.
+	list_add(connectedNodes, &newDataNode);
 
 	while (1) {
 
@@ -521,6 +521,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 		log_debug(logger, "DataNode is already in DataNode Table\n");
 
+		config_destroy(nodeTableConfig);
 		return DATANODE_ALREADY_CONNECTED;
 
 	}
@@ -641,7 +642,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	free(libres);
 	free(total);
 	*/
-
+	config_destroy(nodeTableConfig);
 	return 0;
 
 }
@@ -968,4 +969,38 @@ t_dataNode *fs_getNodeFromNodeName(char *nodeName){
 	}
 
 	return NULL;
+}
+
+t_list *fs_getPreviouslyConnectedNodesNames(){
+
+	nodeTableConfig = config_create(myFS.nodeTablePath);
+
+	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
+				"NODOS"); //"[Nodo1, Nodo2]"
+		char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1","Nodo2"]
+
+	if(fs_amountOfElementsInArray(listaNodosArray)==0){
+		log_debug(logger,"No previously connected nodes - FS is starting from scratch");
+		return EXIT_FAILURE;
+	}
+
+	int i = 0;
+
+	for(i = 0; i < fs_amountOfElementsInArray(listaNodosArray);i++){
+		list_add(previouslyConnectedNodesNames,listaNodosArray[i]);
+	}
+
+	char * primerNodo = list_get(previouslyConnectedNodesNames,0);
+	char * segundoNodo = list_get(previouslyConnectedNodesNames,1);
+
+	config_destroy(nodeTableConfig);
+	return EXIT_SUCCESS;
+
+
+
+}
+
+float fs_bytesToMegaBytes(int bytes){
+	float bytesInFloat = bytes;
+	return bytesInFloat/1024/1024;
 }
