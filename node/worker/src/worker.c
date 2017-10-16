@@ -30,17 +30,19 @@
 t_log *logger;
 worker_configuration configuration;
 t_list * fileList;
+t_list * pruebasApareo;
 
 int main() {
-	logger = log_create(tmpnam(NULL), "WORKER", 1, LOG_LEVEL_DEBUG);
-		loadConfiguration();
 
-		if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
+	char * logFile = tmpnam(NULL);
+	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+	loadConfiguration();
+	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
-		fileList = list_create();
-		createServer();
+	fileList = list_create();
+	createServer();
 
 
 
@@ -173,26 +175,64 @@ void connectionHandler(int client_sock){
 
 }
 
-// De momento no me sirve esto
-/*
-void readABlock (uint32_t block, char * blockContent){
-	int blockLocation = block * 1024;
-	FILE *file;
 
-	//Open File
-	file = fopen(configuration.binPath, "rb");
-	if (!file) {
-		log_error(logger, "Couldn't open file: %s", configuration.binPath);
-	}
-
-	fseek(file, blockLocation, SEEK_SET);
-
-	fread(&blockContent, 1024, 1, file);
-
-
-}
-*/
 // Apareo de Archivos
-void pairingFiles(){
-	int n = list_size(fileList);
+void pairingFiles(t_list *listToPair, char* resultName){
+	int i, lower, registerPosition;
+	int eofCounter = 0;
+	char *lowerString = NULL;
+
+	fileNode *fileToOpen = malloc(sizeof(fileNode));
+	FILE *registerFromFile;
+	FILE *pairingResult;
+	pairingResult = fopen(resultName, "w+");
+	int listSize = list_size(listToPair);
+	char fileRegister [listSize][256];
+	FILE* filesArray[listSize];
+	for(i=0; i < listSize; i++){
+		fileToOpen = list_get(listToPair, i);
+		filesArray[i]= fopen(fileToOpen->filePath, "r");
+		fgets(fileRegister[i], 256, filesArray[i]);
+	}
+	strcpy(lowerString, fileRegister[0]);
+	registerFromFile = filesArray[0];
+	i = 0;
+	while(eofCounter < listSize){
+		if(fileRegister[i] != NULL){
+			lower = strcmp(lowerString, fileRegister[i]);
+			if(lower > 0){
+				strcpy(lowerString, fileRegister[i]);
+				registerFromFile = filesArray[i];
+				registerPosition = i;
+			}
+		}
+		i++;
+		if(i == (listSize - 1)){
+			fprintf(pairingResult, "%s \n", lowerString);
+			fgets(fileRegister[registerPosition], 256, registerFromFile);
+			if (fileRegister[registerPosition] == NULL){
+				eofCounter ++;
+			}
+			else{
+				strcpy(lowerString, fileRegister[registerPosition]);
+			}
+			i = 0;
+		}
+
+	}
+	for(i=0; i < listSize; i++){
+		fclose(filesArray[i]);
+	}
+	fclose(pairingResult);
+
+
 }
+
+
+
+
+
+
+
+
+

@@ -145,7 +145,7 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 	while(1){
 
 		//Codigo para escuchar pedidos del fs aca;lk;lk
-		printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
+		//printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
 		sleep(5);
 
 	}
