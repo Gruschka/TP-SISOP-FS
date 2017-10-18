@@ -10,6 +10,9 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include<commons/config.h>
+#include <sys/mman.h> //mmap
+#include <fcntl.h> // O_RDRW
+
 t_log *logger;
 t_config *config;
 t_dataNode myDataNode;
@@ -35,14 +38,14 @@ int main(int argc, char **argv) {
 	int dataBinResult = dataNode_openOrCreateDataBinFile(
 			myDataNode.config.databinPath, myDataNode.config.sizeInMb);
 
-	FILE * dataBinFile = fopen(myDataNode.config.databinPath,"w+");
+	FILE * dataBinFile = fopen(myDataNode.config.databinPath, "w+");
 
 	dataNode_setBlockInformation(&myDataNode);
-	char *test = "ESCRIBIESTOCONLAFUNCION";
-	dataNode_setBlock(0,test);
+	char *test = "ESTOESTAENELTERCERBLOQUEDELARCHIVO";
+	dataNode_setBlock(2, test);
 	void *prueba = malloc(BLOCK_SIZE);
 	memset(prueba, 0, BLOCK_SIZE);
-	prueba = dataNode_getBlock(0);
+	prueba = dataNode_getBlock(2);
 
 	dataNode_connectToFileSystem(myDataNode);
 
@@ -70,9 +73,12 @@ int dataNode_loadConfig(t_dataNode *dataNode) {
 int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 
 	FILE * dataBinFileDescriptor;
-
 	if (dataBinFileDescriptor = fopen(dataBinPath, "r+")) { //Existe el archivo de data.bin
 		log_debug(logger, "Data.bin file  found. Wont create from scratch");
+		log_debug(logger, "Maping Data.bin to memory");
+
+		dataNode_mmapDataBin(dataBinPath);
+
 		return EXIT_FAILURE;
 
 	} else { //No puede abrirlo => Lo crea
@@ -82,6 +88,10 @@ int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 				"Data.bin file not found. Creating with parameters of config file");
 		dataBinFileDescriptor = fopen(dataBinPath, "w+");
 		ftruncate(fileno(dataBinFileDescriptor), sizeInMb * BLOCK_SIZE);
+
+		log_debug(logger, "Maping Data.bin to memory");
+
+		dataNode_mmapDataBin(dataBinPath);
 		return EXIT_SUCCESS;
 	}
 
@@ -178,16 +188,18 @@ void *dataNode_getBlock(int blockNumber) {
 	//Me posiciono en el bloque correspondiente partiendo desde el principio
 	result = fseek(dataBinFileDescriptor, positionInBytesOfTheBlock, SEEK_SET);
 
-	if(result == -1){
-			log_error(logger, "Error al intentar posicionar el bloque %d del databin",blockNumber);
-			return NULL;
-		}
+	if (result == -1) {
+		log_error(logger,
+				"Error al intentar posicionar el bloque %d del databin",
+				blockNumber);
+		return NULL;
+	}
 
 	//Leo 1 BLOCK_SIZE (1024*1024)
 	result = fread(blockInformation, 1, BLOCK_SIZE, dataBinFileDescriptor);
 
-	if(result == 0){
-		log_error(logger, "Error al intentar leer bloque %d",blockNumber);
+	if (result == 0) {
+		log_error(logger, "Error al intentar leer bloque %d", blockNumber);
 		return NULL;
 	}
 
@@ -210,16 +222,18 @@ int dataNode_setBlock(int blockNumber, void *dataToWrite) {
 	//Me posiciono en el bloque correspondiente partiendo desde el principio
 	result = fseek(dataBinFileDescriptor, positionInBytesOfTheBlock, SEEK_SET);
 
-	if(result == -1){
-			log_error(logger, "Error al intentar posicionar el bloque %d del databin",blockNumber);
-			return EXIT_FAILURE;
-		}
+	if (result == -1) {
+		log_error(logger,
+				"Error al intentar posicionar el bloque %d del databin",
+				blockNumber);
+		return EXIT_FAILURE;
+	}
 
 	//Leo 1 BLOCK_SIZE (1024*1024)
 	result = fwrite(dataToWrite, 1, BLOCK_SIZE, dataBinFileDescriptor);
 
-	if(result == 0){
-		log_error(logger, "Error al intentar leer bloque %d",blockNumber);
+	if (result == 0) {
+		log_error(logger, "Error al intentar leer bloque %d", blockNumber);
 		return EXIT_FAILURE;
 	}
 
@@ -227,4 +241,34 @@ int dataNode_setBlock(int blockNumber, void *dataToWrite) {
 
 	return EXIT_SUCCESS;
 
+}
+
+int dataNode_mmapDataBin(char* dataBinPath) {
+
+	struct stat mystat;
+
+	myDataNode.dataBinFileDescriptor = open(dataBinPath, O_RDWR);
+
+	if (myDataNode.dataBinFileDescriptor == -1) {
+		log_error(logger, "Error opening Data.bin in order to map to memory");
+		return EXIT_FAILURE;
+	}
+
+	if (fstat(myDataNode.dataBinFileDescriptor, &mystat) < 0) {
+		log_error(logger,
+				"Error at fstat of Data.bin in order to map to memory");
+		return EXIT_FAILURE;
+
+	}
+
+	myDataNode.dataBinMMapedPointer = mmap(0, mystat.st_size,
+	PROT_READ | PROT_WRITE, MAP_SHARED, myDataNode.dataBinFileDescriptor, 0);
+
+	if (myDataNode.dataBinMMapedPointer == MAP_FAILED) {
+		log_error(logger, "Error creating mmap pointer to Data.bin file");
+		return EXIT_FAILURE;
+
+	}
+
+	return EXIT_SUCCESS;
 }

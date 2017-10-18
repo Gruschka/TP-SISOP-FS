@@ -33,6 +33,8 @@ typedef struct dataNode {
 
 	t_dataNodeBlockInfo blockInfo;
 	t_dataNodeConfig config;
+	char *dataBinMMapedPointer;
+	int dataBinFileDescriptor;
 	FILE *dataBinFile;
 
 } t_dataNode;
