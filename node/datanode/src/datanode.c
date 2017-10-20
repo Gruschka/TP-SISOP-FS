@@ -38,14 +38,23 @@ int main(int argc, char **argv) {
 	int dataBinResult = dataNode_openOrCreateDataBinFile(
 			myDataNode.config.databinPath, myDataNode.config.sizeInMb);
 
-	FILE * dataBinFile = fopen(myDataNode.config.databinPath, "w+");
+	//FILE * dataBinFile = fopen(myDataNode.config.databinPath, "w+");
 
 	dataNode_setBlockInformation(&myDataNode);
-	char *test = "ESTOESTAENELTERCERBLOQUEDELARCHIVO";
-	dataNode_setBlock(2, test);
+
+	char * test = "test";
 	void *prueba = malloc(BLOCK_SIZE);
+		memset(prueba, 0, BLOCK_SIZE);
+
+	memcpy(prueba, test, strlen(test));
+	dataNode_setBlock(0, prueba);
+	prueba = dataNode_getBlock(0);
+
 	memset(prueba, 0, BLOCK_SIZE);
-	prueba = dataNode_getBlock(2);
+	char * test2 = "estoy en el tercer bloque";
+	memcpy(prueba, test2, strlen(test2));
+	dataNode_setBlock(3, prueba);
+	prueba = dataNode_getBlock(3);
 
 	dataNode_connectToFileSystem(myDataNode);
 
@@ -87,7 +96,8 @@ int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 		log_debug(logger,
 				"Data.bin file not found. Creating with parameters of config file");
 		dataBinFileDescriptor = fopen(dataBinPath, "w+");
-		ftruncate(fileno(dataBinFileDescriptor), sizeInMb * BLOCK_SIZE);
+		dataNode_writeNBytesOfXToFile(dataBinFileDescriptor, sizeInMb * BLOCK_SIZE,0);
+		//ftruncate(fileno(dataBinFileDescriptor), sizeInMb * BLOCK_SIZE);
 
 		log_debug(logger, "Maping Data.bin to memory");
 
@@ -176,34 +186,13 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode) {
 
 void *dataNode_getBlock(int blockNumber) {
 
-	FILE * dataBinFileDescriptor;
-	int result = 0;
 	void *blockInformation = malloc(BLOCK_SIZE);
 	memset(blockInformation, 0, BLOCK_SIZE);
 
-	dataBinFileDescriptor = fopen(myDataNode.config.databinPath, "r+"); //Abro el archivo
-
 	int positionInBytesOfTheBlock = blockNumber * BLOCK_SIZE;
 
-	//Me posiciono en el bloque correspondiente partiendo desde el principio
-	result = fseek(dataBinFileDescriptor, positionInBytesOfTheBlock, SEEK_SET);
+	memcpy(blockInformation, myDataNode.dataBinMMapedPointer+positionInBytesOfTheBlock,BLOCK_SIZE);
 
-	if (result == -1) {
-		log_error(logger,
-				"Error al intentar posicionar el bloque %d del databin",
-				blockNumber);
-		return NULL;
-	}
-
-	//Leo 1 BLOCK_SIZE (1024*1024)
-	result = fread(blockInformation, 1, BLOCK_SIZE, dataBinFileDescriptor);
-
-	if (result == 0) {
-		log_error(logger, "Error al intentar leer bloque %d", blockNumber);
-		return NULL;
-	}
-
-	fclose(dataBinFileDescriptor);
 
 	return blockInformation;
 
@@ -211,33 +200,11 @@ void *dataNode_getBlock(int blockNumber) {
 
 int dataNode_setBlock(int blockNumber, void *dataToWrite) {
 
-	FILE * dataBinFileDescriptor;
-	int result = 0;
-
-	//Abro el archivo
-	dataBinFileDescriptor = fopen(myDataNode.config.databinPath, "w+");
 
 	int positionInBytesOfTheBlock = blockNumber * BLOCK_SIZE;
 
-	//Me posiciono en el bloque correspondiente partiendo desde el principio
-	result = fseek(dataBinFileDescriptor, positionInBytesOfTheBlock, SEEK_SET);
+	memcpy(myDataNode.dataBinMMapedPointer+positionInBytesOfTheBlock, dataToWrite, BLOCK_SIZE);
 
-	if (result == -1) {
-		log_error(logger,
-				"Error al intentar posicionar el bloque %d del databin",
-				blockNumber);
-		return EXIT_FAILURE;
-	}
-
-	//Leo 1 BLOCK_SIZE (1024*1024)
-	result = fwrite(dataToWrite, 1, BLOCK_SIZE, dataBinFileDescriptor);
-
-	if (result == 0) {
-		log_error(logger, "Error al intentar leer bloque %d", blockNumber);
-		return EXIT_FAILURE;
-	}
-
-	fclose(dataBinFileDescriptor);
 
 	return EXIT_SUCCESS;
 
@@ -270,5 +237,12 @@ int dataNode_mmapDataBin(char* dataBinPath) {
 
 	}
 
+	return EXIT_SUCCESS;
+}
+
+int dataNode_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio del archivo antes del mmap matchea con el tamanio del del archivo
+	char *buffer = malloc(N);
+	memset(buffer, C, N);
+	fwrite(buffer, N, 1, fileDescriptor);
 	return EXIT_SUCCESS;
 }
