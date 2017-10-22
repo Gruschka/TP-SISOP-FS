@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <commons/collections/list.h>
 
 typedef struct file {
 	char * filePath;
@@ -23,7 +24,7 @@ void logDebug(char *);
 void loadConfiguration();
 void signalHandler(int);
 void connectionHandler(int client_fd);
-
+void pairingGlobalFiles(t_list *listToPair, char* resultName);
 void pairingFiles();
 void *createServer();
 

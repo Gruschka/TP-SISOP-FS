@@ -15,6 +15,9 @@
 #include <ipc/serialization.h>
 
 int main(int argc, char **argv) {
+	FILE *file = fopen("./resultado.txt", "w");
+	fputs("ok", file);
+
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
 		return EXIT_FAILURE;

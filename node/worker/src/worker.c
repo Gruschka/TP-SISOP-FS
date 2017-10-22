@@ -25,6 +25,7 @@
 #define TRANSFORMATION 1
 #define LOCAL_REDUCTION 2
 #define GLOBAL_REDUCTION 3
+#define OK 1
 
 
 t_log *logger;
@@ -32,8 +33,10 @@ worker_configuration configuration;
 t_list * fileList;
 t_list * pruebasApareo;
 
-int main() {
 
+
+
+int main() {
 	char * logFile = tmpnam(NULL);
 	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
 	loadConfiguration();
@@ -45,6 +48,25 @@ int main() {
 	createServer();
 
 
+	//Esto para test de apareo local
+//	fileNode * testLocal1 = malloc(sizeof(fileNode));
+//	fileNode * testLocal2 = malloc(sizeof(fileNode));
+//	fileNode * testLocal3 = malloc(sizeof(fileNode));
+//	fileNode * testLocal4 = malloc(sizeof(fileNode));
+//	testLocal1->filePath = malloc (strlen("/home/utnso/LocalTest1"));
+//	testLocal2->filePath = malloc (strlen("/home/utnso/LocalTest2"));
+//	testLocal3->filePath = malloc (strlen("/home/utnso/LocalTest3"));
+//	testLocal4->filePath = malloc (strlen("/home/utnso/LocalTest4"));
+//	strcpy(testLocal1->filePath, "/home/utnso/LocalTest1");
+//	strcpy(testLocal2->filePath, "/home/utnso/LocalTest2");
+//	strcpy(testLocal3->filePath, "/home/utnso/LocalTest3");
+//
+//	strcpy(testLocal4->filePath, "/home/utnso/LocalTest4");
+//	list_add(fileList, testLocal1);
+//	list_add(fileList, testLocal2);
+//	list_add(fileList, testLocal3);
+//	list_add(fileList, testLocal4);
+//	pairingFiles(fileList, "PairTest");
 
 	return EXIT_SUCCESS;
 }
@@ -135,6 +157,7 @@ void connectionHandler(int client_sock){
 		switch(operation){
 			case TRANSFORMATION:{
 				fileNode * file = malloc (sizeof(fileNode));
+				int checkCode = OK;
 				recv(client_sock, &block, sizeof(uint32_t), 0);
 				bytesToRead = (block * blockSize) + blockSize;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
@@ -153,10 +176,27 @@ void connectionHandler(int client_sock){
 				free(temporalName);
 				free(file);
 				free(script);
+				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
 			case LOCAL_REDUCTION:{
-
+				t_list * filesToReduce;
+				int checkCode = OK;
+				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
+				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
+				temporalName = malloc(temporalNameLength);
+				recv(client_sock, temporalName, temporalNameLength, 0);
+				pairingFiles(filesToReduce, temporalName);
+				char * template = "%s %s > %s";
+				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
+				buffer = malloc(templateSize + 1);
+				sprintf(buffer, template, temporalName, script, temporalName);
+				buffer[templateSize] = '\0';
+				system(buffer);
+				free(buffer);
+				free(script);
+				free(temporalName);
+				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
 			case GLOBAL_REDUCTION:{
@@ -178,24 +218,24 @@ void connectionHandler(int client_sock){
 
 // Apareo de Archivos
 void pairingFiles(t_list *listToPair, char* resultName){
-	int i, lower, registerPosition;
+	int i, lower, registerPosition = 0;
 	int eofCounter = 0;
-	char *lowerString = NULL;
+	char *lowerString = malloc(256);
 
-	fileNode *fileToOpen = malloc(sizeof(fileNode));
-	FILE *registerFromFile;
-	FILE *pairingResult;
-	pairingResult = fopen(resultName, "w+");
+	fileNode *fileToOpen;
+	FILE *pairingResultFile;
+	pairingResultFile = fopen(resultName, "w");
 	int listSize = list_size(listToPair);
-	char fileRegister [listSize][256];
+	char * fileRegister [listSize];
 	FILE* filesArray[listSize];
 	for(i=0; i < listSize; i++){
 		fileToOpen = list_get(listToPair, i);
 		filesArray[i]= fopen(fileToOpen->filePath, "r");
+		fileRegister[i] = malloc(256);
 		fgets(fileRegister[i], 256, filesArray[i]);
 	}
 	strcpy(lowerString, fileRegister[0]);
-	registerFromFile = filesArray[0];
+	FILE *registerFromFile = filesArray[0];
 	i = 0;
 	while(eofCounter < listSize){
 		if(fileRegister[i] != NULL){
@@ -206,30 +246,36 @@ void pairingFiles(t_list *listToPair, char* resultName){
 				registerPosition = i;
 			}
 		}
-		i++;
 		if(i == (listSize - 1)){
-			fprintf(pairingResult, "%s \n", lowerString);
-			fgets(fileRegister[registerPosition], 256, registerFromFile);
-			if (fileRegister[registerPosition] == NULL){
+			fputs(lowerString, pairingResultFile);
+
+			if (fgets(fileRegister[registerPosition], 256, registerFromFile) == NULL){
 				eofCounter ++;
+//				memset(fileRegister[registerPosition], 'z', 256);
+				fileRegister[registerPosition] = NULL;
+				memset(lowerString, 'z', 256);
+
 			}
 			else{
 				strcpy(lowerString, fileRegister[registerPosition]);
 			}
 			i = 0;
 		}
-
+		else{
+			i++;
+		}
 	}
 	for(i=0; i < listSize; i++){
 		fclose(filesArray[i]);
 	}
-	fclose(pairingResult);
+	fclose(pairingResultFile);
 
 
 }
 
+void pairingGlobalFiles(t_list *listToPair, char* resultName){
 
-
+}
 
 
 
