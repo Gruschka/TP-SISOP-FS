@@ -2,15 +2,18 @@
  * worker.c
  *
  *  Created on: Sep 8, 2017
- *      Author: Hernan Canzonetta
+ *      Author: Agustin Coda
+ *      Description: An exploited Worker
  */
 
 #include "worker.h"
 #include "configWorker.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <commons/log.h>
+#include <commons/collections/list.h>
 #include <errno.h>
 #include <unistd.h>   //close
 #include <arpa/inet.h>    //close
@@ -18,25 +21,28 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
-
-#define TRANSFORMACION 1
-#define REDUCCION_LOCAL 2
-#define REDUCCION_GLOBAL 3
+#include <sys/wait.h>
+#define TRANSFORMATION 1
+#define LOCAL_REDUCTION 2
+#define GLOBAL_REDUCTION 3
 
 
 t_log *logger;
 worker_configuration configuration;
-
+t_list * fileList;
+t_list * pruebasApareo;
 
 int main() {
-	logger = log_create(tmpnam(NULL), "WORKER", 1, LOG_LEVEL_DEBUG);
-		loadConfiguration();
 
-		if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
+	char * logFile = tmpnam(NULL);
+	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+	loadConfiguration();
+	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
-
+	fileList = list_create();
+	createServer();
 
 
 
@@ -65,11 +71,11 @@ void *createServer() {
 	// Create socket
 	int iSetOption = 1;
 	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption, sizeof(iSetOption));
+	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption, sizeof(iSetOption));
 	if (socket_desc == -1) {
-		log_error(logger, "No se pudo crear el socket.");
+		log_error(logger, "Couldn't create socket.");
 	}
-	log_debug(logger, "Se creó el socket correctamente.");
+	log_debug(logger, "Socket correctly created");
 
 	// Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
@@ -79,6 +85,7 @@ void *createServer() {
 	// Bind
 	if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
 		log_error(logger, "Couldn't Bind.");
+		printf("\n\n %d", errno);
 		return NULL;
 	}
 
@@ -107,56 +114,125 @@ void *createServer() {
 }
 
 void connectionHandler(int client_sock){
+	pid_t pid;
+	int status;
 	uint32_t operation;
 	char *script;
 	uint32_t scriptLength;
 	uint32_t block;
+	long int bytesToRead;
+	const int blockSize = 1024*1024;
 	char * buffer;
-	while(1){
+	char * temporalName;
+	uint32_t temporalNameLength;
+	if((pid=fork()) == 0){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
 		recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
 		script = malloc(scriptLength);
-		recv(client_sock, script,sizeof(scriptLength), 0);
-		recv(client_sock, &block, sizeof(uint32_t), 0);
-		char * blockContent = malloc(1024);
-		readABlock(block, blockContent);
+		recv(client_sock, script, sizeof(scriptLength), 0);
 		switch(operation){
-			case TRANSFORMACION:{
-
-				//buffer = "./transformacion.py {aca va lo que leiste}  | sort > {aca va el path al output}"
+			case TRANSFORMATION:{
+				fileNode * file = malloc (sizeof(fileNode));
+				recv(client_sock, &block, sizeof(uint32_t), 0);
+				bytesToRead = (block * blockSize) + blockSize;
+				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
+				temporalName = malloc(temporalNameLength);
+				recv(client_sock, temporalName, temporalNameLength, 0);
+				file->filePath = malloc(temporalNameLength);
+				memcpy(file->filePath, temporalName, temporalNameLength);
+				char * template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, script, temporalName);
+				buffer = malloc(templateSize + 1);
+				sprintf(buffer, template, bytesToRead, blockSize, script, temporalName);
+				buffer[templateSize] = '\0';
 				system(buffer);
+				list_add(fileList, file);
+				free(buffer);
+				free(temporalName);
+				free(file);
+				free(script);
 				break;
 			}
-			case REDUCCION_LOCAL:{
+			case LOCAL_REDUCTION:{
 
 				break;
 			}
-			case REDUCCION_GLOBAL:{
+			case GLOBAL_REDUCTION:{
 
 				break;
 			}
 			default:
 				log_error(logger, "Operation couldn't be identified");
 		}
-
 	}
-}
-
-void readABlock (uint32_t block, char * blockContent){
-	int blockLocation = block * 1024;
-	FILE *file;
-
-	//Open File
-	file = fopen(configuration.binPath, "rb");
-	if (!file) {
-		log_error(logger, "Couldn't open file: %s", configuration.binPath);
+	else
+	{
+		close(client_sock);
+		waitpid(pid, &status, 0);
 	}
 
-	fseek(file, blockLocation, SEEK_SET);
+}
 
-	fread(&blockContent, 1024, 1, file);
+
+// Apareo de Archivos
+void pairingFiles(t_list *listToPair, char* resultName){
+	int i, lower, registerPosition;
+	int eofCounter = 0;
+	char *lowerString = NULL;
+
+	fileNode *fileToOpen = malloc(sizeof(fileNode));
+	FILE *registerFromFile;
+	FILE *pairingResult;
+	pairingResult = fopen(resultName, "w+");
+	int listSize = list_size(listToPair);
+	char fileRegister [listSize][256];
+	FILE* filesArray[listSize];
+	for(i=0; i < listSize; i++){
+		fileToOpen = list_get(listToPair, i);
+		filesArray[i]= fopen(fileToOpen->filePath, "r");
+		fgets(fileRegister[i], 256, filesArray[i]);
+	}
+	strcpy(lowerString, fileRegister[0]);
+	registerFromFile = filesArray[0];
+	i = 0;
+	while(eofCounter < listSize){
+		if(fileRegister[i] != NULL){
+			lower = strcmp(lowerString, fileRegister[i]);
+			if(lower > 0){
+				strcpy(lowerString, fileRegister[i]);
+				registerFromFile = filesArray[i];
+				registerPosition = i;
+			}
+		}
+		i++;
+		if(i == (listSize - 1)){
+			fprintf(pairingResult, "%s \n", lowerString);
+			fgets(fileRegister[registerPosition], 256, registerFromFile);
+			if (fileRegister[registerPosition] == NULL){
+				eofCounter ++;
+			}
+			else{
+				strcpy(lowerString, fileRegister[registerPosition]);
+			}
+			i = 0;
+		}
+
+	}
+	for(i=0; i < listSize; i++){
+		fclose(filesArray[i]);
+	}
+	fclose(pairingResult);
 
 
 }
+
+
+
+
+
+
+
+
+

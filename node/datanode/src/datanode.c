@@ -1,7 +1,7 @@
 /*TODO: Levantar info de bloques libres del bitmap
-TODO: Setear bien cantidad de nodos libres
+ TODO: Setear bien cantidad de nodos libres
 
-*/
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include "datanode.h"
@@ -10,13 +10,15 @@ TODO: Setear bien cantidad de nodos libres
 #include <netdb.h>
 #include <netinet/in.h>
 #include<commons/config.h>
+#include <sys/mman.h> //mmap
+#include <fcntl.h> // O_RDRW
+
 t_log *logger;
 t_config *config;
 t_dataNode myDataNode;
 t_dataNodeConfig nodeConfig;
 
 int main(int argc, char **argv) {
-	FILE * dataBinFile;
 
 	char *logFile = tmpnam(NULL);
 
@@ -33,12 +35,26 @@ int main(int argc, char **argv) {
 	}
 
 	//Abro el archivo data.bin y si no lo creo con el tamanio pasado por config
-	dataBinFile = dataNode_openOrCreateDataBinFile(
+	int dataBinResult = dataNode_openOrCreateDataBinFile(
 			myDataNode.config.databinPath, myDataNode.config.sizeInMb);
+
+	//FILE * dataBinFile = fopen(myDataNode.config.databinPath, "w+");
 
 	dataNode_setBlockInformation(&myDataNode);
 
-	//Me conecto al FS
+	char * test = "test";
+	void *prueba = malloc(BLOCK_SIZE);
+		memset(prueba, 0, BLOCK_SIZE);
+
+	memcpy(prueba, test, strlen(test));
+	dataNode_setBlock(0, prueba);
+	prueba = dataNode_getBlock(0);
+
+	memset(prueba, 0, BLOCK_SIZE);
+	char * test2 = "estoy en el tercer bloque";
+	memcpy(prueba, test2, strlen(test2));
+	dataNode_setBlock(3, prueba);
+	prueba = dataNode_getBlock(3);
 
 	dataNode_connectToFileSystem(myDataNode);
 
@@ -63,26 +79,33 @@ int dataNode_loadConfig(t_dataNode *dataNode) {
 
 }
 
-FILE *dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
+int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 
 	FILE * dataBinFileDescriptor;
+	if (dataBinFileDescriptor = fopen(dataBinPath, "r+")) { //Existe el archivo de data.bin
+		log_debug(logger, "Data.bin file  found. Wont create from scratch");
+		log_debug(logger, "Maping Data.bin to memory");
 
-	if (dataBinFileDescriptor = fopen(dataBinPath, "r+")) { //Existe el archivo de metadata
-		printf("Existe el data.bin");
+		dataNode_mmapDataBin(dataBinPath);
 
-		return dataBinFileDescriptor;
+		return EXIT_FAILURE;
 
 	} else { //No puede abrirlo => Lo crea
 		printf("NoExiste el data.bin");
 
-
 		log_debug(logger,
 				"Data.bin file not found. Creating with parameters of config file");
 		dataBinFileDescriptor = fopen(dataBinPath, "w+");
-		ftruncate(fileno(dataBinFileDescriptor), sizeInMb * 1024 * 1024);
+		dataNode_writeNBytesOfXToFile(dataBinFileDescriptor, sizeInMb * BLOCK_SIZE,0);
+		//ftruncate(fileno(dataBinFileDescriptor), sizeInMb * BLOCK_SIZE);
 
+		log_debug(logger, "Maping Data.bin to memory");
+
+		dataNode_mmapDataBin(dataBinPath);
+		return EXIT_SUCCESS;
 	}
 
+	return NULL;
 }
 
 void dataNode_connectToFileSystem(t_dataNode dataNode) {
@@ -115,7 +138,6 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 		exit(1);
 	}
 
-
 	char buffer[1024] = { 0 };
 
 	//Send block name
@@ -124,7 +146,7 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	//Send amount of blocks
 	int myInt = dataNode.blockInfo.amountOfBlocks;
-		int tmp = htonl((uint32_t) myInt);
+	int tmp = htonl((uint32_t) myInt);
 
 	write(sockfd, &tmp, sizeof(tmp));
 
@@ -140,13 +162,12 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	printf("%s\n", buffer);
 
-
 	//wait for request from fs
 
-	while(1){
+	while (1) {
 
 		//Codigo para escuchar pedidos del fs aca;lk;lk
-		printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
+		//printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
 		sleep(5);
 
 	}
@@ -161,4 +182,67 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode) {
 	aDataNode->blockInfo.occupiedBlocks = aDataNode->blockInfo.amountOfBlocks
 			- aDataNode->blockInfo.freeBlocks;
 
+}
+
+void *dataNode_getBlock(int blockNumber) {
+
+	void *blockInformation = malloc(BLOCK_SIZE);
+	memset(blockInformation, 0, BLOCK_SIZE);
+
+	int positionInBytesOfTheBlock = blockNumber * BLOCK_SIZE;
+
+	memcpy(blockInformation, myDataNode.dataBinMMapedPointer+positionInBytesOfTheBlock,BLOCK_SIZE);
+
+
+	return blockInformation;
+
+}
+
+int dataNode_setBlock(int blockNumber, void *dataToWrite) {
+
+
+	int positionInBytesOfTheBlock = blockNumber * BLOCK_SIZE;
+
+	memcpy(myDataNode.dataBinMMapedPointer+positionInBytesOfTheBlock, dataToWrite, BLOCK_SIZE);
+
+
+	return EXIT_SUCCESS;
+
+}
+
+int dataNode_mmapDataBin(char* dataBinPath) {
+
+	struct stat mystat;
+
+	myDataNode.dataBinFileDescriptor = open(dataBinPath, O_RDWR);
+
+	if (myDataNode.dataBinFileDescriptor == -1) {
+		log_error(logger, "Error opening Data.bin in order to map to memory");
+		return EXIT_FAILURE;
+	}
+
+	if (fstat(myDataNode.dataBinFileDescriptor, &mystat) < 0) {
+		log_error(logger,
+				"Error at fstat of Data.bin in order to map to memory");
+		return EXIT_FAILURE;
+
+	}
+
+	myDataNode.dataBinMMapedPointer = mmap(0, mystat.st_size,
+	PROT_READ | PROT_WRITE, MAP_SHARED, myDataNode.dataBinFileDescriptor, 0);
+
+	if (myDataNode.dataBinMMapedPointer == MAP_FAILED) {
+		log_error(logger, "Error creating mmap pointer to Data.bin file");
+		return EXIT_FAILURE;
+
+	}
+
+	return EXIT_SUCCESS;
+}
+
+int dataNode_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio del archivo antes del mmap matchea con el tamanio del del archivo
+	char *buffer = malloc(N);
+	memset(buffer, C, N);
+	fwrite(buffer, N, 1, fileDescriptor);
+	return EXIT_SUCCESS;
 }
