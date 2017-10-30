@@ -71,6 +71,7 @@ t_directory *fs_directoryExists(char *directory);
 int fs_directoryIsParent(t_directory *directory);
 int fs_directoryIsEmpty(t_directory *directory);
 int fs_getDirectoryIndex();
+int fs_getOffsetFromDirectory(t_directory *directory);
 
 //Console commands
 int fs_format();

@@ -77,6 +77,10 @@ void main() {
 }
 int fs_format() {
 
+	fclose(myFS.directoryTableFile);
+	remove(myFS.directoryTablePath);
+
+	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
 	//Do stuff
 	printf("format\n");
 	return 0;
@@ -120,12 +124,58 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 }
 int fs_rename(char *filePath, char *nombreFinal) {
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
+	t_directory *toRename;
+	//todo: chequear si es un archivo
+	if(toRename = fs_directoryExists(filePath)){
+		memset(toRename->name,0,255);
+		strcpy(toRename->name,nombreFinal);
+		fseek(myFS.directoryTableFile,sizeof(t_directory)*toRename->index,SEEK_SET);
+		fwrite(toRename,sizeof(t_directory),1,myFS.directoryTableFile);
+		fflush(myFS.directoryTableFile);
+		fseek(myFS.directoryTableFile,sizeof(t_directory)*myFS.amountOfDirectories,SEEK_SET);
+	}else{
+		log_error(logger,"dir to rename doesnt exist");
+		return EXIT_FAILURE;
+	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 int fs_mv(char *origFilePath, char *destFilePath) {
 	printf("moving %s to %s\n", origFilePath, destFilePath);
-	return 0;
+	t_directory *originDirectory;
+	t_directory *destinationDirectory;
+
+	//chequeo si origen existe
+	//todo: chequear si es un archivo
+	if(!(originDirectory = fs_directoryExists(origFilePath))){
+		log_error(logger,"aborting mv: origin directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//chequeo si destino existe
+	if(!(destinationDirectory = fs_directoryExists(destFilePath))){
+		log_error(logger,"aborting mv: destination directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+
+	//chequeo si original ya existe en destino
+	char *originName = strrchr(origFilePath,'/');
+	char *destinationFullName = strdup(destFilePath);
+	string_append(&destinationFullName,originName);
+
+	if(!fs_directoryExists(destinationFullName)){
+		log_error(logger,"aborting mv: origin directory already exists in destination");
+		return EXIT_FAILURE;
+	}
+
+	originDirectory->parent = destinationDirectory->index;
+	fseek(myFS.directoryTableFile,fs_getOffsetFromDirectory(originDirectory),SEEK_SET);
+	fwrite(originDirectory,sizeof(t_directory),1,myFS.directoryTableFile);
+	fflush(myFS.directoryTableFile);
+
+
+	return EXIT_SUCCESS;
 
 }
 int fs_cat(char *filePath) {
@@ -164,13 +214,13 @@ int fs_mkdir(char *directoryPath) {
 			}else{
 				//no existe y no es el ultimo, es decir no existe el parent
 				// se aborta la creacion
-				log_error(logger,"parent directory for directory to create doesnt exist puto");
+				log_error(logger,"parent directory for directory to create doesnt exist");
 				return EXIT_FAILURE;
 			}
 		}else{
 			if(iterator == amountOfDirectories){
 				// dir exists, abort
-				log_error(logger,"directory already exists puto");
+				log_error(logger,"directory already exists");
 				return EXIT_FAILURE;
 			}
 		}
@@ -1176,4 +1226,17 @@ int fs_getDirectoryIndex(){
 	int returnNumber = myFS._directoryIndexAutonumber;
 	myFS._directoryIndexAutonumber++;
 	return returnNumber;
+}
+
+int fs_getOffsetFromDirectory(t_directory *directory){
+	int iterator = 0;
+
+	while(iterator<myFS.amountOfDirectories){
+		if(myFS.directoryTable[iterator].index == directory->index){
+			return sizeof(t_directory)*iterator;
+		}
+		iterator++;
+	}
+
+	return EXIT_FAILURE;
 }
