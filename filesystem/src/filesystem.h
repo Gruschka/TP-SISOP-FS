@@ -31,6 +31,8 @@ typedef struct FS {
 	char *bitmapFilePath;
 	char *nodeTablePath;
 	char *directoryTablePath;
+	int amountOfDirectories;
+	FILE *directoryTableFile;
 	char *FSMetadataFileName;
 	char *FSFileList;
 	int totalAmountOfBlocks;
@@ -39,6 +41,7 @@ typedef struct FS {
 	t_directory directoryTable[100];
 	int bitmapFileDescriptor;
 	int nodeTableFileDescriptor;
+	int _directoryIndexAutonumber; //no modificar valor a mano!
 } t_FS;
 
 
@@ -63,6 +66,11 @@ int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber);
 t_dataNode *fs_getNodeFromNodeName(char *nodeName);
 t_list *fs_getPreviouslyConnectedNodesNames();
 float fs_bytesToMegaBytes(int bytes);
+t_directory *fs_childOfParentExists(char *child, t_directory *parent);
+t_directory *fs_directoryExists(char *directory);
+int fs_directoryIsParent(t_directory *directory);
+int fs_directoryIsEmpty(t_directory *directory);
+int fs_getDirectoryIndex();
 
 //Console commands
 int fs_format();

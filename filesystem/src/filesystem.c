@@ -36,38 +36,38 @@
 //Global resources
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
 t_list *previouslyConnectedNodesNames; //Only the names
-t_FS myFS = { 	.mountDirectoryPath = "/mnt/FS/",
-				.MetadataDirectoryPath = "/mnt/FS/metadata",
-				.filesDirectoryPath = "/mnt/FS/metadata/archivos",
-				.directoryPath = "/mnt/FS/metadata/directorios",
-				.bitmapFilePath = "/mnt/FS/metadata/bitmaps/",
-				.nodeTablePath = "/mnt/FS/metadata/nodos.bin",
-				.directoryTablePath = "/mnt/FS/metadata/directorios.dat",
-				.FSFileList = "/mnt/FS/metadata/archivos/archivos.txt",
-				.totalAmountOfBlocks = 0,
-				.freeBlocks = 0,
-				.occupiedBlocks = 0 }; //Global struct containing the information of the FS
+t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
+		"/mnt/FS/metadata", .filesDirectoryPath = "/mnt/FS/metadata/archivos",
+		.directoryPath = "/mnt/FS/metadata/directorios", .bitmapFilePath =
+				"/mnt/FS/metadata/bitmaps/", .nodeTablePath =
+				"/mnt/FS/metadata/nodos.bin", .directoryTablePath =
+				"/mnt/FS/metadata/directorios.dat", .FSFileList =
+				"/mnt/FS/metadata/archivos/archivos.txt", .totalAmountOfBlocks =
+				0, .freeBlocks = 0, .occupiedBlocks = 0 }; //Global struct containing the information of the FS
 
 t_log *logger;
 t_config *nodeTableConfig; //Para levantar la tabla de nodos como un archivo de config
 
 //Enums
-enum flags {EMPTY = 100, DIRECTORY_TABLE_MAX_AMOUNT = 100, DATANODE_ALREADY_CONNECTED=-1};
+enum flags {
+	EMPTY = 100,
+	DIRECTORY_TABLE_MAX_AMOUNT = 100,
+	DATANODE_ALREADY_CONNECTED = -1
+};
 void main() {
 
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
-	connectedNodes = list_create();//Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
-	previouslyConnectedNodesNames = list_create();
-	previouslyConnectedNodesNames = fs_getPreviouslyConnectedNodesNames();
+	connectedNodes = list_create(); //Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
 
-	fs_mount(&myFS);//Crea los directorios del FS
+	fs_mount(&myFS); //Crea los directorios del FS
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
-		log_debug(logger,"FS not stable. Cant connect to YAMA, will try again in 5 seconds-");
+		log_debug(logger,
+				"FS not stable. Cant connect to YAMA, will try again in 5 seconds-");
 		sleep(5);
 	}
 
@@ -89,6 +89,26 @@ int fs_rm(char *filePath) {
 }
 int fs_rm_dir(char *dirPath) {
 	printf("removing directory %s \n", dirPath);
+
+	t_directory *directory = fs_directoryExists(dirPath);
+	fs_directoryIsEmpty(directory);
+	if(directory && !fs_directoryIsParent(directory)){
+		//el directorio existe y no tiene childrens
+		//todo: validar que no tenga archivos
+
+		int iterator = directory->index;
+		fseek(myFS.directoryTableFile,(sizeof(t_directory))*directory->index,SEEK_SET);
+		myFS.amountOfDirectories--;
+		while(iterator<myFS.amountOfDirectories){
+			myFS.directoryTable[iterator] = myFS.directoryTable[iterator+1];
+			fwrite(&myFS.directoryTable[iterator],sizeof(t_directory),1,myFS.directoryTableFile);
+			iterator++;
+		}
+		fflush(myFS.directoryTableFile);
+		ftruncate(myFS.directoryTableFile->_fileno,sizeof(t_directory)*myFS.amountOfDirectories);
+	}else{
+		log_debug(logger,"directory doesnt exist or is parent");
+	}
 
 	return 0;
 }
@@ -115,7 +135,49 @@ int fs_cat(char *filePath) {
 }
 int fs_mkdir(char *directoryPath) {
 	printf("Creating directory c %s\n", directoryPath);
-	return 0;
+	t_directory *root = malloc(sizeof(t_directory));
+	root->index = 0;
+	strcpy(root->name,"root");
+	root->parent = -1;
+
+	char **splitDirectory = string_split(directoryPath,"/");
+	int amountOfDirectories = fs_amountOfElementsInArray(splitDirectory);
+
+	int iterator = 0;
+	t_directory *directoryReference = &myFS.directoryTable[0];
+	t_directory *lastDirectoryReference;
+	while(iterator < amountOfDirectories){
+		lastDirectoryReference = directoryReference;
+		directoryReference = fs_childOfParentExists(splitDirectory[iterator],directoryReference);
+		iterator++;
+		if(directoryReference == NULL){
+			//no existe child para ese parent
+			//ver si es el ultimo dir
+			if(iterator == amountOfDirectories){
+				// no existe para ese parent, hay que crearlo
+				myFS.directoryTable[myFS.amountOfDirectories].index = fs_getDirectoryIndex();
+				strcpy(myFS.directoryTable[myFS.amountOfDirectories].name,splitDirectory[iterator-1]);
+				myFS.directoryTable[myFS.amountOfDirectories].parent = lastDirectoryReference->index;
+				fwrite(&myFS.directoryTable[myFS.amountOfDirectories],sizeof(t_directory),1,myFS.directoryTableFile);
+				fflush(myFS.directoryTableFile);
+				myFS.amountOfDirectories++;
+			}else{
+				//no existe y no es el ultimo, es decir no existe el parent
+				// se aborta la creacion
+				log_error(logger,"parent directory for directory to create doesnt exist puto");
+				return EXIT_FAILURE;
+			}
+		}else{
+			if(iterator == amountOfDirectories){
+				// dir exists, abort
+				log_error(logger,"directory already exists puto");
+				return EXIT_FAILURE;
+			}
+		}
+	}
+
+
+	return EXIT_SUCCESS;
 
 }
 int fs_cpfrom(char *origFilePath, char *yama_directory) {
@@ -142,6 +204,16 @@ int fs_md5(char *filePath) {
 }
 int fs_ls(char *directoryPath) {
 	printf("Showing directory %s\n", directoryPath);
+	int iterator = 0;
+	if(!strcmp(directoryPath,"-fs")){
+		printf("i    n    p\n");
+		while(iterator < myFS.amountOfDirectories){
+			printf("%d    ",myFS.directoryTable[iterator].index);
+			printf("%s    ",myFS.directoryTable[iterator].name);
+			printf("%d    \n",myFS.directoryTable[iterator].parent);
+			iterator++;
+		}
+	}
 	return 0;
 
 }
@@ -280,22 +352,27 @@ void fs_waitForYama() {
 
 }
 int fs_isStable() {
-	FILE *fileListFileDescriptor = fopen(myFS.FSFileList,"r+");
+	FILE *fileListFileDescriptor = fopen(myFS.FSFileList, "r+");
+	if(fileListFileDescriptor == NULL){
+		fileListFileDescriptor = fopen(myFS.FSFileList, "w+");
+		fclose(fileListFileDescriptor);
+		return EXIT_SUCCESS;
+	}
 	char buffer[255];
-	memset(buffer,0,255);
+	memset(buffer, 0, 255);
 	int size;
 	int blockCount;
 	int iterator;
 	int copy;
 	t_config *fileMetadata;
-	while(fgets(buffer,255,fileListFileDescriptor)){
-		if(buffer[strlen(buffer)-1] == '\n'){
-			buffer[strlen(buffer)-1] = '\0';
+	while (fgets(buffer, 255, fileListFileDescriptor)) {
+		if (buffer[strlen(buffer) - 1] == '\n') {
+			buffer[strlen(buffer) - 1] = '\0';
 		}
 
-		char *fullFilePath = string_from_format("/mnt/FS/%s",buffer);
+		char *fullFilePath = string_from_format("/mnt/FS/%s", buffer);
 		fileMetadata = config_create(fullFilePath);
-		char *sizeString = config_get_string_value(fileMetadata,"TAMANIO");
+		char *sizeString = config_get_string_value(fileMetadata, "TAMANIO");
 		size = atoi(sizeString);
 
 		blockCount = ceilf(fs_bytesToMegaBytes(size)); //Convierto a MB y como cada bloque es de 1MB la relacion es 1 a 1 (no hace falta dividir por block/size)
@@ -303,25 +380,29 @@ int fs_isStable() {
 		iterator = 0;
 		copy = 0;
 
-		while(iterator < blockCount){ //Si blockCount es 1 => son 2 bloques (0,1) por lo que debe ser menor o igual
-			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d", iterator,copy);
-			char *nodeBlockTupleAsString = config_get_string_value(fileMetadata,blockToSearch);
-			char **nodeBlockTupleAsArray = string_get_string_as_array(nodeBlockTupleAsString);
+		while (iterator < blockCount) { //Si blockCount es 1 => son 2 bloques (0,1) por lo que debe ser menor o igual
+			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+					iterator, copy);
+			char *nodeBlockTupleAsString = config_get_string_value(fileMetadata,
+					blockToSearch);
+			char **nodeBlockTupleAsArray = string_get_string_as_array(
+					nodeBlockTupleAsString);
 
 			int blockNumber = atoi(nodeBlockTupleAsArray[1]);
 
 			//si tenes el nodo y el nodo tiene el bloque esta OK, me chupa un huevo la data
-			if(!fs_checkNodeBlockTupleConsistency(nodeBlockTupleAsArray[0],blockNumber)){
+			if (!fs_checkNodeBlockTupleConsistency(nodeBlockTupleAsArray[0],
+					blockNumber)) {
 				free(blockToSearch);
 				iterator++;
-				copy=0;
-			}else{
-				if(!copy){
+				copy = 0;
+			} else {
+				if (!copy) {
 					copy = 1;
-				}else{
+				} else {
 					//no pudo armar el bloque
-					log_debug(logger,"consistency error for file %s",buffer);
-					log_debug(logger,"missing block no. %s",blockToSearch);
+					log_debug(logger, "consistency error for file %s", buffer);
+					log_debug(logger, "missing block no. %s", blockToSearch);
 					config_destroy(fileMetadata);
 					free(fullFilePath);
 					return EXIT_FAILURE;
@@ -397,17 +478,16 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
-
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
 	/*if (nodeTableUpdate == DATANODE_ALREADY_CONNECTED) {
-		log_error(logger,
-				"Node table update failed.\n");
+	 log_error(logger,
+	 "Node table update failed.\n");
 
-		//Matar hilo
+	 //Matar hilo
 
-		return;
-	}*/
+	 return;
+	 }*/
 
 	//newDataNode.bitmap = fs_openOrCreateBitmap(myFS, newDataNode);
 //	fs_dumpDataNodeBitmap(newDataNode);
@@ -422,9 +502,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	}
 }
 int fs_mount(t_FS *FS) {
-	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
-	if (openNodeTable == -1)
-		log_error(logger, "Error when opening Node Table");
+
 	/****************************    MOUNT DIRECTORY ****************************/
 	fs_openOrCreateDirectory(myFS.mountDirectoryPath, 0);
 
@@ -439,6 +517,10 @@ int fs_mount(t_FS *FS) {
 
 	/****************************    DIRECTORY TABLE PATH ****************************/
 	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
+
+	int openNodeTable = fs_openOrCreateNodeTableFile(myFS.nodeTablePath);
+	if (openNodeTable == -1)
+		log_error(logger, "Error when opening Node Table");
 
 	return 0;
 
@@ -637,11 +719,11 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	}
 
 	/*
-	free(nombreAux1);
-	free(nombreAux2);
-	free(libres);
-	free(total);
-	*/
+	 free(nombreAux1);
+	 free(nombreAux2);
+	 free(libres);
+	 free(total);
+	 */
 	config_destroy(nodeTableConfig);
 	return 0;
 
@@ -686,48 +768,44 @@ int fs_arrayContainsString(char **array, char *string) {
 }
 
 int fs_openOrCreateDirectoryTableFile(char *directory) {
-	FILE *directoryTableFile;
-	char buffer[255];
-	char **lineBuffer;
-	memset(buffer, 0, sizeof(buffer));
-	int i = 0;
-	//Intenta abrir
-	if (directoryTableFile = fopen(directory, "r+")) { //Existe el directorios.dat
-		log_debug(logger, "found directories table file");
-		/*Si la tabla de directorios ya esta creada cuando levanto el FS
-		 * => tengo que limpiar el vector de la directory table desde la ultima posicion*/
-		while (fgets(buffer, sizeof(buffer), directoryTableFile) != NULL) { //Guardo en el vector del FS la informacion del archivo
-			lineBuffer = string_split(buffer, " ");
-			myFS.directoryTable[i].index = i;
-			strcpy(myFS.directoryTable[i].name, lineBuffer[1]);
-			myFS.directoryTable[i].parent = atoi(lineBuffer[2]);
-			i++; //i es el equivalente al indice y tambien indica cual es el ultimo indice usado
+	myFS.directoryTableFile = fopen(myFS.directoryTablePath,"rb+");
+	int iterator = 0;
+	t_directory *directoryRecord;
+	int bytesRead;
 
-		}
-		int firstFreePositionOfDirectoryTable = i;
-		fs_wipeDirectoryTableFromIndex(myFS.directoryTable,
-				firstFreePositionOfDirectoryTable);
+	if(myFS.directoryTableFile ==NULL){
+		//hay que crearlo
+		myFS.directoryTableFile = fopen(myFS.directoryTablePath,"wb+");
 
-		return 0;
-	} else { //No puede abrirlo => Lo crea
-		log_debug(logger,
-				"directory table file not found creating from scratch");
-		directoryTableFile = fopen(directory, "w+");
-		fclose(directoryTableFile);
-
-		/*Si tengo que crear la tabla significa que es la primera vez que  levanto el FS
-		 * => tengo que limpiar el vector de la directory table desde el principio*/
-		fs_wipeDirectoryTableFromIndex(myFS.directoryTable, 0);
+		//cargo root
 		myFS.directoryTable[0].index = 0;
-		strcpy(myFS.directoryTable[0].name, "root");
+		strcpy(myFS.directoryTable[0].name,"root");
 		myFS.directoryTable[0].parent = -1;
 
-		return 0;
+		//escribo root
+		int test;
+		test = fwrite(&myFS.directoryTable[0],sizeof(t_directory),1,myFS.directoryTableFile);
+		fflush(myFS.directoryTableFile);
+
+		myFS.amountOfDirectories++;
+		myFS._directoryIndexAutonumber = myFS.directoryTable[myFS.amountOfDirectories-1].index + 1;
+		return EXIT_SUCCESS;
+	}else{
+		//hay que cargarlo
+		myFS.amountOfDirectories = 0;
+		while(bytesRead!=0){
+			bytesRead = fread(&myFS.directoryTable[iterator],sizeof(t_directory),1,myFS.directoryTableFile);
+			if(bytesRead){
+				myFS.amountOfDirectories++;
+			}
+			iterator++;
+		}
+		myFS._directoryIndexAutonumber = myFS.directoryTable[myFS.amountOfDirectories-1].index + 1;
+		return EXIT_SUCCESS;
+
 	}
 
-	log_error(logger, "directory table file not found or created!");
-
-	return -1;
+	return EXIT_FAILURE;
 }
 
 int fs_includeDirectoryOnDirectoryFileTable(char *directory,
@@ -937,32 +1015,32 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
 
 }
 
-int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber){ //No puede abrirlo => Lo crea
+int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber) { //No puede abrirlo => Lo crea
 	t_dataNode *connectedNode;
 	connectedNode = fs_getNodeFromNodeName(dataNodeName);
-	if(connectedNode == NULL){
+	if (connectedNode == NULL) {
 		return EXIT_FAILURE;
 	}
 
-	if(connectedNode->amountOfBlocks >= blockNumber){
+	if (connectedNode->amountOfBlocks >= blockNumber) {
 		return EXIT_SUCCESS;
 	}
 
 	return EXIT_FAILURE;
 }
 
-t_dataNode *fs_getNodeFromNodeName(char *nodeName){
+t_dataNode *fs_getNodeFromNodeName(char *nodeName) {
 	int listSize = list_size(connectedNodes);
-	if(!listSize){
+	if (!listSize) {
 		return NULL;
 	}
 
 	int iterator = 0;
 	t_dataNode *nodeToReturn;
 
-	while(iterator < listSize){
-		nodeToReturn = list_get(connectedNodes,iterator);
-		if(!strcmp(nodeName,nodeToReturn->name)){
+	while (iterator < listSize) {
+		nodeToReturn = list_get(connectedNodes, iterator);
+		if (!strcmp(nodeName, nodeToReturn->name)) {
 			return nodeToReturn;
 		}
 		iterator++;
@@ -971,36 +1049,131 @@ t_dataNode *fs_getNodeFromNodeName(char *nodeName){
 	return NULL;
 }
 
-t_list *fs_getPreviouslyConnectedNodesNames(){
+t_list *fs_getPreviouslyConnectedNodesNames() {
 
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
 	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
-				"NODOS"); //"[Nodo1, Nodo2]"
-		char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1","Nodo2"]
+			"NODOS"); //"[Nodo1, Nodo2]"
+	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1","Nodo2"]
 
-	if(fs_amountOfElementsInArray(listaNodosArray)==0){
-		log_debug(logger,"No previously connected nodes - FS is starting from scratch");
+	if (fs_amountOfElementsInArray(listaNodosArray) == 0) {
+		log_debug(logger,
+				"No previously connected nodes - FS is starting from scratch");
 		return EXIT_FAILURE;
 	}
 
 	int i = 0;
 
-	for(i = 0; i < fs_amountOfElementsInArray(listaNodosArray);i++){
-		list_add(previouslyConnectedNodesNames,listaNodosArray[i]);
+	for (i = 0; i < fs_amountOfElementsInArray(listaNodosArray); i++) {
+		list_add(previouslyConnectedNodesNames, listaNodosArray[i]);
 	}
 
-	char * primerNodo = list_get(previouslyConnectedNodesNames,0);
-	char * segundoNodo = list_get(previouslyConnectedNodesNames,1);
+	char * primerNodo = list_get(previouslyConnectedNodesNames, 0);
+	char * segundoNodo = list_get(previouslyConnectedNodesNames, 1);
 
 	config_destroy(nodeTableConfig);
 	return EXIT_SUCCESS;
 
-
-
 }
 
-float fs_bytesToMegaBytes(int bytes){
+float fs_bytesToMegaBytes(int bytes) {
 	float bytesInFloat = bytes;
-	return bytesInFloat/1024/1024;
+	return bytesInFloat / 1024 / 1024;
+}
+
+t_directory *fs_childOfParentExists(char *child, t_directory *parent){
+	int iterator = 0;
+	while(iterator < 100){
+		if(!strcmp(myFS.directoryTable[iterator].name,child)){
+			if(myFS.directoryTable[iterator].parent == parent->index){
+				return &myFS.directoryTable[iterator];
+			}
+		}
+		iterator++;
+	}
+	return NULL;
+}
+
+t_directory *fs_directoryExists(char *directory){
+
+	t_directory *root = malloc(sizeof(t_directory));
+	root->index = 0;
+	strcpy(root->name,"root");
+	root->parent = -1;
+
+	char **splitDirectory = string_split(directory,"/");
+	int amountOfDirectories = fs_amountOfElementsInArray(splitDirectory);
+
+	int iterator = 0;
+	t_directory *directoryReference = &myFS.directoryTable[0];
+	t_directory *lastDirectoryReference;
+	while(iterator < amountOfDirectories){
+		lastDirectoryReference = directoryReference;
+		directoryReference = fs_childOfParentExists(splitDirectory[iterator],directoryReference);
+		iterator++;
+		if(directoryReference == NULL){
+			//no existe child para ese parent
+			//ver si es el ultimo dir
+			if(iterator == amountOfDirectories){
+			}else{
+				//no existe y no es el ultimo, es decir no existe el parent
+				// se aborta la creacion
+				log_error(logger,"parent directory for directory to create doesnt exist puto");
+				return NULL;
+			}
+		}else{
+			if(iterator == amountOfDirectories){
+				// dir exists, abort
+				//log_error(logger,"directory already exists puto");
+				return directoryReference;
+			}
+		}
+	}
+
+
+	return EXIT_FAILURE;
+}
+
+int fs_directoryIsParent(t_directory *directory){
+	int iterator = 0;
+
+	while(iterator < 100){
+		if(myFS.directoryTable[iterator].parent == directory->index){
+			return 1;
+		}
+		iterator++;
+	}
+	return 0;
+}
+
+int fs_directoryIsEmpty(t_directory *directory){
+	int n = 0;
+	struct dirent *d;
+	char stringIndex[10];
+	sprintf(stringIndex,"%d",directory->index);
+
+	int directoryNameLenght = strlen(myFS.filesDirectoryPath) + strlen(stringIndex) + 2;
+	char *directoryName = malloc(directoryNameLenght);
+	sprintf(directoryName,"%s/%s\0",myFS.filesDirectoryPath,stringIndex);
+
+
+	DIR *dir = opendir(directoryName);
+	if (dir == NULL) //Not a directory or doesn't exist
+		return 1;
+	while ((d = readdir(dir)) != NULL) {
+		if(++n > 2)
+		  break;
+	}
+	closedir(dir);
+	if (n <= 2) //Directory Empty
+		return 1;
+	else
+		return 0;
+}
+
+int fs_getDirectoryIndex(){
+	int returnNumber = myFS._directoryIndexAutonumber;
+	myFS._directoryIndexAutonumber++;
+	return returnNumber;
 }
