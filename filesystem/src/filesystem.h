@@ -100,6 +100,7 @@ void *fs_readFile(char *fullFilePath);
 t_dataNode *fs_getDataNodeWithMostFreeSpace();
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList);
 int *fs_getFirstFreeBlockFromNode(t_dataNode *dataNode);
+void *fs_serializeFile(FILE *file, int fileSize);
 
 //Console commands
 int fs_format();
@@ -110,7 +111,7 @@ int fs_rename(char *filePath, char *nombreFinal);
 int fs_mv(char *origFilePath, char *destFilePath);
 int fs_cat(char *filePath);
 int fs_mkdir(char *filePath);
-int fs_cpfrom(char *origFilePath, char *yama_directory);
+int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType);
 int fs_cpto(char *origFilePath, char *yama_directory);
 int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
 int fs_md5(char *filePath);

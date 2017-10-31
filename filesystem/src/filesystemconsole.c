@@ -134,7 +134,7 @@ int fs_console_validateOp(char * newLine) {
 	if (!strcmp(operation, "cpfrom")) {
 		printf("OPERATION: %s\n", operation);
 
-		opResult = fs_cpfrom(parameter_list[1], parameter_list[2]);
+		opResult = fs_cpfrom(parameter_list[1], parameter_list[2], parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("mkdir operation failed\n");
 
@@ -143,7 +143,7 @@ int fs_console_validateOp(char * newLine) {
 	if (!strcmp(operation, "cpto")) {
 		printf("OPERATION: %s\n", operation);
 
-		opResult = fs_cpfrom(parameter_list[1], parameter_list[2]);
+		opResult = fs_cpfrom(parameter_list[1], parameter_list[2], parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			printf("cpto operation failed\n");
 

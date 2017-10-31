@@ -230,8 +230,37 @@ int fs_mkdir(char *directoryPath) {
 	return EXIT_SUCCESS;
 
 }
-int fs_cpfrom(char *origFilePath, char *yama_directory) {
+int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 	printf("Copying %s to yama directory %s\n", origFilePath, yama_directory);
+
+	FILE *originalFile = fopen(origFilePath,"r+");
+	if(!originalFile){
+		log_error(logger,"original file couldnt be opened");
+		return EXIT_FAILURE;
+	}
+
+	t_directory *destinationDirectory = fs_directoryExists(yama_directory);
+	if(!destinationDirectory){
+		log_error(logger,"destination yama directory error");
+		return EXIT_FAILURE;
+	}
+
+	if(!fileType){
+		log_error(logger,"missing filetype");
+		return EXIT_FAILURE;
+	}
+
+	struct stat originalFileStats;
+	fstat(originalFile->_fileno, &originalFileStats);
+
+	t_fileType typeFile = !strcmp(fileType,"-b") ? T_BINARY : T_TEXT;
+	char *fileName = basename(origFilePath);
+	void *buffer = fs_serializeFile(originalFile, originalFileStats.st_size);
+
+	int result = fs_storeFile(yama_directory,fileName,typeFile,buffer,originalFileStats.st_size);
+
+
+
 	return 0;
 
 }
@@ -1246,10 +1275,11 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 	int totalFileSize = 2 * fileSize;
 	int amountOfBlocks = (totalFileSize % BLOCK_SIZE) ? (totalFileSize / BLOCK_SIZE) + 1 : totalFileSize / BLOCK_SIZE;
 
-	if(myFS.freeBlocks < amountOfBlocks){
-		log_error(logger,"free space to store file");
-		return EXIT_FAILURE;
-	}
+// todo: uncomment when checking for free space
+//	if(myFS.freeBlocks < amountOfBlocks){
+//		log_error(logger,"free space to store file");
+//		return EXIT_FAILURE;
+//	}
 
 	//check if parent dir exists
 	t_directory *destinationDirectory = fs_directoryExists(fullFilePath);
@@ -1260,7 +1290,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 
 	//generate metadata folder --> according to file type
 	char *fileMetadataDirectory = string_from_format("%s/%d",myFS.filesDirectoryPath,destinationDirectory->index);
-	mkdir(fileMetadataDirectory,511);
+	fs_openOrCreateDirectory(fileMetadataDirectory,0);
 
 	//create metadata file in metadata folder
 	char *filePathWithName = string_from_format("%s/%s",fileMetadataDirectory,fileName);
@@ -1286,9 +1316,10 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 		if(remainingSizeToSplit < BLOCK_SIZE){
 			//single block remaining
 			splitSize = remainingSizeToSplit;
+			remainingSizeToSplit = 0;
 		}else{
-			remainingSizeToSplit -= BLOCK_SIZE;
 			splitSize = BLOCK_SIZE;
+			remainingSizeToSplit -= BLOCK_SIZE;
 		}
 
 		bufferSplit = malloc(splitSize);
@@ -1296,12 +1327,11 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 		memcpy(bufferSplit,buffer+offset,splitSize);
 		offset += splitSize;
 
-		int copy = 0;
-		for(copy = 0; copy == 1; copy++){
+
+		for(copy = 0; copy < 2; copy++){
 			package = malloc(sizeof(t_blockPackage));
 			package->blockCopyNumber = copy;
 			package->blockNumber = blockNumber;
-			blockNumber++;
 			package->blockSize = splitSize;
 			package->buffer = bufferSplit;
 			//decide nodes to deliver original blocks and copy
@@ -1309,6 +1339,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 			package->destinationBlock = fs_getFirstFreeBlockFromNode(package->destinationNode);
 			list_add(packageList,package);
 		}
+		blockNumber++;
 	}
 
 
@@ -1339,6 +1370,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 	int iterator = 0;
 	char *blockString;
 	char *blockSizeString;
+	char *blockNumberString;
 	char *blockSizeValueString;
 	char *nodeBlockString;
 	int oldBlock = 0;
@@ -1346,9 +1378,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 	while(iterator < list_size(packageList)){
 		t_blockPackage *currentBlock = list_get(packageList,iterator);
 
-		blockString = string_from_format("BLOQUE%d%COPIA%d",currentBlock->blockNumber,currentBlock->blockCopyNumber);
-		blockSizeString = string_from_format("%d",currentBlock->blockSize);
-
+		blockString = string_from_format("BLOQUE%dCOPIA%d",currentBlock->blockNumber,currentBlock->blockCopyNumber);
 		nodeBlockString = string_from_format("[%s, %d]",currentBlock->destinationNode->name,currentBlock->destinationBlock);
 
 		config_set_value(metadataFileConfig,blockString,nodeBlockString);
@@ -1356,11 +1386,11 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *
 		free(nodeBlockString);
 
 		if(oldBlock == currentBlock->blockNumber){
-			blockSizeString = string_from_format("BLOQUE%dBYTES", oldBlock);
-			blockSizeValueString = string_from_format("%d",currentBlock->blockSize);
-			config_set_value(metadataFile,blockSizeString,blockSizeValueString);
+			blockSizeString = string_from_format("%d",currentBlock->blockSize);
+			blockNumberString = string_from_format("BLOQUE%dBYTES", oldBlock);
+			config_set_value(metadataFile,blockNumberString,blockSizeString);
 			free(blockSizeString);
-			free(blockSizeValueString);
+			free(blockNumberString);
 			oldBlock++;
 		}
 
@@ -1383,6 +1413,15 @@ int *fs_getFirstFreeBlockFromNode(t_dataNode *dataNode){
 
 t_dataNode *fs_getDataNodeWithMostFreeSpace(){
 	//todo: implementar recorriendo lista de nodos conectados
-	t_dataNode *node; //hardcodeado durlock
+	t_dataNode *node = malloc(sizeof(t_dataNode));
+	strcpy(node->name,"Nodo1");//hardcodeado durlock
 	return node;
+}
+
+void *fs_serializeFile(FILE *file, int fileSize){
+	void *buffer = malloc(fileSize);
+	memset(buffer,0,fileSize);
+
+	int result = fread(buffer,fileSize,1,file);
+	return buffer;
 }
