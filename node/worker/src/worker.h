@@ -19,7 +19,8 @@
 typedef struct file {
 	char * filePath;
 }fileNode;
-typedef struct file {
+
+typedef struct fileGlobalNode {
 	char * filePath;
 	char * workerIp;
 	uint32_t sockfd;

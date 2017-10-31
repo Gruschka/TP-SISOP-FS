@@ -227,8 +227,40 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case SLAVE_WORKER:{
+				int closeCode, registerSize = 0;
+				int clientCode = 0;
+				char * registerToSend = malloc(256);
+				recv(client_sock, &temporalNameLength, sizeof(int), 0);
+				temporalName = malloc(temporalNameLength);
+				recv(client_sock, temporalName, temporalNameLength, 0);
+				FILE * fileToOpen;
+				fileToOpen = fopen(temporalName, "r");
+				if(fileToOpen == NULL){
+					log_error(logger, "Couldn't open file");
+					close(client_sock);
+					break;
+				}
+				while(closeCode != FILE_CLOSE_REQUEST){
+					recv(client_sock, &clientCode, sizeof(int), 0);
+					if(clientCode == REGISTER_REQUEST){
+						if(fgets(registerToSend, 256, fileToOpen) == NULL){
+							strcpy(registerToSend, "NULL");
+							send(client_sock, &registerSize, sizeof(int), 0);
+							send(client_sock, registerToSend, registerSize, 0);
+						}
+						else{
+							registerSize = strlen(registerToSend);
+							send(client_sock, &registerSize, sizeof(int), 0);
+							send(client_sock, registerToSend, registerSize, 0);
+						}
 
-
+					}
+					recv(client_sock, &closeCode, sizeof(int), 0);
+				}
+				close(client_sock);
+				free(registerToSend);
+				fclose(fileToOpen);
+				free(temporalName);
 				break;
 			}
 			default:
@@ -315,9 +347,9 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	for(i=0; i<listSize; i++){
 		fileToOpen = list_get(listToPair, i);
 		fileRegister[i] = malloc(256);
-		send(fileToOpen->sockfd, &requestCode, sizeof(int), NULL);
-		recv(fileToOpen->sockfd, &registerLength, sizeof(int), NULL);
-		recv(fileToOpen->sockfd, fileRegister[i], registerLength, NULL);
+		send(fileToOpen->sockfd, &requestCode, sizeof(int), 0);
+		recv(fileToOpen->sockfd, &registerLength, sizeof(int), 0);
+		recv(fileToOpen->sockfd, fileRegister[i], registerLength, 0);
 	}
 	fileGlobalNode * workerToRequest;
 	i = 0;
@@ -333,9 +365,9 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 		}
 		if(i == (listSize - 1)){
 			fputs(lowerString, pairingResultFile);
-			send(workerToRequest->sockfd, &requestCode, sizeof(int), NULL);
-			recv(workerToRequest->sockfd, &registerLength, sizeof(int), NULL);
-			recv(workerToRequest->sockfd, fileRegister[registerPosition], registerLength, NULL);
+			send(workerToRequest->sockfd, &requestCode, sizeof(int), 0);
+			recv(workerToRequest->sockfd, &registerLength, sizeof(int), 0);
+			recv(workerToRequest->sockfd, fileRegister[registerPosition], registerLength, 0);
 			if (strcmp(fileRegister[registerPosition], "NULL") == 0){
 				eofCounter ++;
 				//				memset(fileRegister[registerPosition], 'z', 256);
@@ -354,7 +386,7 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	}
 		for(i=0; i < listSize; i++){
 			fileToOpen = list_get(listToPair, i);
-			send(fileToOpen->sockfd, &closeCode, sizeof(int),NULL);
+			send(fileToOpen->sockfd, &closeCode, sizeof(int), 0);
 			free(fileRegister[i]);
 		}
 	fclose(pairingResultFile);
