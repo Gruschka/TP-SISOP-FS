@@ -25,8 +25,10 @@
 #define TRANSFORMATION 1
 #define LOCAL_REDUCTION 2
 #define GLOBAL_REDUCTION 3
+#define SLAVE_WORKER 4
 #define OK 1
-
+#define REGISTER_REQUEST 15
+#define FILE_CLOSE_REQUEST 16
 
 t_log *logger;
 worker_configuration configuration;
@@ -200,6 +202,32 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case GLOBAL_REDUCTION:{
+				t_list * filesToReduce;
+				fileGlobalNode * workerToRequest;
+				int checkCode = OK;
+				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
+				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
+				temporalName = malloc(temporalNameLength);
+				recv(client_sock, temporalName, temporalNameLength, 0);
+
+				//Conexion a los workers
+
+
+				pairingGlobalFiles(filesToReduce, temporalName);
+				char * template = "%s %s > %s";
+				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
+				buffer = malloc(templateSize + 1);
+				sprintf(buffer, template, temporalName, script, temporalName);
+				buffer[templateSize] = '\0';
+				system(buffer);
+				free(buffer);
+				free(script);
+				free(temporalName);
+				send(client_sock, &checkCode, sizeof(int), 0);
+				break;
+			}
+			case SLAVE_WORKER:{
+
 
 				break;
 			}
@@ -274,6 +302,66 @@ void pairingFiles(t_list *listToPair, char* resultName){
 }
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
+	int i, lower, eofCounter, registerLength, registerPosition = 0;
+	int requestCode = REGISTER_REQUEST;
+	int closeCode = FILE_CLOSE_REQUEST;
+	char * lowerString = malloc(256);
+
+	FILE * pairingResultFile;
+	pairingResultFile = fopen(resultName, "w");
+	int listSize = list_size(listToPair);
+	char * fileRegister [listSize];
+	fileGlobalNode * fileToOpen;
+	for(i=0; i<listSize; i++){
+		fileToOpen = list_get(listToPair, i);
+		fileRegister[i] = malloc(256);
+		send(fileToOpen->sockfd, &requestCode, sizeof(int), NULL);
+		recv(fileToOpen->sockfd, &registerLength, sizeof(int), NULL);
+		recv(fileToOpen->sockfd, fileRegister[i], registerLength, NULL);
+	}
+	fileGlobalNode * workerToRequest;
+	i = 0;
+
+	while(eofCounter < listSize){
+		if(fileRegister[i] != NULL){
+			lower = strcmp(lowerString, fileRegister[i]);
+			if(lower > 0){
+				strcpy(lowerString, fileRegister[i]);
+				workerToRequest = list_get(listToPair, i);
+				registerPosition = i;
+			}
+		}
+		if(i == (listSize - 1)){
+			fputs(lowerString, pairingResultFile);
+			send(workerToRequest->sockfd, &requestCode, sizeof(int), NULL);
+			recv(workerToRequest->sockfd, &registerLength, sizeof(int), NULL);
+			recv(workerToRequest->sockfd, fileRegister[registerPosition], registerLength, NULL);
+			if (strcmp(fileRegister[registerPosition], "NULL") == 0){
+				eofCounter ++;
+				//				memset(fileRegister[registerPosition], 'z', 256);
+				fileRegister[registerPosition] = NULL;
+				memset(lowerString, 'z', 256);
+
+			}
+			else{
+				strcpy(lowerString, fileRegister[registerPosition]);
+			}
+			i = 0;
+		}
+		else{
+			i++;
+		}
+	}
+		for(i=0; i < listSize; i++){
+			fileToOpen = list_get(listToPair, i);
+			send(fileToOpen->sockfd, &closeCode, sizeof(int),NULL);
+			free(fileRegister[i]);
+		}
+	fclose(pairingResultFile);
+	free(lowerString);
+
+
+
 
 }
 

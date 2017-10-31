@@ -19,6 +19,11 @@
 typedef struct file {
 	char * filePath;
 }fileNode;
+typedef struct file {
+	char * filePath;
+	char * workerIp;
+	uint32_t sockfd;
+}fileGlobalNode;
 
 void logDebug(char *);
 void loadConfiguration();
