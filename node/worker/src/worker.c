@@ -6,6 +6,16 @@
  *      Description: An exploited Worker
  */
 
+// TODO: Conexion a los workers que me diga master en la GLOBAL_REDUCTION
+// TODO: Finalizar Global Reduction
+// TODO: Testear worker con master
+// TODO: Probar algoritmo de apareo global con otros workers para ver si anda bien los sends y recv
+
+
+
+
+
+
 #include "worker.h"
 #include "configWorker.h"
 #include <stdio.h>
