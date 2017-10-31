@@ -7,6 +7,11 @@
 
 #define BLOCK_SIZE 1024
 
+typedef enum fileTypes {
+	T_BINARY,
+	T_TEXT
+}t_fileType;
+
 typedef struct dataNode {
 
 	char *name;
@@ -72,6 +77,8 @@ int fs_directoryIsParent(t_directory *directory);
 int fs_directoryIsEmpty(t_directory *directory);
 int fs_getDirectoryIndex();
 int fs_getOffsetFromDirectory(t_directory *directory);
+int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer);
+void *fs_readFile(char *fullFilePath);
 
 //Console commands
 int fs_format();
