@@ -12,6 +12,13 @@ typedef enum fileTypes {
 	T_TEXT
 }t_fileType;
 
+typedef struct binaryStructure {
+	char name[10];
+	int age;
+	int height;
+	int weight;
+} t_binaryStructure; //size = 22b
+
 typedef struct dataNode {
 
 	char *name;
@@ -21,6 +28,17 @@ typedef struct dataNode {
 	t_bitarray *bitmap;
 
 } t_dataNode;
+
+typedef struct blockPackage {
+
+	int blockNumber;
+	int blockCopyNumber;
+	int blockSize;
+	void *buffer;
+	t_dataNode *destinationNode;
+	int destinationBlock;
+
+} t_blockPackage;
 
 typedef struct t_directory {
 	int index;
@@ -77,8 +95,11 @@ int fs_directoryIsParent(t_directory *directory);
 int fs_directoryIsEmpty(t_directory *directory);
 int fs_getDirectoryIndex();
 int fs_getOffsetFromDirectory(t_directory *directory);
-int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer);
+int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer, int fileSize);
 void *fs_readFile(char *fullFilePath);
+t_dataNode *fs_getDataNodeWithMostFreeSpace();
+int *fs_sendPackagesToCorrespondingNodes(t_list *packageList);
+int *fs_getFirstFreeBlockFromNode(t_dataNode *dataNode);
 
 //Console commands
 int fs_format();

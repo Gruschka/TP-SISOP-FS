@@ -1240,3 +1240,149 @@ int fs_getOffsetFromDirectory(t_directory *directory){
 
 	return EXIT_FAILURE;
 }
+
+int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer, int fileSize){
+	//check if there's enough space in system (filesize * 2), else abort
+	int totalFileSize = 2 * fileSize;
+	int amountOfBlocks = (totalFileSize % BLOCK_SIZE) ? (totalFileSize / BLOCK_SIZE) + 1 : totalFileSize / BLOCK_SIZE;
+
+	if(myFS.freeBlocks < amountOfBlocks){
+		log_error(logger,"free space to store file");
+		return EXIT_FAILURE;
+	}
+
+	//check if parent dir exists
+	t_directory *destinationDirectory = fs_directoryExists(fullFilePath);
+	if(!destinationDirectory){
+		log_error(logger,"destination directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//generate metadata folder --> according to file type
+	char *fileMetadataDirectory = string_from_format("%s/%d",myFS.filesDirectoryPath,destinationDirectory->index);
+	mkdir(fileMetadataDirectory,511);
+
+	//create metadata file in metadata folder
+	char *filePathWithName = string_from_format("%s/%s",fileMetadataDirectory,fileName);
+	FILE *metadataFile = fopen(filePathWithName,"w+");
+	if(!metadataFile){
+		log_error(logger,"couldnt create metadata file");
+		return EXIT_FAILURE;
+	}
+	t_config *metadataFileConfig = config_create(filePathWithName);
+
+	//split buffer in packages --> according to file type
+	t_list *packageList = list_create();
+
+	void *bufferSplit;
+	int offset = 0;
+	int splitSize = 0;
+	int blockNumber = 0;
+	int copy = 0;
+	t_blockPackage *package;
+
+	int remainingSizeToSplit = fileSize;
+	while(remainingSizeToSplit){
+		if(remainingSizeToSplit < BLOCK_SIZE){
+			//single block remaining
+			splitSize = remainingSizeToSplit;
+		}else{
+			remainingSizeToSplit -= BLOCK_SIZE;
+			splitSize = BLOCK_SIZE;
+		}
+
+		bufferSplit = malloc(splitSize);
+		memset(bufferSplit,0,splitSize);
+		memcpy(bufferSplit,buffer+offset,splitSize);
+		offset += splitSize;
+
+		int copy = 0;
+		for(copy = 0; copy == 1; copy++){
+			package = malloc(sizeof(t_blockPackage));
+			package->blockCopyNumber = copy;
+			package->blockNumber = blockNumber;
+			blockNumber++;
+			package->blockSize = splitSize;
+			package->buffer = bufferSplit;
+			//decide nodes to deliver original blocks and copy
+			package->destinationNode = fs_getDataNodeWithMostFreeSpace();
+			package->destinationBlock = fs_getFirstFreeBlockFromNode(package->destinationNode);
+			list_add(packageList,package);
+		}
+	}
+
+
+	//wait for receipt confirmation of all packages, update admin structures
+	//list failed packages and resend to 2nd alternative, else abort.
+	int operationStatus;
+
+	if(operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)){
+		log_error(logger,"error with data transmition to nodes");
+		return EXIT_FAILURE;
+	}
+
+	//set metadata values
+	char *fileSizeString = string_from_format("%d",fileSize);
+	config_set_value(metadataFileConfig,"TAMANIO",fileSizeString);
+
+	if(fileType == T_BINARY){
+		config_set_value(metadataFileConfig,"TIPO","BINARIO");
+	}else{
+		if(fileType == T_TEXT){
+			config_set_value(metadataFileConfig,"TIPO","TEXT");
+		}else{
+			log_error(logger,"unrecognized filetype");
+			return EXIT_FAILURE;
+		}
+	}
+
+	int iterator = 0;
+	char *blockString;
+	char *blockSizeString;
+	char *blockSizeValueString;
+	char *nodeBlockString;
+	int oldBlock = 0;
+
+	while(iterator < list_size(packageList)){
+		t_blockPackage *currentBlock = list_get(packageList,iterator);
+
+		blockString = string_from_format("BLOQUE%d%COPIA%d",currentBlock->blockNumber,currentBlock->blockCopyNumber);
+		blockSizeString = string_from_format("%d",currentBlock->blockSize);
+
+		nodeBlockString = string_from_format("[%s, %d]",currentBlock->destinationNode->name,currentBlock->destinationBlock);
+
+		config_set_value(metadataFileConfig,blockString,nodeBlockString);
+		free(blockString);
+		free(nodeBlockString);
+
+		if(oldBlock == currentBlock->blockNumber){
+			blockSizeString = string_from_format("BLOQUE%dBYTES", oldBlock);
+			blockSizeValueString = string_from_format("%d",currentBlock->blockSize);
+			config_set_value(metadataFile,blockSizeString,blockSizeValueString);
+			free(blockSizeString);
+			free(blockSizeValueString);
+			oldBlock++;
+		}
+
+		iterator++;
+	}
+
+	config_destroy(metadataFileConfig);
+	fclose(metadataFile);
+}
+
+int *fs_sendPackagesToCorrespondingNodes(t_list *packageList){
+	//todo: implementar con ipc
+	return EXIT_SUCCESS; //hardcodeado durlock
+}
+
+int *fs_getFirstFreeBlockFromNode(t_dataNode *dataNode){
+	//todo: implementar recorriendo el bitmap
+	return 1; //hardcodeado durlock
+}
+
+t_dataNode *fs_getDataNodeWithMostFreeSpace(){
+	//todo: implementar recorriendo lista de nodos conectados
+	t_dataNode *node; //hardcodeado durlock
+	return node;
+}
