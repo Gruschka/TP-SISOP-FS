@@ -8,6 +8,7 @@
 #ifndef DATANODE_H_
 #define DATANODE_H_
 #define BLOCK_SIZE 1048576
+#include <commons/bitarray.h>
 
 typedef struct dataNodeConfig {
 
@@ -35,6 +36,7 @@ typedef struct dataNode {
 	t_dataNodeConfig config;
 	void *dataBinMMapedPointer;
 	int dataBinFileDescriptor;
+	t_bitarray *bitmap;
 	FILE *dataBinFile;
 
 } t_dataNode;
@@ -46,4 +48,6 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode);
 void *dataNode_getBlock(int blockNumber);
 int dataNode_setBlock(int blockNumber, void *data);
 int dataNode_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C);
+void dataNode_dumpDataBin();
+int dataNode_setBitmapInformation();
 #endif /* DATANODE_H_ */
