@@ -43,28 +43,7 @@ int main(int argc, char **argv) {
 
 	dataNode_setBlockInformation(&myDataNode);
 
-	char *bitarray = malloc(myDataNode.blockInfo.amountOfBlocks/8);
-	memset(bitarray,0,myDataNode.blockInfo.amountOfBlocks/8);
 
-	myDataNode.bitmap = bitarray_create_with_mode(bitarray,myDataNode.blockInfo.amountOfBlocks/8, LSB_FIRST);
-
-	char * test = "test";
-	void *prueba = malloc(BLOCK_SIZE);
-	memset(prueba, 0, BLOCK_SIZE);
-	memcpy(prueba, test, strlen(test));
-	dataNode_setBlock(0, prueba);
-	prueba = dataNode_getBlock(0);
-
-	memset(prueba, 0, BLOCK_SIZE);
-	char * test2 = "estoy en el tercer bloque";
-	memcpy(prueba, test2, strlen(test2));
-	dataNode_setBlock(3, prueba);
-	prueba = dataNode_getBlock(3);
-
-
-	dataNode_setBitmapInformation();
-
-	dataNode_dumpBitmap();
 
 	dataNode_connectToFileSystem(myDataNode);
 
@@ -171,6 +150,8 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 	tmp = htonl((uint32_t) myInt);
 	write(sockfd, &tmp, sizeof(tmp));
 
+
+
 	printf("%s\n", buffer);
 
 	//wait for request from fs
@@ -255,6 +236,7 @@ int dataNode_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tam
 	char *buffer = malloc(N);
 	memset(buffer, C, N);
 	fwrite(buffer, N, 1, fileDescriptor);
+	fflush(fileDescriptor);
 	return EXIT_SUCCESS;
 }
 
@@ -262,40 +244,3 @@ void dataNode_dumpDataBin() {
 
 }
 
-int dataNode_setBitmapInformation() {
-
-	int i;
-	char *aux = malloc(BLOCK_SIZE);
-	char testblock [BLOCK_SIZE];
-	memset(testblock, 0, sizeof(testblock));
-
-	//Comienzo a recorrer el dataBin que ya esta mmapeado
-	for (i = 0; i < myDataNode.blockInfo.amountOfBlocks; i++) {
-
-		aux = dataNode_getBlock(i);
-		//Si adentro no tiene nada
-		if (!memcmp(testblock,aux,BLOCK_SIZE)) {
-			//CLEAN BIT
-			bitarray_clean_bit(myDataNode.bitmap,i);
-		} else {
-			//SET BIT
-			bitarray_set_bit(myDataNode.bitmap,i);
-
-		}
-
-		free(aux);
-
-	}
-
-}
-
-void dataNode_dumpBitmap() {
-	int i = 0;
-	int unBit = 0;
-
-	while (i < myDataNode.blockInfo.amountOfBlocks) {
-		unBit = bitarray_test_bit(myDataNode.bitmap, i);
-		log_info(logger,"bit %d: %d",i,unBit);
-		i++;
-	}
-}

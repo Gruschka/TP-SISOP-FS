@@ -48,6 +48,5 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode);
 void *dataNode_getBlock(int blockNumber);
 int dataNode_setBlock(int blockNumber, void *data);
 int dataNode_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C);
-void dataNode_dumpDataBin();
-int dataNode_setBitmapInformation();
+
 #endif /* DATANODE_H_ */
