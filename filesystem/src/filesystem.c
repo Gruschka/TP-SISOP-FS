@@ -603,6 +603,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 }
 
 /************************************* FILE SYSTEM FUNCTIONS *************************************/
+//Functions to mount FS structures
 int fs_mount(t_FS *FS) {
 
 	/****************************    MOUNT DIRECTORY ****************************/
@@ -827,6 +828,71 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	return 0;
 
 }
+int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
+
+	char *bitmapRootPath = "/mnt/FS/metadata/bitmaps/";
+	char *bitmapFullPath = malloc(
+			strlen(bitmapRootPath) + strlen(aDataNode->name) + strlen(".dat")
+					+ 1);
+	strcpy(bitmapFullPath, bitmapRootPath);
+	strcat(bitmapFullPath, aDataNode->name);
+	strcat(bitmapFullPath, ".dat");
+
+	if (aDataNode->bitmapFile = fopen(bitmapFullPath, "r+")) { //Existe el archivo de bitmap del dataNode
+		log_debug(logger,
+				"bitmap of data node %s found. Wont create from scratch",
+				aDataNode->name);
+		log_debug(logger, "Mapping bitmap to memory");
+
+		//TODO: hacer que tome la informacion anterior
+
+		fs_mmapDataNodeBitmap(bitmapFullPath, aDataNode);
+
+		aDataNode->bitmap = bitarray_create_with_mode(
+				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
+				LSB_FIRST);
+
+		log_debug(logger, "Bitmap of datanode %s opened sucessfully", aDataNode->name);
+
+		return EXIT_SUCCESS;
+
+	} else { //No puede abrirlo => Lo crea
+		printf("NoExiste el data.bin");
+
+		log_debug(logger,
+				"Bitmap file for datanode %s not found. Creating with parameters of config file",
+				aDataNode->name);
+		aDataNode->bitmapFile = fopen(bitmapFullPath, "w+");
+		float amountOfBlocks = aDataNode->amountOfBlocks;
+		fs_writeNBytesOfXToFile(aDataNode->bitmapFile, ceilf(amountOfBlocks / 8),
+				0);
+
+		log_debug(logger, "Maping bitmap of datanode %s to memory",
+				aDataNode->name);
+
+		int mmapResult = fs_mmapDataNodeBitmap(bitmapFullPath, aDataNode);
+
+		if (mmapResult == EXIT_FAILURE) {
+			log_error(logger, "Maping  of datanode %s  bitmap to memory failed",
+					aDataNode->name);
+
+			return EXIT_FAILURE;
+		}
+
+		aDataNode->bitmap = bitarray_create_with_mode(
+				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
+				LSB_FIRST);
+		log_debug(logger, "bitmap created with parameters");
+
+		return EXIT_SUCCESS;
+
+	}
+
+	log_error(logger, "Bitmap of datanode %s could not be opened or created", aDataNode->name);
+
+	return EXIT_FAILURE;
+
+}
 int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes) {
 
 	int listSize = list_size(connectedNodes);
@@ -1021,71 +1087,6 @@ int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio d
 	fwrite(buffer, N, 1, fileDescriptor);
 	fflush(fileDescriptor);
 	return EXIT_SUCCESS;
-}
-int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
-
-	char *bitmapRootPath = "/mnt/FS/metadata/bitmaps/";
-	char *bitmapFullPath = malloc(
-			strlen(bitmapRootPath) + strlen(aDataNode->name) + strlen(".dat")
-					+ 1);
-	strcpy(bitmapFullPath, bitmapRootPath);
-	strcat(bitmapFullPath, aDataNode->name);
-	strcat(bitmapFullPath, ".dat");
-
-	if (aDataNode->bitmapFile = fopen(bitmapFullPath, "r+")) { //Existe el archivo de bitmap del dataNode
-		log_debug(logger,
-				"bitmap of data node %s found. Wont create from scratch",
-				aDataNode->name);
-		log_debug(logger, "Mapping bitmap to memory");
-
-		//TODO: hacer que tome la informacion anterior
-
-		fs_mmapDataNodeBitmap(bitmapFullPath, aDataNode);
-
-		aDataNode->bitmap = bitarray_create_with_mode(
-				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
-				LSB_FIRST);
-
-		log_debug(logger, "Bitmap of datanode %s opened sucessfully", aDataNode->name);
-
-		return EXIT_SUCCESS;
-
-	} else { //No puede abrirlo => Lo crea
-		printf("NoExiste el data.bin");
-
-		log_debug(logger,
-				"Bitmap file for datanode %s not found. Creating with parameters of config file",
-				aDataNode->name);
-		aDataNode->bitmapFile = fopen(bitmapFullPath, "w+");
-		float amountOfBlocks = aDataNode->amountOfBlocks;
-		fs_writeNBytesOfXToFile(aDataNode->bitmapFile, ceilf(amountOfBlocks / 8),
-				0);
-
-		log_debug(logger, "Maping bitmap of datanode %s to memory",
-				aDataNode->name);
-
-		int mmapResult = fs_mmapDataNodeBitmap(bitmapFullPath, aDataNode);
-
-		if (mmapResult == EXIT_FAILURE) {
-			log_error(logger, "Maping  of datanode %s  bitmap to memory failed",
-					aDataNode->name);
-
-			return EXIT_FAILURE;
-		}
-
-		aDataNode->bitmap = bitarray_create_with_mode(
-				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
-				LSB_FIRST);
-		log_debug(logger, "bitmap created with parameters");
-
-		return EXIT_SUCCESS;
-
-	}
-
-	log_error(logger, "Bitmap of datanode %s could not be opened or created", aDataNode->name);
-
-	return EXIT_FAILURE;
-
 }
 int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber) { //No puede abrirlo => Lo crea
 	t_dataNode *connectedNode;
@@ -1495,7 +1496,6 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
 		i++;
 	}
 }
-
 int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode) {
 
 	int i;
