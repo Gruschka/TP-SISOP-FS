@@ -63,6 +63,9 @@
 // y el nombre y path bajo el cual deberá almacenarse.
 // TODO: esperar confirmación y notificar a YAMA.
 //
+// TODO: replanificación
+// TODO: métricas
+// TODO: logs
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -81,7 +84,7 @@ int main(int argc, char **argv) {
 	config_destroy(config);
 
 	// TODO: (Fede) el siguiente es código de Hernie. Revisar.
-//	initialize();
+	initialize();
 //	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
 //	ipc_struct_test_message testMessage;
 //	testMessage.blah = 'A';
