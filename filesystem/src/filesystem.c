@@ -1428,7 +1428,7 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	int i;
 	int maxFreeSpace = 0;
 	t_dataNode * aux;
-	t_dataNode * output;
+	t_dataNode * output = NULL;
 
 	if (listSize == 0) {
 		log_error(logger,
@@ -1452,7 +1452,7 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 		}
 	}
 
-	if (!strcmp(output->name, aux->name)) {
+	if (output != NULL) {
 		log_debug(logger, "The dataNode with most free space is %s",
 				output->name);
 		return output;
