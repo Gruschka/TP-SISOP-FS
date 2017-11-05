@@ -313,7 +313,6 @@ int fs_ls(char *directoryPath) {
 int fs_info(char *filePath) {
 
 	printf("Showing info of file file %s\n", filePath);
-	t_dataNode *test = fs_getDataNodeWithMostFreeSpace();
 	return 0;
 
 }
@@ -450,6 +449,12 @@ void fs_waitForYama() {
 
 }
 int fs_isStable() {
+	int amountOfConnectedNodes = list_size(connectedNodes);
+	if(amountOfConnectedNodes <= 1){
+		log_error(logger,"not enough datanodes connected");
+		return EXIT_FAILURE;
+	}
+
 	FILE *fileListFileDescriptor = fopen(myFS.FSFileList, "r+");
 	if (fileListFileDescriptor == NULL) {
 		fileListFileDescriptor = fopen(myFS.FSFileList, "w+");
@@ -595,7 +600,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	while (1) {
 
-		printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
+		//printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
 
 		sleep(5);
 
@@ -1318,6 +1323,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		memcpy(bufferSplit, buffer + offset, splitSize);
 		offset += splitSize;
 
+
+		t_dataNode *exclude = NULL;
 		for (copy = 0; copy < 2; copy++) {
 			package = malloc(sizeof(t_blockPackage));
 			package->blockCopyNumber = copy;
@@ -1325,7 +1332,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			package->blockSize = splitSize;
 			package->buffer = bufferSplit;
 			//decide nodes to deliver original blocks and copy
-			package->destinationNode = fs_getDataNodeWithMostFreeSpace();
+			package->destinationNode = fs_getDataNodeWithMostFreeSpace(exclude);
+			exclude = package->destinationNode;
 			package->destinationBlock = fs_getFirstFreeBlockFromNode(
 					package->destinationNode);
 			list_add(packageList, package);
@@ -1404,13 +1412,16 @@ int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode) {
 	int counter = 0;
 	while (counter < dataNode->amountOfBlocks) {
 		if (!bitarray_test_bit(dataNode->bitmap, counter)) {
+			bitarray_set_bit(dataNode->bitmap,counter);
+			dataNode->freeBlocks--;
+			dataNode->occupiedBlocks++;
 			return counter;
 		}
 		counter++;
 	}
 	return NULL;
 }
-t_dataNode *fs_getDataNodeWithMostFreeSpace() {
+t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	//todo: implementar recorriendo lista de nodos conectados
 
 	int listSize = list_size(connectedNodes);
@@ -1428,7 +1439,16 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace() {
 	for (i = 0; i < listSize; i++) {
 		aux = list_get(connectedNodes, i);
 		if (aux->freeBlocks > maxFreeSpace) {
-			output = aux;
+			if(excluding != NULL){
+				if (strcmp(aux->name,excluding->name)){
+					maxFreeSpace = aux->freeBlocks;
+					output = aux;
+				}
+			}else{
+				maxFreeSpace = aux->freeBlocks;
+				output = aux;
+			}
+
 		}
 	}
 

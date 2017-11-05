@@ -101,13 +101,15 @@ int fs_getDirectoryIndex();
 int fs_getOffsetFromDirectory(t_directory *directory);
 int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer, int fileSize);
 void *fs_readFile(char *fullFilePath);
-t_dataNode *fs_getDataNodeWithMostFreeSpace();
+t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding);
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList);
 int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode);
 void *fs_serializeFile(FILE *file, int fileSize);
 int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode);
 void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode);
+
+
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);
