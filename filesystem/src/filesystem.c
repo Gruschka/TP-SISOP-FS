@@ -1455,16 +1455,17 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 
 	struct stat mystat;
 
-	aDataNode->bitmapFileDescriptor = open(bitmapPath, O_RDWR);
+	//aDataNode->bitmapFileDescriptor = open(bitmapPath, O_RDWR);
 
-	if (aDataNode->bitmapFileDescriptor == -1) {
+
+	if (aDataNode->bitmapFile->_fileno == -1) {
 		log_error(logger,
 				"Error opening bitmap file of datanode %s in order to map to memory",
 				aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
-	if (fstat(aDataNode->bitmapFileDescriptor, &mystat) < 0) {
+	if (fstat(aDataNode->bitmapFile->_fileno, &mystat) < 0) {
 		log_error(logger,
 				"Error at fstat of data node %s in order to map to memory",
 				aDataNode->name);
@@ -1473,7 +1474,7 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 	}
 
 	aDataNode->bitmapMapedPointer = mmap(0, mystat.st_size,
-	PROT_READ | PROT_WRITE, MAP_SHARED, aDataNode->bitmapFileDescriptor, 0);
+	PROT_READ | PROT_WRITE, MAP_SHARED, aDataNode->bitmapFile->_fileno, 0);
 
 	if (aDataNode->bitmapMapedPointer == MAP_FAILED) {
 		log_error(logger,
