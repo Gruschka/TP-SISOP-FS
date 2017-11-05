@@ -583,8 +583,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	fs_openOrCreateBitmap(myFS, &newDataNode);
 
-	fs_getAmountOfFreeBlocksOfADataNode(&newDataNode);
-	fs_getFirstFreeBlockFromNode(&newDataNode);
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
 	/*if (nodeTableUpdate == DATANODE_ALREADY_CONNECTED) {
@@ -1415,6 +1413,7 @@ int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode) {
 			bitarray_set_bit(dataNode->bitmap,counter);
 			dataNode->freeBlocks--;
 			dataNode->occupiedBlocks++;
+			fs_updateNodeTable(*dataNode);
 			return counter;
 		}
 		counter++;
