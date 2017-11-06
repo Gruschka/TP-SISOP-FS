@@ -313,7 +313,6 @@ int fs_ls(char *directoryPath) {
 int fs_info(char *filePath) {
 
 	printf("Showing info of file file %s\n", filePath);
-	t_dataNode *test = fs_getDataNodeWithMostFreeSpace();
 	return 0;
 
 }
@@ -450,6 +449,12 @@ void fs_waitForYama() {
 
 }
 int fs_isStable() {
+	int amountOfConnectedNodes = list_size(connectedNodes);
+	if (amountOfConnectedNodes <= 1) {
+		log_error(logger, "not enough datanodes connected");
+		return EXIT_FAILURE;
+	}
+
 	FILE *fileListFileDescriptor = fopen(myFS.FSFileList, "r+");
 	if (fileListFileDescriptor == NULL) {
 		fileListFileDescriptor = fopen(myFS.FSFileList, "w+");
@@ -578,8 +583,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	fs_openOrCreateBitmap(myFS, &newDataNode);
 
-	fs_getAmountOfFreeBlocksOfADataNode(&newDataNode);
-	fs_getFirstFreeBlockFromNode(&newDataNode);
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
 	/*if (nodeTableUpdate == DATANODE_ALREADY_CONNECTED) {
@@ -595,7 +598,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	while (1) {
 
-		printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
+		//printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
 
 		sleep(5);
 
@@ -698,23 +701,29 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 			"NODOS"); //"[Nodo1, Nodo2]"
 	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
 
+	int isAlreadyInTable = 0;
 	if (fs_arrayContainsString(listaNodosArray, aDataNode.name) == 0
 			&& fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
 
 		log_debug(logger, "DataNode is already in DataNode Table\n");
 
-		config_destroy(nodeTableConfig);
-		return DATANODE_ALREADY_CONNECTED;
+		isAlreadyInTable = 1;
+		//config_destroy(nodeTableConfig);
+		//return DATANODE_ALREADY_CONNECTED;
 
 	}
 	/*************** ACTUALIZA TAMANIO ***************/
-	char * tamanioOriginal = config_get_string_value(nodeTableConfig,
-			"TAMANIO"); //Stores original value of TAMANIO
 
-	int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
-	char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
-	config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
-	myFS.totalAmountOfBlocks = tamanioAcumulado;
+	if (!isAlreadyInTable) {
+		char * tamanioOriginal = config_get_string_value(nodeTableConfig,
+				"TAMANIO"); //Stores original value of TAMANIO
+
+		int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
+		char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
+		config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
+		myFS.totalAmountOfBlocks = tamanioAcumulado;
+
+	}
 
 	/*************** ACTUALIZA LIBRE ***************/
 	int libresFinal = fs_getTotalFreeBlocksOfConnectedDatanodes(connectedNodes); //Suma todos los bloques libres usando la lista de bloques conectados
@@ -724,8 +733,8 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = aDataNode.freeBlocks;
 	} else {
-		int bloquesLibresTotales = aDataNode.freeBlocks + libresFinal;
-		char *libreTotalFinal = string_from_format("%d", bloquesLibresTotales); //La pasa a string
+		//int bloquesLibresTotales = myFS.freeBlocks - libresFinal;
+		char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = libresFinal;
 	}
@@ -734,44 +743,49 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	/*************** ACTUALIZA LISTA NODOS EN NODE TABLE ***************/
 
-	char *listaNodosFinal;
-	int tamanioArrayNuevo = (fs_amountOfElementsInArray(listaNodosArray) + 1)
-			* sizeof(listaNodosArray);
-	char *listaNodosAux = malloc(200);
-	memset(listaNodosAux, 0, 200);
+	if (!isAlreadyInTable) {
+		char *listaNodosFinal;
+		int tamanioArrayNuevo =
+				(fs_amountOfElementsInArray(listaNodosArray) + 1)
+						* sizeof(listaNodosArray);
+		char *listaNodosAux = malloc(200);
+		memset(listaNodosAux, 0, 200);
 
-	int i = 0;
+		int i = 0;
 
-	if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro del archivo node table
+		if (fs_amountOfElementsInArray(listaNodosArray) == 0) { //Si el array de nodos esta vacio, no hace falta fijarse si ya esta adentro del archivo node table
 
-		listaNodosFinal = string_from_format("[%s]", aDataNode.name);
-		config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
-		//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
-	} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
-
-		if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
-
-			log_debug(logger, "DataNode is already in DataNode Table\n");
-
-		} else { //Si no esta en la lista lo agrego
-			//listaNodosArray = ["NODOA","NODOB"] y quiero meter "NODOC"
-
-			for (i = 0; i < fs_amountOfElementsInArray(listaNodosArray); i++) { //Vuelco a listaNodosAux todos los nodos del array
-				strcat(listaNodosAux, listaNodosArray[i]);
-				strcat(listaNodosAux, ",");
-			}
-
-			strcat(listaNodosAux, aDataNode.name); //concatena el nuevo nodo con coma y espacio
-
-			listaNodosFinal = string_from_format("[%s]", listaNodosAux);
+			listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 			//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
+		} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
+
+			if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
+
+				log_debug(logger, "DataNode is already in DataNode Table\n");
+
+			} else { //Si no esta en la lista lo agrego
+				//listaNodosArray = ["NODOA","NODOB"] y quiero meter "NODOC"
+
+				for (i = 0; i < fs_amountOfElementsInArray(listaNodosArray);
+						i++) { //Vuelco a listaNodosAux todos los nodos del array
+					strcat(listaNodosAux, listaNodosArray[i]);
+					strcat(listaNodosAux, ",");
+				}
+
+				strcat(listaNodosAux, aDataNode.name); //concatena el nuevo nodo con coma y espacio
+
+				listaNodosFinal = string_from_format("[%s]", listaNodosAux);
+				config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
+				//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+
+			}
+
 		}
+		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	}
-	config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	/*************** ACTUALIZA INFORMACION DE BLOQUES DEL NODO EN NODE TABLE ***************/
 
@@ -797,8 +811,12 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) {	//Si esta en la lista, solo tengo que actualizar su informacion
 
-		config_set_value(nodeTableConfig, libres, bloquesLibresFinal);
-		config_set_value(nodeTableConfig, total, bloquesTotalesFinal);
+		//cada array en [0] tiene el string a usar sin el =
+		char**  libresArray = string_split(libres, "=");
+		char**  totalesArray = string_split(total, "=");
+
+		config_set_value(nodeTableConfig, libresArray[0], bloquesLibresFinal);
+		config_set_value(nodeTableConfig, totalesArray[0], bloquesTotalesFinal);
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
 
 	} else { //No esta en la lista entonces tengo que crear nueva entrada
@@ -852,7 +870,8 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
 				LSB_FIRST);
 
-		log_debug(logger, "Bitmap of datanode %s opened sucessfully", aDataNode->name);
+		log_debug(logger, "Bitmap of datanode %s opened sucessfully",
+				aDataNode->name);
 
 		return EXIT_SUCCESS;
 
@@ -864,8 +883,8 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 				aDataNode->name);
 		aDataNode->bitmapFile = fopen(bitmapFullPath, "w+");
 		float amountOfBlocks = aDataNode->amountOfBlocks;
-		fs_writeNBytesOfXToFile(aDataNode->bitmapFile, ceilf(amountOfBlocks / 8),
-				0);
+		fs_writeNBytesOfXToFile(aDataNode->bitmapFile,
+				ceilf(amountOfBlocks / 8), 0);
 
 		log_debug(logger, "Maping bitmap of datanode %s to memory",
 				aDataNode->name);
@@ -888,7 +907,8 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 
 	}
 
-	log_error(logger, "Bitmap of datanode %s could not be opened or created", aDataNode->name);
+	log_error(logger, "Bitmap of datanode %s could not be opened or created",
+			aDataNode->name);
 
 	return EXIT_FAILURE;
 
@@ -1318,6 +1338,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		memcpy(bufferSplit, buffer + offset, splitSize);
 		offset += splitSize;
 
+		t_dataNode *exclude = NULL;
 		for (copy = 0; copy < 2; copy++) {
 			package = malloc(sizeof(t_blockPackage));
 			package->blockCopyNumber = copy;
@@ -1325,7 +1346,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			package->blockSize = splitSize;
 			package->buffer = bufferSplit;
 			//decide nodes to deliver original blocks and copy
-			package->destinationNode = fs_getDataNodeWithMostFreeSpace();
+			package->destinationNode = fs_getDataNodeWithMostFreeSpace(exclude);
+			exclude = package->destinationNode;
 			package->destinationBlock = fs_getFirstFreeBlockFromNode(
 					package->destinationNode);
 			list_add(packageList, package);
@@ -1404,20 +1426,24 @@ int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode) {
 	int counter = 0;
 	while (counter < dataNode->amountOfBlocks) {
 		if (!bitarray_test_bit(dataNode->bitmap, counter)) {
+			bitarray_set_bit(dataNode->bitmap, counter);
+			dataNode->freeBlocks--;
+			dataNode->occupiedBlocks++;
+			fs_updateNodeTable(*dataNode);
 			return counter;
 		}
 		counter++;
 	}
 	return NULL;
 }
-t_dataNode *fs_getDataNodeWithMostFreeSpace() {
+t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	//todo: implementar recorriendo lista de nodos conectados
 
 	int listSize = list_size(connectedNodes);
 	int i;
 	int maxFreeSpace = 0;
 	t_dataNode * aux;
-	t_dataNode * output;
+	t_dataNode * output = NULL;
 
 	if (listSize == 0) {
 		log_error(logger,
@@ -1428,11 +1454,20 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace() {
 	for (i = 0; i < listSize; i++) {
 		aux = list_get(connectedNodes, i);
 		if (aux->freeBlocks > maxFreeSpace) {
-			output = aux;
+			if (excluding != NULL) {
+				if (strcmp(aux->name, excluding->name)) {
+					maxFreeSpace = aux->freeBlocks;
+					output = aux;
+				}
+			} else {
+				maxFreeSpace = aux->freeBlocks;
+				output = aux;
+			}
+
 		}
 	}
 
-	if (!strcmp(output->name, aux->name)) {
+	if (output != NULL) {
 		log_debug(logger, "The dataNode with most free space is %s",
 				output->name);
 		return output;
@@ -1455,16 +1490,16 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 
 	struct stat mystat;
 
-	aDataNode->bitmapFileDescriptor = open(bitmapPath, O_RDWR);
+	//aDataNode->bitmapFileDescriptor = open(bitmapPath, O_RDWR);
 
-	if (aDataNode->bitmapFileDescriptor == -1) {
+	if (aDataNode->bitmapFile->_fileno == -1) {
 		log_error(logger,
 				"Error opening bitmap file of datanode %s in order to map to memory",
 				aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
-	if (fstat(aDataNode->bitmapFileDescriptor, &mystat) < 0) {
+	if (fstat(aDataNode->bitmapFile->_fileno, &mystat) < 0) {
 		log_error(logger,
 				"Error at fstat of data node %s in order to map to memory",
 				aDataNode->name);
@@ -1473,7 +1508,7 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 	}
 
 	aDataNode->bitmapMapedPointer = mmap(0, mystat.st_size,
-	PROT_READ | PROT_WRITE, MAP_SHARED, aDataNode->bitmapFileDescriptor, 0);
+	PROT_READ | PROT_WRITE, MAP_SHARED, aDataNode->bitmapFile->_fileno, 0);
 
 	if (aDataNode->bitmapMapedPointer == MAP_FAILED) {
 		log_error(logger,
@@ -1492,7 +1527,7 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
 
 	while (i < aDataNode.amountOfBlocks) {
 		unBit = bitarray_test_bit(aDataNode.bitmap, i);
-		log_info(logger,"bit %d: %d",i,unBit);
+		log_info(logger, "bit %d: %d", i, unBit);
 		i++;
 	}
 }
@@ -1503,9 +1538,9 @@ int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode) {
 
 	//Comienzo a recorrer el bitmap
 	for (i = 0; i < aDataNode->amountOfBlocks; i++) {
-		if (!bitarray_test_bit(aDataNode->bitmap,i)) {
-				output++;
-			}
+		if (!bitarray_test_bit(aDataNode->bitmap, i)) {
+			output++;
+		}
 	}
 
 	return output;

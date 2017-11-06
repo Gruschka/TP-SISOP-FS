@@ -170,7 +170,7 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode) {
 
 	//TODO: Levantar info de bloques libres del bitmap
 	aDataNode->blockInfo.amountOfBlocks = aDataNode->config.sizeInMb;
-	aDataNode->blockInfo.freeBlocks = 11;
+	aDataNode->blockInfo.freeBlocks = 15;
 	aDataNode->blockInfo.occupiedBlocks = aDataNode->blockInfo.amountOfBlocks
 			- aDataNode->blockInfo.freeBlocks;
 
