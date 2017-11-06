@@ -17,10 +17,30 @@
 #include "yama.h"
 #include "configuration.h"
 
+pthread_mutex_t stateTable_mutex;
+
 yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;
 pthread_t serverThread;
+
+void yst_addEntry(yama_state_table_entry *entry) {
+	pthread_mutex_lock(&stateTable_mutex);
+	list_add(stateTable, entry);
+	pthread_mutex_unlock(&stateTable_mutex);
+}
+
+yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t nodeID) {
+	yama_state_table_entry *result = NULL;
+
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currEntry = list_get(stateTable, i);
+		if (currEntry->jobID == jobID && currEntry->masterID == masterID && currEntry->nodeID == nodeID) return currEntry;
+	}
+
+	return NULL;
+}
 
 void test() {
 	yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
@@ -32,6 +52,14 @@ void test() {
 	entry->stage = IN_PROCESS;
 	entry->tempPath = "/tmp/q1w2e3";
 
+	yst_addEntry(entry);
+
+	pthread_mutex_lock(&stateTable_mutex);
+	yama_state_table_entry *found = yst_getEntry(1, 1, 1);
+	pthread_mutex_unlock(&stateTable_mutex);
+
+	printf(found->tempPath);
+	fflush(stdout);
 //	list_add(stateTable, entry);
 }
 
@@ -52,6 +80,13 @@ void *server_mainThread() {
 	return NULL;
 }
 
+void initialize() {
+	serialization_initialize();
+
+	stateTable = list_create();
+	pthread_mutex_init(&stateTable_mutex, NULL);
+}
+
 int main(int argc, char** argv) {
 	char *logFilePath = tmpnam(NULL);
 	logger = log_create(logFilePath, "YAMA", 1, LOG_LEVEL_DEBUG);
@@ -64,11 +99,9 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
-	stateTable = list_create();
-
 	pthread_create(&serverThread, NULL, server_mainThread, NULL);
 
-//	test();
+	test();
 
 	pthread_join(serverThread, NULL);
 	return EXIT_SUCCESS;
