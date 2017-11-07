@@ -6,8 +6,8 @@
  *      Description: An exploited Worker
  */
 
-// TODO: Conexion a los workers que me diga master en la GLOBAL_REDUCTION
-// TODO: Finalizar Global Reduction
+// TODO: Recibir tabla de Workers Global Reduction desde Master
+// TODO: Recibir tabla de Archivos en Local Reduction desde Master
 // TODO: Testear worker con master
 // TODO: Probar algoritmo de apareo global con otros workers para ver si anda bien los sends y recv
 
@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
 #include <sys/wait.h>
 #define TRANSFORMATION 1
@@ -192,13 +193,18 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case LOCAL_REDUCTION:{
-				t_list * filesToReduce;
+				t_list * filesList;
+				fileNode * fileToReduce = malloc(sizeof(fileNode));
 				int checkCode = OK;
+
+
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
+				list_add(fileList, fileToReduce);
+
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
 				temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
-				pairingFiles(filesToReduce, temporalName);
+				pairingFiles(filesList, temporalName);
 				char * template = "%s %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
 				buffer = malloc(templateSize + 1);
@@ -208,28 +214,43 @@ void connectionHandler(int client_sock){
 				free(buffer);
 				free(script);
 				free(temporalName);
+				free(fileToReduce);
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
 			case GLOBAL_REDUCTION:{
-				t_list * filesToReduce;
-				fileGlobalNode * workerToRequest;
+				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
+				t_list * workerList;
+				int workerListSize, i = 0;
 				int checkCode = OK;
+
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
+
+				list_add(workerList, workerToRequest);
+
+				//Conexion a los workers
+				workerListSize = list_size(workerList);
+				for(i=0; i < workerListSize; i++){
+					workerToRequest = list_get(workerList, i);
+					workerToRequest->sockfd = connectToWorker(workerToRequest);
+
+				}
+
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
 				temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
 
-				//Conexion a los workers
 
 
-				pairingGlobalFiles(filesToReduce, temporalName);
+
+				pairingGlobalFiles(workerList, temporalName);
 				char * template = "%s %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
 				buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, temporalName, script, temporalName);
 				buffer[templateSize] = '\0';
 				system(buffer);
+				free(workerToRequest);
 				free(buffer);
 				free(script);
 				free(temporalName);
@@ -408,7 +429,35 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 
+int connectToWorker(fileGlobalNode * worker){
+	int sockfd;
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
 
+	printf("\nWorker Ip: %s Port No: %d", worker->workerIp, worker->port);
+	printf("\nConnecting to Worker\n");
+
+	/* Create a socket point */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (sockfd < 0) {
+		perror("ERROR opening socket");
+		exit(1);
+	}
+
+	server = gethostbyname(worker->workerIp);
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	bcopy((char *) server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+	serv_addr.sin_port = htons(worker->port);
+
+	/* Now connect to the server */
+	if (connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
+		perror("ERROR connecting");
+		exit(1);
+	}
+	return sockfd;
+}
 
 
 
