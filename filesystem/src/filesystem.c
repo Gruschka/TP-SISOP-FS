@@ -94,16 +94,54 @@ int fs_format() {
 int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
-	return 0;
+	// get parent path
+	char **splitPath = string_get_string_as_array(filePath);
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount]);
+
+	char *parentPath = strdup(filePath);
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//todo: release occupied blocks
+
+	//todo: update file index
+
+	//todo: delete metadata file
+
+	free(splitPath);
+	free(parentPath);
+	free(physicalPath);
+	fclose(fileMetadata);
+
+	return EXIT_SUCCESS;
 }
 int fs_rm_dir(char *dirPath) {
 	printf("removing directory %s \n", dirPath);
 
 	t_directory *directory = fs_directoryExists(dirPath);
-	fs_directoryIsEmpty(directory);
 	if (directory && !fs_directoryIsParent(directory)) {
 		//el directorio existe y no tiene childrens
-		//todo: validar que no tenga archivos
+		char *physicalPath = string_from_format("%s/%d",myFS.filesDirectoryPath,directory->index);
+		if(fs_directoryExists(physicalPath)){
+			log_error(logger,"directory is not empty, cant remove");
+			return EXIT_FAILURE;
+		}
 
 		int iterator = directory->index;
 		fseek(myFS.directoryTableFile, (sizeof(t_directory)) * directory->index,
@@ -1234,30 +1272,24 @@ int fs_directoryIsParent(t_directory *directory) {
 	}
 	return 0;
 }
-int fs_directoryIsEmpty(t_directory *directory) {
-	int n = 0;
-	struct dirent *d;
-	char stringIndex[10];
-	sprintf(stringIndex, "%d", directory->index);
+int fs_directoryIsEmpty(char *dirname) {
+  int n = 0;
+  struct dirent *d;
+  DIR *dir = opendir(dirname);
+  if (dir == NULL) //Not a directory or doesn't exist
+	return 1;
+  while ((d = readdir(dir)) != NULL) {
+	if(++n > 2)
+	  break;
+  }
+  closedir(dir);
+  if (n <= 2) //Directory Empty
+	return 1;
+  else
+	return 0;
 
-	int directoryNameLenght = strlen(myFS.filesDirectoryPath)
-			+ strlen(stringIndex) + 2;
-	char *directoryName = malloc(directoryNameLenght);
-	sprintf(directoryName, "%s/%s\0", myFS.filesDirectoryPath, stringIndex);
-
-	DIR *dir = opendir(directoryName);
-	if (dir == NULL) //Not a directory or doesn't exist
-		return 1;
-	while ((d = readdir(dir)) != NULL) {
-		if (++n > 2)
-			break;
-	}
-	closedir(dir);
-	if (n <= 2) //Directory Empty
-		return 1;
-	else
-		return 0;
 }
+
 int fs_getDirectoryIndex() {
 	int returnNumber = myFS._directoryIndexAutonumber;
 	myFS._directoryIndexAutonumber++;
@@ -1412,6 +1444,10 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 
 		iterator++;
 	}
+
+	FILE *fileIndex = fopen(myFS.FSFileList,"w+");
+	fwrite(filePathWithName,strlen(filePathWithName),1,fileIndex);
+	fclose(fileIndex);
 
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);

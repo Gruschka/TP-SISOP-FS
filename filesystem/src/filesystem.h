@@ -96,7 +96,7 @@ float fs_bytesToMegaBytes(int bytes);
 t_directory *fs_childOfParentExists(char *child, t_directory *parent);
 t_directory *fs_directoryExists(char *directory);
 int fs_directoryIsParent(t_directory *directory);
-int fs_directoryIsEmpty(t_directory *directory);
+int fs_directoryIsEmpty(char *directory);
 int fs_getDirectoryIndex();
 int fs_getOffsetFromDirectory(t_directory *directory);
 int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType, void *buffer, int fileSize);
