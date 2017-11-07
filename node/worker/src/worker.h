@@ -23,6 +23,7 @@ typedef struct file {
 typedef struct fileGlobalNode {
 	char * filePath;
 	char * workerIp;
+	int port;
 	uint32_t sockfd;
 }fileGlobalNode;
 
@@ -33,6 +34,6 @@ void connectionHandler(int client_fd);
 void pairingGlobalFiles(t_list *listToPair, char* resultName);
 void pairingFiles();
 void *createServer();
-
+int connectToWorker(fileGlobalNode * worker);
 
 #endif /* WORKER_H_ */

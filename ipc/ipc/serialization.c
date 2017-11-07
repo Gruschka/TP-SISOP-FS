@@ -19,6 +19,12 @@ void *deserializeTestMessage(char *buffer){
     return testMessage;
 }
 
+// FS_GET_FILE_INFO
+void *deserializeFSGetFileInfo(char *buffer) {
+	ipc_struct_fs_get_file_info *getFileInfo = malloc(sizeof(ipc_struct_fs_get_file_info));
+	getFileInfo->filePath = strdup(buffer);
+	return getFileInfo;
+}
 
 // Serialization functions
 
@@ -44,7 +50,7 @@ void initializeDeserialization () {
 	deserializationArray[TEST_MESSAGE] = deserializeTestMessage;
 }
 
-void initialize() {
+void serialization_initialize() {
 	initializeSerialization();
 	initializeDeserialization();
 }

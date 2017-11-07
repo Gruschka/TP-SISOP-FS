@@ -10,10 +10,11 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 1
+#define OPERATIONS_COUNT 2
 
 typedef enum ipc_operation {
-	TEST_MESSAGE
+	TEST_MESSAGE,
+	FS_GET_FILE_INFO
 } ipc_operation;
 
 typedef void *(*DeserializationFunction)(char *buffer);
@@ -31,5 +32,11 @@ typedef struct {
     char *bleh;
     char blah;
 }__attribute__((packed)) ipc_struct_test_message;
+
+typedef struct {
+	char *filePath;
+}__attribute__((packed)) ipc_struct_fs_get_file_info;
+
+void serialization_initialize();
 
 #endif /* SERIALIZATION_H_ */
