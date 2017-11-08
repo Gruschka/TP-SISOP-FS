@@ -105,7 +105,7 @@ int fs_rm(char *filePath) {
 	//check parent path exists and get parent dir
 	t_directory *parent = fs_directoryExists(parentPath);
 	if(!parent){
-		log_error(logger,"directory doesnt exist");
+		log_error(logger,"fs_rm: directory doesnt exist");
 		return EXIT_FAILURE;
 	}
 
@@ -114,7 +114,7 @@ int fs_rm(char *filePath) {
 	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount]);
 	FILE *fileMetadata = fopen(physicalPath,"r+");
 	if(!fileMetadata){
-		log_error(logger,"file doesnt exist");
+		log_error(logger,"fs_rm: file doesnt exist");
 		return EXIT_FAILURE;
 	}
 
@@ -139,7 +139,7 @@ int fs_rm_dir(char *dirPath) {
 		//el directorio existe y no tiene childrens
 		char *physicalPath = string_from_format("%s/%d",myFS.filesDirectoryPath,directory->index);
 		if(fs_directoryExists(physicalPath)){
-			log_error(logger,"directory is not empty, cant remove");
+			log_error(logger,"fs_rm_dir: directory is not empty, cant remove");
 			return EXIT_FAILURE;
 		}
 
@@ -157,7 +157,7 @@ int fs_rm_dir(char *dirPath) {
 		ftruncate(myFS.directoryTableFile->_fileno,
 				sizeof(t_directory) * myFS.amountOfDirectories);
 	} else {
-		log_debug(logger, "directory doesnt exist or is parent");
+		log_debug(logger, "fs_rm_dir: directory doesnt exist or is parent");
 	}
 
 	return 0;
@@ -182,7 +182,7 @@ int fs_rename(char *filePath, char *nombreFinal) {
 		fseek(myFS.directoryTableFile,
 				sizeof(t_directory) * myFS.amountOfDirectories, SEEK_SET);
 	} else {
-		log_error(logger, "dir to rename doesnt exist");
+		log_error(logger, "fs_rename: dir to rename doesnt exist");
 		return EXIT_FAILURE;
 	}
 
@@ -196,13 +196,13 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 	//chequeo si origen existe
 	//todo: chequear si es un archivo
 	if (!(originDirectory = fs_directoryExists(origFilePath))) {
-		log_error(logger, "aborting mv: origin directory doesnt exist");
+		log_error(logger, "fs_mv: aborting mv - origin directory doesnt exist");
 		return EXIT_FAILURE;
 	}
 
 	//chequeo si destino existe
 	if (!(destinationDirectory = fs_directoryExists(destFilePath))) {
-		log_error(logger, "aborting mv: destination directory doesnt exist");
+		log_error(logger, "fs_mv: aborting mv - destination directory doesnt exist");
 		return EXIT_FAILURE;
 	}
 
@@ -213,7 +213,7 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 
 	if (!fs_directoryExists(destinationFullName)) {
 		log_error(logger,
-				"aborting mv: origin directory already exists in destination");
+				"fs_mv: aborting mv - origin directory already exists in destination");
 		return EXIT_FAILURE;
 	}
 
@@ -268,13 +268,13 @@ int fs_mkdir(char *directoryPath) {
 				//no existe y no es el ultimo, es decir no existe el parent
 				// se aborta la creacion
 				log_error(logger,
-						"parent directory for directory to create doesnt exist");
+						"fs_mkdir: parent directory for directory to create doesnt exist");
 				return EXIT_FAILURE;
 			}
 		} else {
 			if (iterator == amountOfDirectories) {
 				// dir exists, abort
-				log_error(logger, "directory already exists");
+				log_error(logger, "fs_mkdir: directory already exists");
 				return EXIT_FAILURE;
 			}
 		}
@@ -288,18 +288,18 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 
 	FILE *originalFile = fopen(origFilePath, "r+");
 	if (!originalFile) {
-		log_error(logger, "original file couldnt be opened");
+		log_error(logger, "fs_cpfrom: original file couldnt be opened");
 		return EXIT_FAILURE;
 	}
 
 	t_directory *destinationDirectory = fs_directoryExists(yama_directory);
 	if (!destinationDirectory) {
-		log_error(logger, "destination yama directory error");
+		log_error(logger, "fs_cpfrom: destination yama directory error");
 		return EXIT_FAILURE;
 	}
 
 	if (!fileType) {
-		log_error(logger, "missing filetype");
+		log_error(logger, "fs_cpfrom: missing filetype");
 		return EXIT_FAILURE;
 	}
 
@@ -489,7 +489,7 @@ void fs_waitForYama() {
 int fs_isStable() {
 	int amountOfConnectedNodes = list_size(connectedNodes);
 	if (amountOfConnectedNodes <= 1) {
-		log_error(logger, "not enough datanodes connected");
+		log_error(logger, "fs_isStable: not enough datanodes connected");
 		return EXIT_FAILURE;
 	}
 
@@ -542,8 +542,8 @@ int fs_isStable() {
 					copy = 1;
 				} else {
 					//no pudo armar el bloque
-					log_debug(logger, "consistency error for file %s", buffer);
-					log_debug(logger, "missing block no. %s", blockToSearch);
+					log_debug(logger, "fs_isStable:consistency error for file %s", buffer);
+					log_debug(logger, "fs_isStable:missing block no. %s", blockToSearch);
 					config_destroy(fileMetadata);
 					free(fullFilePath);
 					return EXIT_FAILURE;
@@ -612,7 +612,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(&newDataNode);
 	newDataNode.occupiedBlocks = newDataNode.amountOfBlocks - newDataNode.freeBlocks;
 
-	log_info(logger,"Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
+	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
 
 
 	fs_setDataNodeBlock(&newDataNode, 0);
@@ -688,7 +688,7 @@ int fs_openOrCreateDirectory(char * directory, int includeInTable) {
 			log_debug(logger, "FS path created on directory %s",
 					myFS.mountDirectoryPath);
 		} else {
-			log_error(logger, "error creating path %s", strerror(errno));
+			log_error(logger, "fs_openOrCreateDirectory: error creating path %s", strerror(errno));
 			return -1;
 		}
 	}
@@ -748,7 +748,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	if (fs_arrayContainsString(listaNodosArray, aDataNode.name) == 0
 			&& fs_amountOfElementsInArray(listaNodosArray) > 0) { //Si esta en la lista, no lo agrego
 
-		log_debug(logger, "DataNode is already in DataNode Table\n");
+		log_debug(logger, "fs_updateNodeTable: DataNode is already in DataNode Table\n");
 
 		isAlreadyInTable = 1;
 		//config_destroy(nodeTableConfig);
@@ -806,7 +806,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 			if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
 
-				log_debug(logger, "DataNode is already in DataNode Table\n");
+				log_debug(logger, "fs_updateNodeTable: DataNode is already in DataNode Table\n");
 
 			} else { //Si no esta en la lista lo agrego
 				//listaNodosArray = ["NODOA","NODOB"] y quiero meter "NODOC"
@@ -901,9 +901,9 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 
 	if (aDataNode->bitmapFile = fopen(bitmapFullPath, "r+")) { //Existe el archivo de bitmap del dataNode
 		log_debug(logger,
-				"bitmap of data node %s found. Wont create from scratch",
+				"fs_openOrCreateBitmap: bitmap of data node %s found. Wont create from scratch",
 				aDataNode->name);
-		log_debug(logger, "Mapping bitmap to memory");
+		log_debug(logger, "fs_openOrCreateBitmap: Mapping bitmap to memory");
 
 		//TODO: hacer que tome la informacion anterior
 
@@ -922,20 +922,20 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 		printf("NoExiste el data.bin");
 
 		log_debug(logger,
-				"Bitmap file for datanode %s not found. Creating with parameters of config file",
+				"fs_openOrCreateBitmap: Bitmap file for datanode %s not found. Creating with parameters of config file",
 				aDataNode->name);
 		aDataNode->bitmapFile = fopen(bitmapFullPath, "w+");
 		float amountOfBlocks = aDataNode->amountOfBlocks;
 		fs_writeNBytesOfXToFile(aDataNode->bitmapFile,
 				ceilf(amountOfBlocks / 8), 0);
 
-		log_debug(logger, "Maping bitmap of datanode %s to memory",
+		log_debug(logger, "fs_openOrCreateBitmap: Maping bitmap of datanode %s to memory",
 				aDataNode->name);
 
 		int mmapResult = fs_mmapDataNodeBitmap(bitmapFullPath, aDataNode);
 
 		if (mmapResult == EXIT_FAILURE) {
-			log_error(logger, "Maping  of datanode %s  bitmap to memory failed",
+			log_error(logger, "fs_openOrCreateBitmap: Maping  of datanode %s  bitmap to memory failed",
 					aDataNode->name);
 
 			return EXIT_FAILURE;
@@ -944,13 +944,13 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 		aDataNode->bitmap = bitarray_create_with_mode(
 				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
 				LSB_FIRST);
-		log_debug(logger, "bitmap created with parameters");
+		log_debug(logger, "fs_openOrCreateBitmap: bitmap created with parameters");
 
 		return EXIT_SUCCESS;
 
 	}
 
-	log_error(logger, "Bitmap of datanode %s could not be opened or created",
+	log_error(logger, "fs_openOrCreateBitmap: Bitmap of datanode %s could not be opened or created",
 			aDataNode->name);
 
 	return EXIT_FAILURE;
@@ -964,7 +964,7 @@ int fs_getTotalFreeBlocksOfConnectedDatanodes(t_list *connectedDataNodes) {
 	t_dataNode * aux;
 	if (listSize == 0) {
 		log_error(logger,
-				"No data nodes connected. Cant get total amount of free b\n");
+				"fs_getTotalFreeBlocks:No data nodes connected. Cant get total amount of free b\n");
 		return -1;
 
 	}
@@ -1047,7 +1047,7 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 	int availableDirectories = 100 - firstFreeIndex; //100 es el maximo de directorios. First free index es el primer indice donde puede escribirse un nuevo directorio
 	if (amountOfDirectoriesToInclude > availableDirectories) {
 		log_error(logger,
-				"Limit of directory table reached. Aborting directory table update\n");
+				"fs_includeDirectory: Limit of directory table reached. Aborting directory table update\n");
 		return -1;
 	}
 
@@ -1059,7 +1059,7 @@ int fs_includeDirectoryOnDirectoryFileTable(char *directory,
 			index = fs_getFirstFreeIndexOfDirectoryTable(directoryTable); //Guardo en index la posicion a actualizar en la tabla
 			if (index == -1) {
 				log_error(logger,
-						"Limit of directory table reached. Aborting directory table update\n");
+						"fs_includeDirectory: Limit of directory table reached. Aborting directory table update\n");
 				return -1;
 			}
 
@@ -1116,8 +1116,8 @@ int fs_getFirstFreeIndexOfDirectoryTable(t_directory *directoryTable) {
 		}
 	}
 
-	log_error(logger, "Limit of directory table reached\n");
-	return -1;
+	log_error(logger, "fs_getFirstFreeIndex: Limit of directory table reached\n");
+	return EXIT_FAILURE;
 
 }
 int fs_updateDirectoryTableArrayElement(int indexToUpdate, int parent,
@@ -1252,7 +1252,7 @@ t_directory *fs_directoryExists(char *directory) {
 				//no existe y no es el ultimo, es decir no existe el parent
 				// se aborta la creacion
 				log_error(logger,
-						"parent directory for directory to create doesnt exist puto");
+						"fs_directoryExists: parent directory for directory to create doesnt exist puto");
 				return NULL;
 			}
 		} else {
@@ -1329,7 +1329,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	//check if parent dir exists
 	t_directory *destinationDirectory = fs_directoryExists(fullFilePath);
 	if (!destinationDirectory) {
-		log_error(logger, "destination directory doesnt exist");
+		log_error(logger, "fs_storeFile: destination directory doesnt exist");
 		return EXIT_FAILURE;
 	}
 
@@ -1343,7 +1343,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			fileName);
 	FILE *metadataFile = fopen(filePathWithName, "w+");
 	if (!metadataFile) {
-		log_error(logger, "couldnt create metadata file");
+		log_error(logger, "fs_storeFile: Couldnt create metadata file");
 		return EXIT_FAILURE;
 	}
 	t_config *metadataFileConfig = config_create(filePathWithName);
@@ -1396,7 +1396,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	int operationStatus;
 
 	if (operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)) {
-		log_error(logger, "error with data transmition to nodes");
+		log_error(logger, "fs_storeFile: Error with data transmition to nodes");
 		return EXIT_FAILURE;
 	}
 
@@ -1410,7 +1410,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		if (fileType == T_TEXT) {
 			config_set_value(metadataFileConfig, "TIPO", "TEXT");
 		} else {
-			log_error(logger, "unrecognized filetype");
+			log_error(logger, "fs_storeFile: Unrecognized filetype");
 			return EXIT_FAILURE;
 		}
 	}
@@ -1466,10 +1466,8 @@ int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode) {
 	int counter = 0;
 	while (counter < dataNode->amountOfBlocks) {
 		if (!bitarray_test_bit(dataNode->bitmap, counter)) {
-			bitarray_set_bit(dataNode->bitmap, counter);
-			dataNode->freeBlocks--;
-			dataNode->occupiedBlocks++;
-			fs_updateNodeTable(*dataNode);
+			fs_setDataNodeBlock(dataNode, counter);
+			log_debug(logger,"fs_getFirstFreeBlock: First free block of Node: [%s] is block: [%d]", dataNode->name, counter);
 			return counter;
 		}
 		counter++;
@@ -1487,7 +1485,7 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 
 	if (listSize == 0) {
 		log_error(logger,
-				"No Data Nodes connected - cant get node with most free space");
+				"fs_getDataNodeWithMostFreeSpace: No Data Nodes connected - cant get node with most free space");
 		return NULL;
 	}
 
@@ -1508,13 +1506,13 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	}
 
 	if (output != NULL) {
-		log_debug(logger, "The dataNode with most free space is %s",
+		log_debug(logger, "fs_getDataNodeWithMostFreeSpace: The dataNode with most free space is %s",
 				output->name);
 		return output;
 	} else {
 
 		log_error(logger,
-				"All dataNodes are full - cant get node with most free space");
+				"fs_getDataNodeWithMostFreeSpace: All dataNodes are full - cant get node with most free space");
 		return NULL;
 	}
 
@@ -1534,14 +1532,14 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 
 	if (aDataNode->bitmapFile->_fileno == -1) {
 		log_error(logger,
-				"Error opening bitmap file of datanode %s in order to map to memory",
+				"fs_mmapDataNodeBitmap: Error opening bitmap file of datanode %s in order to map to memory",
 				aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
 	if (fstat(aDataNode->bitmapFile->_fileno, &mystat) < 0) {
 		log_error(logger,
-				"Error at fstat of data node %s in order to map to memory",
+				"fs_mmapDataNodeBitmap: Error at fstat of data node %s in order to map to memory",
 				aDataNode->name);
 		return EXIT_FAILURE;
 
@@ -1552,7 +1550,7 @@ int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode) {
 
 	if (aDataNode->bitmapMapedPointer == MAP_FAILED) {
 		log_error(logger,
-				"Error creating mmap pointer to bitmap file of datanode %s",
+				"fs_mmapDataNodeBitmap: Error creating mmap pointer to bitmap file of datanode %s",
 				aDataNode->name);
 		return EXIT_FAILURE;
 
@@ -1591,12 +1589,12 @@ int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode) {
 int fs_setDataNodeBlock(t_dataNode *aDataNode, int blockNumber) {
 
 	if(aDataNode->occupiedBlocks == aDataNode->amountOfBlocks){ //No hay bloques libres
-		log_error(logger,"Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
+		log_error(logger,"fs_setDataNodeBlock: Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
 	if(bitarray_test_bit(aDataNode->bitmap, blockNumber)){
-		log_error(logger,"Cant Set block number %d of datanode %s - block already set", blockNumber, aDataNode->name);
+		log_error(logger,"fs_setDataNodeBlock: Cant Set block number %d of datanode %s - block already set", blockNumber, aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
@@ -1605,7 +1603,7 @@ int fs_setDataNodeBlock(t_dataNode *aDataNode, int blockNumber) {
 	aDataNode->occupiedBlocks++;
 	fs_updateNodeTable(*aDataNode);
 
-	log_debug(logger,"Set block number %d of datanode %s", blockNumber, aDataNode->name);
+	log_debug(logger,"fs_setDataNodeBlock: Set block number %d of datanode %s", blockNumber, aDataNode->name);
 
 	return EXIT_SUCCESS;
 
@@ -1615,12 +1613,12 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber) {
 
 
 	if(aDataNode->freeBlocks  == aDataNode->amountOfBlocks){ //Estan todos libres
-		log_error(logger,"Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
+		log_error(logger,"fs_cleanBlockFromDataNode: Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
 	if(!bitarray_test_bit(aDataNode->bitmap, blockNumber)){
-		log_error(logger,"Cant Set block number %d of datanode %s - block already clean", blockNumber, aDataNode->name);
+		log_error(logger,"fs_cleanBlockFromDataNode: Cant Set block number %d of datanode %s - block already clean", blockNumber, aDataNode->name);
 		return EXIT_FAILURE;
 	}
 
@@ -1629,7 +1627,7 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber) {
 	aDataNode->occupiedBlocks--;
 	fs_updateNodeTable(*aDataNode);
 
-	log_debug(logger,"Cleaned block number %d of datanode %s", blockNumber, aDataNode->name);
+	log_debug(logger,"fs_cleanBlockFromDataNode: Cleaned block number %d of datanode %s", blockNumber, aDataNode->name);
 
 	return EXIT_SUCCESS;
 
