@@ -42,23 +42,46 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 	return NULL;
 }
 
+void testSerialization() {
+	ipc_struct_start_transformation_response_entry *first = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	first->blockID = 1;
+	first->connectionString = "127.0.0.1:27015";
+	first->nodeID = 1;
+	first->tempPath = "/tmp/tuvieja";
+	first->usedBytes = 100;
+
+
+//	char *buffer = serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+}
+
 void test() {
-	yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
+	yama_state_table_entry *first = malloc(sizeof(yama_state_table_entry));
+	yama_state_table_entry *second = malloc(sizeof(yama_state_table_entry));
 
-	entry->blockNumber = 8;
-	entry->jobID = 1;
-	entry->masterID = 1;
-	entry->nodeID = 1;
-	entry->stage = IN_PROCESS;
-	entry->tempPath = "/tmp/q1w2e3";
+	first->blockNumber = 1;
+	first->jobID = 1;
+	first->masterID = 1;
+	first->nodeID = 1;
+	first->stage = IN_PROCESS;
+	first->tempPath = "/tmp/1";
 
-	yst_addEntry(entry);
+	yst_addEntry(first);
+
+	second->blockNumber = 2;
+	second->jobID = 2;
+	second->masterID = 2;
+	second->nodeID = 2;
+	second->stage = IN_PROCESS;
+	second->tempPath = "/tmp/2";
+
+	yst_addEntry(second);
 
 	pthread_mutex_lock(&stateTable_mutex);
 	yama_state_table_entry *found = yst_getEntry(1, 1, 1);
 	pthread_mutex_unlock(&stateTable_mutex);
 
 	log_debug(logger, "Found path: %s", found->tempPath);
+	testSerialization();
 }
 
 void *server_mainThread() {
