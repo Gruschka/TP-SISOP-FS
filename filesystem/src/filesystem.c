@@ -606,20 +606,26 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	newDataNode.amountOfBlocks = cant;
 	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks);
 
-	//Read amount of free blocks
-	read(new_socket, &cant, sizeof(int));
-	cant = ntohl(cant);
-	newDataNode.freeBlocks = cant;
-	printf("Free blocks: %d\n", newDataNode.freeBlocks);
-
-	//Read amount of occupied blocks
-	read(new_socket, &cant, sizeof(int));
-	cant = ntohl(cant);
-	newDataNode.occupiedBlocks = cant;
-
-	printf("Occupied blocks: %d\n", newDataNode.occupiedBlocks);
 
 	fs_openOrCreateBitmap(myFS, &newDataNode);
+
+	newDataNode.freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(&newDataNode);
+	newDataNode.occupiedBlocks = newDataNode.amountOfBlocks - newDataNode.freeBlocks;
+
+	log_info(logger,"Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
+
+
+	fs_setDataNodeBlock(&newDataNode, 0);
+	fs_setDataNodeBlock(&newDataNode, 1);
+	fs_setDataNodeBlock(&newDataNode, 2);
+	fs_setDataNodeBlock(&newDataNode, 3);
+	fs_setDataNodeBlock(&newDataNode, 4);
+	fs_setDataNodeBlock(&newDataNode, 5);
+
+	log_info(logger,"Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
+
+
+	list_add(connectedNodes, &newDataNode);
 
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
@@ -632,7 +638,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	 return;
 	 }*/
 
-	list_add(connectedNodes, &newDataNode);
 
 	while (1) {
 
@@ -1289,7 +1294,6 @@ int fs_directoryIsEmpty(char *dirname) {
 	return 0;
 
 }
-
 int fs_getDirectoryIndex() {
 	int returnNumber = myFS._directoryIndexAutonumber;
 	myFS._directoryIndexAutonumber++;
@@ -1569,6 +1573,7 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode) {
 }
 int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode) {
 
+
 	int i;
 	int output = 0;
 
@@ -1582,3 +1587,52 @@ int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode) {
 	return output;
 
 }
+
+int fs_setDataNodeBlock(t_dataNode *aDataNode, int blockNumber) {
+
+	if(aDataNode->occupiedBlocks == aDataNode->amountOfBlocks){ //No hay bloques libres
+		log_error(logger,"Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
+		return EXIT_FAILURE;
+	}
+
+	if(bitarray_test_bit(aDataNode->bitmap, blockNumber)){
+		log_error(logger,"Cant Set block number %d of datanode %s - block already set", blockNumber, aDataNode->name);
+		return EXIT_FAILURE;
+	}
+
+	bitarray_set_bit(aDataNode->bitmap, blockNumber);
+	aDataNode->freeBlocks--;
+	aDataNode->occupiedBlocks++;
+	fs_updateNodeTable(*aDataNode);
+
+	log_debug(logger,"Set block number %d of datanode %s", blockNumber, aDataNode->name);
+
+	return EXIT_SUCCESS;
+
+}
+
+int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber) {
+
+
+	if(aDataNode->freeBlocks  == aDataNode->amountOfBlocks){ //Estan todos libres
+		log_error(logger,"Cant Set block number %d of datanode %s - not enough space", blockNumber, aDataNode->name);
+		return EXIT_FAILURE;
+	}
+
+	if(!bitarray_test_bit(aDataNode->bitmap, blockNumber)){
+		log_error(logger,"Cant Set block number %d of datanode %s - block already clean", blockNumber, aDataNode->name);
+		return EXIT_FAILURE;
+	}
+
+	bitarray_clean_bit(aDataNode->bitmap, blockNumber);
+	aDataNode->freeBlocks++;
+	aDataNode->occupiedBlocks--;
+	fs_updateNodeTable(*aDataNode);
+
+	log_debug(logger,"Cleaned block number %d of datanode %s", blockNumber, aDataNode->name);
+
+	return EXIT_SUCCESS;
+
+
+}
+

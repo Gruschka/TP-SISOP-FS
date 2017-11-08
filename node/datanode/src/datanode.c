@@ -140,19 +140,7 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	write(sockfd, &tmp, sizeof(tmp));
 
-	//Send amount of free blocks
-	myInt = dataNode.blockInfo.freeBlocks;
-	tmp = htonl((uint32_t) myInt);
-	write(sockfd, &tmp, sizeof(tmp));
 
-	//Send amount of occupied blocks
-	myInt = dataNode.blockInfo.occupiedBlocks;
-	tmp = htonl((uint32_t) myInt);
-	write(sockfd, &tmp, sizeof(tmp));
-
-
-
-	printf("%s\n", buffer);
 
 	//wait for request from fs
 
@@ -170,9 +158,7 @@ void dataNode_setBlockInformation(t_dataNode *aDataNode) {
 
 	//TODO: Levantar info de bloques libres del bitmap
 	aDataNode->blockInfo.amountOfBlocks = aDataNode->config.sizeInMb;
-	aDataNode->blockInfo.freeBlocks = 15;
-	aDataNode->blockInfo.occupiedBlocks = aDataNode->blockInfo.amountOfBlocks
-			- aDataNode->blockInfo.freeBlocks;
+
 
 }
 

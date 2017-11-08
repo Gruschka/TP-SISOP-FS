@@ -108,6 +108,8 @@ void *fs_serializeFile(FILE *file, int fileSize);
 int fs_mmapDataNodeBitmap(char * bitmapPath, t_dataNode *aDataNode);
 void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode);
+int fs_setDataNodeBlock(t_dataNode *aDataNode, int blockNumber);
+int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
 
 
 //Console commands
