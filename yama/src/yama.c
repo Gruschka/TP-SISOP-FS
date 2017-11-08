@@ -58,9 +58,7 @@ void test() {
 	yama_state_table_entry *found = yst_getEntry(1, 1, 1);
 	pthread_mutex_unlock(&stateTable_mutex);
 
-	printf(found->tempPath);
-	fflush(stdout);
-//	list_add(stateTable, entry);
+	log_debug(logger, "Found path: %s", found->tempPath);
 }
 
 void *server_mainThread() {
