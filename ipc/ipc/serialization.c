@@ -35,8 +35,12 @@ void *deserializeYAMAStartTransformationRequest(char *buffer) {
 
 // YAMA_START_TRANSFORMATION_RESPONSE
 void *deserializeYAMAStartTransformationResponse(char *buffer) {
+	int offset = 0;
+	ipc_struct_start_transformation_response *response = malloc(sizeof(ipc_struct_start_transformation_response));
+	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); offset += sizeof(uint32_t);
+	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); offset += sizeof(uint32_t);
 
-	return NULL;
+	return response;
 }
 
 // Serialization functions

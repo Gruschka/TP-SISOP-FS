@@ -63,9 +63,15 @@ void testSerialization() {
 	testResponse->entries = entries;
 
 	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+	DeserializationFunction deserializationFn = *deserializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+
 	int serializedSize;
 	char *serialized = serializationFn((void *)testResponse, &serializedSize);
+
 	log_debug(logger, "serializedSize: %d", serializedSize);
+	ipc_struct_start_transformation_response *deserialized = deserializationFn((void *)serialized);
+
+	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
 }
 
 void test() {
