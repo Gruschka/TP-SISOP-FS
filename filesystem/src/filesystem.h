@@ -69,6 +69,7 @@ typedef struct FS {
 	int bitmapFileDescriptor;
 	int nodeTableFileDescriptor;
 	int _directoryIndexAutonumber; //no modificar valor a mano!
+	int usePreviousStatus;
 } t_FS;
 
 
@@ -91,7 +92,7 @@ int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int n, int c);
 void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber);
 t_dataNode *fs_getNodeFromNodeName(char *nodeName);
-t_list *fs_getPreviouslyConnectedNodesNames();
+int fs_getPreviouslyConnectedNodesNames();
 float fs_bytesToMegaBytes(int bytes);
 t_directory *fs_childOfParentExists(char *child, t_directory *parent);
 t_directory *fs_directoryExists(char *directory);
@@ -110,8 +111,9 @@ void fs_dumpDataNodeBitmap(t_dataNode aDataNode);
 int fs_getAmountOfFreeBlocksOfADataNode(t_dataNode *aDataNode);
 int fs_setDataNodeBlock(t_dataNode *aDataNode, int blockNumber);
 int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
-
-
+int fs_restorePreviousStatus();
+int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
+int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);

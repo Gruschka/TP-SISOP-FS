@@ -53,7 +53,8 @@ t_config *nodeTableConfig; //Para levantar la tabla de nodos como un archivo de 
 enum flags {
 	EMPTY = 100,
 	DIRECTORY_TABLE_MAX_AMOUNT = 100,
-	DATANODE_ALREADY_CONNECTED = -1
+	DATANODE_ALREADY_CONNECTED = 1,
+	DATANODE_IS_FROM_PREVIOUS_SESSION =1
 };
 
 /********* MAIN **********/
@@ -62,8 +63,10 @@ void main() {
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create(); //Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
-
+	previouslyConnectedNodesNames = list_create();
 	fs_mount(&myFS); //Crea los directorios del FS
+
+	fs_restorePreviousStatus();
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
@@ -597,6 +600,32 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	strcpy(newDataNode.name, buffer);
 	printf("Node name:%s\n", newDataNode.name);
 
+	if(fs_isDataNodeAlreadyConnected(newDataNode)){//Dont accept another node with same ID a
+		log_error(logger, "fs_connectionHandler: Node %s already connected - Aborting connection", newDataNode.name);
+		int closeResult = close(new_socket);
+		if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
+		pthread_cancel(pthread_self());
+		return;
+
+	}
+	//If the Node isnt already connected->include it to the global lists of connected nodes
+	list_add(connectedNodes, &newDataNode);
+
+
+	if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
+
+		log_info(logger,"FS will restore previous session");
+
+		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
+			log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
+			int closeResult = close(new_socket);
+			if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
+			pthread_cancel(pthread_self());
+			return;
+		}
+
+	}
+
 	//Send connection confirmation
 	send(new_socket, hello, strlen(hello), 0);
 
@@ -615,17 +644,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
 
 
-	fs_setDataNodeBlock(&newDataNode, 0);
-	fs_setDataNodeBlock(&newDataNode, 1);
-	fs_setDataNodeBlock(&newDataNode, 2);
-	fs_setDataNodeBlock(&newDataNode, 3);
-	fs_setDataNodeBlock(&newDataNode, 4);
-	fs_setDataNodeBlock(&newDataNode, 5);
-
-	log_info(logger,"Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
-
-
-	list_add(connectedNodes, &newDataNode);
 
 	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
 
@@ -637,7 +655,6 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	 return;
 	 }*/
-
 
 	while (1) {
 
@@ -1183,7 +1200,7 @@ t_dataNode *fs_getNodeFromNodeName(char *nodeName) {
 
 	return NULL;
 }
-t_list *fs_getPreviouslyConnectedNodesNames() {
+int fs_getPreviouslyConnectedNodesNames() {
 
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
@@ -1194,7 +1211,7 @@ t_list *fs_getPreviouslyConnectedNodesNames() {
 	if (fs_amountOfElementsInArray(listaNodosArray) == 0) {
 		log_debug(logger,
 				"No previously connected nodes - FS is starting from scratch");
-		return EXIT_FAILURE;
+		return NULL;
 	}
 
 	int i = 0;
@@ -1202,9 +1219,6 @@ t_list *fs_getPreviouslyConnectedNodesNames() {
 	for (i = 0; i < fs_amountOfElementsInArray(listaNodosArray); i++) {
 		list_add(previouslyConnectedNodesNames, listaNodosArray[i]);
 	}
-
-	char * primerNodo = list_get(previouslyConnectedNodesNames, 0);
-	char * segundoNodo = list_get(previouslyConnectedNodesNames, 1);
 
 	config_destroy(nodeTableConfig);
 	return EXIT_SUCCESS;
@@ -1634,3 +1648,49 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber) {
 
 }
 
+int fs_restorePreviousStatus(){
+
+	log_info(logger,"Restoring FS from previous status");
+	myFS.usePreviousStatus = 1;
+
+	fs_getPreviouslyConnectedNodesNames(); //Updates previouslyConnectedNodesNames global list
+
+	return EXIT_SUCCESS;
+
+}
+
+int fs_isNodeFromPreviousSession(t_dataNode aDataNode){
+
+	int amountOfNodes = list_size(previouslyConnectedNodesNames);
+	int i;
+
+
+	for(i = 0; i < amountOfNodes ; i++){
+		if(!strcmp(aDataNode.name, list_get(previouslyConnectedNodesNames, i))){
+			log_info(logger, "Node:[%s] was in previous session", aDataNode.name);
+			return DATANODE_IS_FROM_PREVIOUS_SESSION;
+		}
+	}
+	log_error(logger, "Node:[%s] was not in previous session", aDataNode.name);
+
+	return 0;
+
+}
+int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
+
+	int amountOfNodes = list_size(connectedNodes);
+	int i;
+	t_dataNode *aux = NULL;
+	for(i = 0; i < amountOfNodes ; i++){
+		aux = list_get(connectedNodes, i);
+		if(!strcmp(aDataNode.name, aux->name)){
+			log_error(logger, "Node:[%s] is already connected previous session. Aborting connection", aDataNode.name);
+			return DATANODE_ALREADY_CONNECTED;
+		}
+	}
+	log_info(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);
+
+	return 0;
+
+
+}
