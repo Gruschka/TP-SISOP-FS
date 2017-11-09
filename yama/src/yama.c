@@ -50,8 +50,22 @@ void testSerialization() {
 	first->tempPath = "/tmp/tuvieja";
 	first->usedBytes = 100;
 
+	ipc_struct_start_transformation_response_entry *second = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	second->blockID = 2;
+	second->connectionString = "127.0.0.2:27015";
+	second->nodeID = 2;
+	second->tempPath = "/tmp/tuviejo";
+	second->usedBytes = 200;
 
-//	char *buffer = serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+	ipc_struct_start_transformation_response *testResponse = malloc(sizeof(ipc_struct_start_transformation_response));
+	testResponse->entriesCount = 2;
+	ipc_struct_start_transformation_response_entry entries[2] = { *first, *second } ;
+	testResponse->entries = entries;
+
+	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+	int serializedSize;
+	char *serialized = serializationFn((void *)testResponse, &serializedSize);
+	log_debug(logger, "serializedSize: %d", serializedSize);
 }
 
 void test() {

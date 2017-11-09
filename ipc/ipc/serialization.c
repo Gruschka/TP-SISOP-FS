@@ -112,6 +112,7 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 	buffer = malloc(*size = getYAMAStartTransformationResponseSize(response));
 	memcpy(buffer + offset, &(response->entriesCount), offset += sizeof(uint32_t));
 	memcpy(buffer + offset, &entriesSize, offset += sizeof(uint32_t));
+	response->entriesSize = entriesSize;
 
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transformation_response_entry *currentEntry = response->entries + i;
@@ -124,7 +125,7 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 		buffer[offset =+ 1] = '\0';
 	}
 
-	return NULL;
+	return buffer;
 }
 
 void initializeSerialization() {
