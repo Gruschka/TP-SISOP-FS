@@ -35,11 +35,33 @@ void *deserializeYAMAStartTransformationRequest(char *buffer) {
 
 // YAMA_START_TRANSFORMATION_RESPONSE
 void *deserializeYAMAStartTransformationResponse(char *buffer) {
-	int offset = 0;
+	int offset = 0, i;
 	ipc_struct_start_transformation_response *response = malloc(sizeof(ipc_struct_start_transformation_response));
-	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); offset += sizeof(uint32_t);
-	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); offset += sizeof(uint32_t);
+	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
+	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
 
+	response->entries = malloc(response->entriesSize);
+	int entriesOffset = 0;
+	void *entriesPtr = response->entries;
+	for (i = 0; i < response->entriesCount; i++) {
+		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //nodeID
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		char *tmpConnectionString = strdup(buffer + offset);
+		int tmpConnectionStringLen = strlen(tmpConnectionString);
+		memcpy(entriesPtr + entriesOffset, tmpConnectionString, tmpConnectionStringLen + 1); //connectionString
+		entriesOffset += tmpConnectionStringLen + 1;
+		offset += tmpConnectionStringLen + 1;
+		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //blockID
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //usedBytes
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		free(tmpConnectionString);
+	}
 	return response;
 }
 
@@ -114,19 +136,28 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 	char *buffer;
 
 	buffer = malloc(*size = getYAMAStartTransformationResponseSize(response));
-	memcpy(buffer + offset, &(response->entriesCount), offset += sizeof(uint32_t));
-	memcpy(buffer + offset, &entriesSize, offset += sizeof(uint32_t));
+	memcpy(buffer + offset, &(response->entriesCount), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(buffer + offset, &entriesSize, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
 	response->entriesSize = entriesSize;
 
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transformation_response_entry *currentEntry = response->entries + i;
-		memcpy(buffer + offset, &(currentEntry->nodeID), offset += sizeof(uint32_t));
-		memcpy(buffer + offset, currentEntry->connectionString, offset += strlen(currentEntry->connectionString));
-		buffer[offset =+ 1] = '\0';
-		memcpy(buffer + offset, &(currentEntry->blockID), offset += sizeof(uint32_t));
-		memcpy(buffer + offset, &(currentEntry->usedBytes), offset += sizeof(uint32_t));
-		memcpy(buffer + offset, currentEntry->tempPath, offset += strlen(currentEntry->tempPath));
-		buffer[offset =+ 1] = '\0';
+		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->connectionString, strlen(currentEntry->connectionString));
+		offset += strlen(currentEntry->connectionString);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, &(currentEntry->blockID), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, &(currentEntry->usedBytes), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->tempPath, strlen(currentEntry->tempPath));
+		offset += strlen(currentEntry->tempPath);
+		buffer[offset] = '\0';
+		offset += 1;
 	}
 
 	return buffer;
