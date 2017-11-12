@@ -42,25 +42,66 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 	return NULL;
 }
 
+void testSerialization() {
+	ipc_struct_start_transformation_response_entry *first = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	first->blockID = 1;
+	first->connectionString = "127.0.0.1:27015";
+	first->nodeID = 1;
+	first->tempPath = "/tmp/tuvieja";
+	first->usedBytes = 100;
+
+	ipc_struct_start_transformation_response_entry *second = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	second->blockID = 2;
+	second->connectionString = "127.0.0.2:27015";
+	second->nodeID = 2;
+	second->tempPath = "/tmp/tuviejo";
+	second->usedBytes = 200;
+
+	ipc_struct_start_transformation_response *testResponse = malloc(sizeof(ipc_struct_start_transformation_response));
+	testResponse->entriesCount = 2;
+	ipc_struct_start_transformation_response_entry entries[2] = { *first, *second } ;
+	testResponse->entries = entries;
+
+	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+	DeserializationFunction deserializationFn = *deserializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+
+	int serializedSize;
+	char *serialized = serializationFn((void *)testResponse, &serializedSize);
+
+	log_debug(logger, "serializedSize: %d", serializedSize);
+	ipc_struct_start_transformation_response *deserialized = deserializationFn((void *)serialized);
+
+	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
+}
+
 void test() {
-	yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
+	yama_state_table_entry *first = malloc(sizeof(yama_state_table_entry));
+	yama_state_table_entry *second = malloc(sizeof(yama_state_table_entry));
 
-	entry->blockNumber = 8;
-	entry->jobID = 1;
-	entry->masterID = 1;
-	entry->nodeID = 1;
-	entry->stage = IN_PROCESS;
-	entry->tempPath = "/tmp/q1w2e3";
+	first->blockNumber = 1;
+	first->jobID = 1;
+	first->masterID = 1;
+	first->nodeID = 1;
+	first->stage = IN_PROCESS;
+	first->tempPath = "/tmp/1";
 
-	yst_addEntry(entry);
+	yst_addEntry(first);
+
+	second->blockNumber = 2;
+	second->jobID = 2;
+	second->masterID = 2;
+	second->nodeID = 2;
+	second->stage = IN_PROCESS;
+	second->tempPath = "/tmp/2";
+
+	yst_addEntry(second);
 
 	pthread_mutex_lock(&stateTable_mutex);
 	yama_state_table_entry *found = yst_getEntry(1, 1, 1);
 	pthread_mutex_unlock(&stateTable_mutex);
 
-	printf(found->tempPath);
-	fflush(stdout);
-//	list_add(stateTable, entry);
+	log_debug(logger, "Found path: %s", found->tempPath);
+	testSerialization();
 }
 
 void *server_mainThread() {
