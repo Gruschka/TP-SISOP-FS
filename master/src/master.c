@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 	config_destroy(config);
 
 	// TODO: (Fede) el siguiente es código de Hernie. Revisar.
-	initialize();
+	serialization_initialize();
 //	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
 //	ipc_struct_test_message testMessage;
 //	testMessage.blah = 'A';
