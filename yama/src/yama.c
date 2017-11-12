@@ -43,33 +43,33 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 }
 
 void testSerialization() {
-	ipc_struct_start_transformation_response_entry *first = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	first->blockID = 1;
 	first->connectionString = "127.0.0.1:27015";
 	first->nodeID = 1;
 	first->tempPath = "/tmp/tuvieja";
 	first->usedBytes = 100;
 
-	ipc_struct_start_transformation_response_entry *second = malloc(sizeof(ipc_struct_start_transformation_response_entry));
+	ipc_struct_start_transform_reduce_response_entry *second = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	second->blockID = 2;
 	second->connectionString = "127.0.0.2:27015";
 	second->nodeID = 2;
 	second->tempPath = "/tmp/tuviejo";
 	second->usedBytes = 200;
 
-	ipc_struct_start_transformation_response *testResponse = malloc(sizeof(ipc_struct_start_transformation_response));
+	ipc_struct_start_transform_reduce_response *testResponse = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 	testResponse->entriesCount = 2;
-	ipc_struct_start_transformation_response_entry entries[2] = { *first, *second } ;
+	ipc_struct_start_transform_reduce_response_entry entries[2] = { *first, *second } ;
 	testResponse->entries = entries;
 
-	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
-	DeserializationFunction deserializationFn = *deserializationArray[YAMA_START_TRANSFORMATION_RESPONSE];
+	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE];
+	DeserializationFunction deserializationFn = *deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE];
 
 	int serializedSize;
 	char *serialized = serializationFn((void *)testResponse, &serializedSize);
 
 	log_debug(logger, "serializedSize: %d", serializedSize);
-	ipc_struct_start_transformation_response *deserialized = deserializationFn((void *)serialized);
+	ipc_struct_start_transform_reduce_response *deserialized = deserializationFn((void *)serialized);
 
 	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
 }

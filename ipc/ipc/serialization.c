@@ -28,7 +28,7 @@ void *deserializeFSGetFileInfo(char *buffer) {
 
 // YAMA_START_TRANSFORMATION_REQUEST
 void *deserializeYAMAStartTransformationRequest(char *buffer) {
-	ipc_struct_start_transformation_request *request = malloc(sizeof(ipc_struct_start_transformation_request));
+	ipc_struct_start_transform_reduce_request *request = malloc(sizeof(ipc_struct_start_transform_reduce_request));
 	request->filePath = strdup(buffer);
 	return request;
 }
@@ -36,7 +36,7 @@ void *deserializeYAMAStartTransformationRequest(char *buffer) {
 // YAMA_START_TRANSFORMATION_RESPONSE
 void *deserializeYAMAStartTransformationResponse(char *buffer) {
 	int offset = 0, i;
-	ipc_struct_start_transformation_response *response = malloc(sizeof(ipc_struct_start_transformation_response));
+	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
 	offset += sizeof(uint32_t);
 	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
@@ -93,7 +93,7 @@ char *serializeFSGetFileInfo(void *data, int *size) {
 
 // YAMA_START_TRANSFORMATION_REQUEST
 char *serializeYAMAStartTransformationRequest(void *data, int *size) {
-	ipc_struct_start_transformation_request *request = data;
+	ipc_struct_start_transform_reduce_request *request = data;
 
 	char *buffer = malloc(*size = strlen(request->filePath) + 1);
 
@@ -104,23 +104,23 @@ char *serializeYAMAStartTransformationRequest(void *data, int *size) {
 }
 
 // YAMA_START_TRANSFORMATION_RESPONSE
-uint32_t getYAMAStartTransformationResponseEntrySize(ipc_struct_start_transformation_response_entry *entry) {
+uint32_t getYAMAStartTransformationResponseEntrySize(ipc_struct_start_transform_reduce_response_entry *entry) {
 	return sizeof(uint32_t) + strlen(entry->connectionString) + 1 + (2 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
 }
 
-uint32_t getYAMAStartTransformationResponseEntriesSize(ipc_struct_start_transformation_response *response) {
+uint32_t getYAMAStartTransformationResponseEntriesSize(ipc_struct_start_transform_reduce_response *response) {
 	int i;
 	uint32_t result = 0;
 
 	for (i = 0; i < response->entriesCount; i++) {
-		ipc_struct_start_transformation_response_entry *currentEntry = response->entries + i;
+		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
 		result += getYAMAStartTransformationResponseEntrySize(currentEntry);
 	}
 
 	return result;
 }
 
-uint32_t getYAMAStartTransformationResponseSize(ipc_struct_start_transformation_response *response) {
+uint32_t getYAMAStartTransformationResponseSize(ipc_struct_start_transform_reduce_response *response) {
 	uint32_t result = 0;
 
 	result += sizeof(uint32_t) * 2; //entriesCount + entriesSize
@@ -131,7 +131,7 @@ uint32_t getYAMAStartTransformationResponseSize(ipc_struct_start_transformation_
 
 char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 	int offset = 0, i;
-	ipc_struct_start_transformation_response *response = data;
+	ipc_struct_start_transform_reduce_response *response = data;
 	uint32_t entriesSize = getYAMAStartTransformationResponseEntriesSize(response);
 	char *buffer;
 
@@ -143,7 +143,7 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 	response->entriesSize = entriesSize;
 
 	for (i = 0; i < response->entriesCount; i++) {
-		ipc_struct_start_transformation_response_entry *currentEntry = response->entries + i;
+		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
 		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
 		offset += sizeof(uint32_t);
 		memcpy(buffer + offset, currentEntry->connectionString, strlen(currentEntry->connectionString));
@@ -166,15 +166,15 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO] = serializeFSGetFileInfo;
-	serializationArray[YAMA_START_TRANSFORMATION_REQUEST] = serializeYAMAStartTransformationRequest;
-	serializationArray[YAMA_START_TRANSFORMATION_RESPONSE] = serializeYAMAStartTransformationResponse;
+	serializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = serializeYAMAStartTransformationRequest;
+	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
 }
 
 void initializeDeserialization () {
 	deserializationArray[TEST_MESSAGE] = deserializeTestMessage;
 	deserializationArray[FS_GET_FILE_INFO] = deserializeFSGetFileInfo;
-	deserializationArray[YAMA_START_TRANSFORMATION_REQUEST] = deserializeYAMAStartTransformationRequest;
-	deserializationArray[YAMA_START_TRANSFORMATION_RESPONSE] = deserializeYAMAStartTransformationResponse;
+	deserializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = deserializeYAMAStartTransformationRequest;
+	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
 }
 
 void serialization_initialize() {
