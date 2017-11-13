@@ -68,6 +68,7 @@ int ipc_sendMessage(int sockfd, int type, void *content) {
 
 int ipc_createAndConnect(int port, char *ipAddress) {
 	int sockfd;
+
 	struct linger lo = { 1, 0 };
 	struct sockaddr_in socketInfo;
 
