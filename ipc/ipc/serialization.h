@@ -46,7 +46,7 @@ typedef struct {
 typedef struct {
 	uint32_t nodeID;
 	char *workerIP;
-//	uint32_t workerPort;
+	uint32_t workerPort;
 	uint32_t blockID;
 	uint32_t usedBytes;
 	char *tempPath;

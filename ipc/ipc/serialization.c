@@ -52,9 +52,12 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 		char *tmpConnectionString = strdup(buffer + offset);
 		int tmpConnectionStringLen = strlen(tmpConnectionString);
 		currentEntry->workerIP = malloc(tmpConnectionStringLen + 1);
-		memcpy(currentEntry->workerIP, tmpConnectionString, tmpConnectionStringLen + 1); //connectionString
+		memcpy(currentEntry->workerIP, tmpConnectionString, tmpConnectionStringLen + 1); //workerIP
 		entriesOffset += tmpConnectionStringLen + 1;
 		offset += tmpConnectionStringLen + 1;
+		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
 		memcpy(&(currentEntry->blockID), buffer + offset, sizeof(uint32_t)); //blockID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
@@ -114,7 +117,7 @@ char *serializeYAMAStartTransformationRequest(void *data, int *size) {
 
 // YAMA_START_TRANSFORMATION_RESPONSE
 uint32_t getYAMAStartTransformationResponseEntrySize(ipc_struct_start_transform_reduce_response_entry *entry) {
-	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + (2 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
+	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + (3 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
 }
 
 uint32_t getYAMAStartTransformationResponseEntriesSize(ipc_struct_start_transform_reduce_response *response) {
@@ -155,10 +158,12 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
 		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
 		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP));
+		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
 		offset += strlen(currentEntry->workerIP);
 		buffer[offset] = '\0';
 		offset += 1;
+		memcpy(buffer + offset, &(currentEntry->workerPort), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
 		memcpy(buffer + offset, &(currentEntry->blockID), sizeof(uint32_t));
 		offset += sizeof(uint32_t);
 		memcpy(buffer + offset, &(currentEntry->usedBytes), sizeof(uint32_t));

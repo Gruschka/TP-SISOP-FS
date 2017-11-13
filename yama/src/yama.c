@@ -46,6 +46,7 @@ void testSerialization() {
 	ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	first->blockID = 1;
 	first->workerIP = "127.0.0.1";
+	first->workerPort = 1111;
 	first->nodeID = 1;
 	first->tempPath = "/tmp/tuvieja";
 	first->usedBytes = 100;
@@ -53,6 +54,7 @@ void testSerialization() {
 	ipc_struct_start_transform_reduce_response_entry *second = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	second->blockID = 2;
 	second->workerIP = "127.0.0.2";
+	second->workerPort = 2222;
 	second->nodeID = 2;
 	second->tempPath = "/tmp/tuviejo";
 	second->usedBytes = 200;
