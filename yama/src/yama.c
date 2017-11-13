@@ -45,14 +45,14 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 void testSerialization() {
 	ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	first->blockID = 1;
-	first->connectionString = "127.0.0.1:27015";
+	first->workerIP = "127.0.0.1";
 	first->nodeID = 1;
 	first->tempPath = "/tmp/tuvieja";
 	first->usedBytes = 100;
 
 	ipc_struct_start_transform_reduce_response_entry *second = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	second->blockID = 2;
-	second->connectionString = "127.0.0.2:27015";
+	second->workerIP = "127.0.0.2";
 	second->nodeID = 2;
 	second->tempPath = "/tmp/tuviejo";
 	second->usedBytes = 200;

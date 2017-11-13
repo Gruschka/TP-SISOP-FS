@@ -105,7 +105,7 @@ char *serializeYAMAStartTransformationRequest(void *data, int *size) {
 
 // YAMA_START_TRANSFORMATION_RESPONSE
 uint32_t getYAMAStartTransformationResponseEntrySize(ipc_struct_start_transform_reduce_response_entry *entry) {
-	return sizeof(uint32_t) + strlen(entry->connectionString) + 1 + (2 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
+	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + (2 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
 }
 
 uint32_t getYAMAStartTransformationResponseEntriesSize(ipc_struct_start_transform_reduce_response *response) {
@@ -146,8 +146,8 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
 		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
 		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, currentEntry->connectionString, strlen(currentEntry->connectionString));
-		offset += strlen(currentEntry->connectionString);
+		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP));
+		offset += strlen(currentEntry->workerIP);
 		buffer[offset] = '\0';
 		offset += 1;
 		memcpy(buffer + offset, &(currentEntry->blockID), sizeof(uint32_t));

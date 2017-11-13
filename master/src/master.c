@@ -67,6 +67,19 @@
 // TODO: métricas
 // TODO: logs
 
+void connectToYamaAndSendData() {
+	t_config *config = config_create("conf/master.conf");
+	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+	char *yamaIP = config_get_string_value(config, "YAMA_IP");
+	config_destroy(config);
+
+	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
+	ipc_struct_test_message testMessage;
+	testMessage.blah = 'A';
+	testMessage.bleh = strdup("QTI AMIGO");
+	ipc_sendMessage(sockfd, TEST_MESSAGE, &testMessage);
+}
+
 int main(int argc, char **argv) {
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
@@ -78,17 +91,7 @@ int main(int argc, char **argv) {
 	char *inputFilePath = argv[3];
 	char *outputFilePath = argv[4];
 
-	t_config *config = config_create("conf/master.conf");
-	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
-	char *yamaIP = config_get_string_value(config, "YAMA_IP");
-	config_destroy(config);
-
-	// TODO: (Fede) el siguiente es código de Hernie. Revisar.
 	serialization_initialize();
-//	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
-//	ipc_struct_test_message testMessage;
-//	testMessage.blah = 'A';
-//	testMessage.bleh = strdup("QTI AMIGO");
-//	ipc_sendMessage(sockfd, TEST_MESSAGE, &testMessage);
+	connectToYamaAndSendData();
 	return EXIT_SUCCESS;
 }
