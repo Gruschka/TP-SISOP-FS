@@ -42,26 +42,35 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
 	offset += sizeof(uint32_t);
 
-	response->entries = malloc(response->entriesSize);
 	int entriesOffset = 0;
-	void *entriesPtr = response->entries;
+	ipc_struct_start_transform_reduce_response_entry *entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
-		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //nodeID
+		ipc_struct_start_transform_reduce_response_entry *currentEntry = entries + i;
+		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
 		char *tmpConnectionString = strdup(buffer + offset);
 		int tmpConnectionStringLen = strlen(tmpConnectionString);
-		memcpy(entriesPtr + entriesOffset, tmpConnectionString, tmpConnectionStringLen + 1); //connectionString
+		currentEntry->workerIP = malloc(tmpConnectionStringLen + 1);
+		memcpy(currentEntry->workerIP, tmpConnectionString, tmpConnectionStringLen + 1); //connectionString
 		entriesOffset += tmpConnectionStringLen + 1;
 		offset += tmpConnectionStringLen + 1;
-		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //blockID
+		memcpy(&(currentEntry->blockID), buffer + offset, sizeof(uint32_t)); //blockID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
-		memcpy(entriesPtr + entriesOffset, buffer + offset, sizeof(uint32_t)); //usedBytes
+		memcpy(&(currentEntry->usedBytes), buffer + offset, sizeof(uint32_t)); //usedBytes
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+		char *tmpPath = strdup(buffer + offset);
+		int tmpPathLen = strlen(tmpPath);
+		currentEntry->tempPath = malloc(tmpPathLen + 1);
+		memcpy(currentEntry->tempPath, tmpPath, tmpPathLen + 1); //tmpPath
+		entriesOffset += tmpPathLen + 1;
+		offset += tmpPathLen + 1;
+		free(tmpPath);
 		free(tmpConnectionString);
 	}
+	response->entries = entries;
 	return response;
 }
 

@@ -105,18 +105,17 @@ void test() {
 }
 
 void *server_mainThread() {
-	printf("Hello from the other side    xD");
+	log_debug(logger, "Hello from the other side    xD");
 	int sockfd = ipc_createAndListen(8888, 0);
 
 	struct sockaddr_in cliaddr;
 	int clilen = sizeof(cliaddr);
 	int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
-	printf("New socket accepted. fd: %d", newsockfd);
-	fflush(stdout);
+	log_debug(logger, "New socket accepted. fd: %d", newsockfd);
 	while (true) {
-		ipc_struct_test_message *testMessage = ipc_recvMessage(newsockfd, TEST_MESSAGE);
+		ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
 
-		printf("testMessage: %s. %c", testMessage->bleh, testMessage->blah);
+		log_debug(logger, "request: path: %s", request->filePath);
 	}
 	return NULL;
 }
