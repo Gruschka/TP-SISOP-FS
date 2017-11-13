@@ -67,17 +67,17 @@
 // TODO: métricas
 // TODO: logs
 
-void connectToYamaAndSendData() {
+void connectToYamaAndSendData(char *inputFilePath) {
 	t_config *config = config_create("conf/master.conf");
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = config_get_string_value(config, "YAMA_IP");
 	config_destroy(config);
 
 	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
-	ipc_struct_test_message testMessage;
-	testMessage.blah = 'A';
-	testMessage.bleh = strdup("QTI AMIGO");
-	ipc_sendMessage(sockfd, TEST_MESSAGE, &testMessage);
+	ipc_struct_start_transform_reduce_request request;
+	request.filePath = strdup(inputFilePath);
+	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+	free(inputFilePath);
 }
 
 int main(int argc, char **argv) {
@@ -92,6 +92,6 @@ int main(int argc, char **argv) {
 	char *outputFilePath = argv[4];
 
 	serialization_initialize();
-	connectToYamaAndSendData();
+	connectToYamaAndSendData(strdup(inputFilePath));
 	return EXIT_SUCCESS;
 }
