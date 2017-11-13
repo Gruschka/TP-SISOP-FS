@@ -15,12 +15,14 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include "transform.h"
+
 // Setup
-// TODO: al iniciar, comunicarse con YAMA e indicarle el archivo
+// Al iniciar, comunicarse con YAMA e indicarle el archivo
 // sobre el cual quiero operar.
 //
 // Etapa de transformación
-// TODO: recibir de YAMA qué procesos worker conectarme (IP y puerto)
+// Recibir de YAMA qué procesos worker conectarme (IP y puerto)
 // qué bloque de cada uno de ellos se debe aplicar transformación,
 // y nombre del archivo temporal donde se debe almacenar el resultado.
 // Por cada tarea de transformación:
@@ -71,13 +73,33 @@ void connectToYamaAndSendData(char *inputFilePath) {
 	t_config *config = config_create("conf/master.conf");
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = config_get_string_value(config, "YAMA_IP");
-	config_destroy(config);
 
-	int sockfd = ipc_createAndConnect(yamaPort, yamaIP);
+	int sockfd = ipc_createAndConnect(yamaPort, strdup(yamaIP));
 	ipc_struct_start_transform_reduce_request request;
 	request.filePath = strdup(inputFilePath);
 	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+
+	ipc_struct_start_transform_reduce_response *response = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+
+	master_TransformRequest *transformRequests = malloc(sizeof(master_TransformRequest) * response->entriesCount);
+
+	int i;
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_start_transform_reduce_response_entry *entry = response->entries + i;
+		master_TransformRequest *transformRequest = transformRequests + i;
+		transformRequest->ip = strdup(entry->workerIP);
+		transformRequest->port = entry->workerPort;
+		transformRequest->block = entry->blockID;
+		transformRequest->usedBytes = entry->usedBytes;
+		transformRequest->tempFilePath = strdup(entry->tempPath);
+	}
+
+	master_transform_start(transformRequests);
+
+	free(response->entries);
+	free(response);
 	free(inputFilePath);
+	config_destroy(config);
 }
 
 int main(int argc, char **argv) {
