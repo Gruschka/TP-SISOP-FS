@@ -15,6 +15,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include "transform.h"
+
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
 // sobre el cual quiero operar.
@@ -78,6 +80,24 @@ void connectToYamaAndSendData(char *inputFilePath) {
 	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
 
 	ipc_struct_start_transform_reduce_response *response = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+
+	master_TransformRequest *transformRequests = malloc(sizeof(master_TransformRequest) * response->entriesCount);
+
+	int i;
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_start_transform_reduce_response_entry *entry = response->entries + i;
+		master_TransformRequest *transformRequest = transformRequests + i;
+		transformRequest->ip = strdup(entry->workerIP);
+		transformRequest->port = entry->workerPort;
+		transformRequest->block = entry->blockID;
+		transformRequest->usedBytes = entry->usedBytes;
+		transformRequest->tempFilePath = strdup(entry->tempPath);
+	}
+
+	master_transform_start(transformRequests);
+
+	free(response->entries);
+	free(response);
 	free(inputFilePath);
 	config_destroy(config);
 }
