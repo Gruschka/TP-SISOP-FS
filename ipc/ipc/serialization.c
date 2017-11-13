@@ -179,11 +179,11 @@ uint32_t getFSGetFileInfoResponseSize(ipc_struct_fs_get_file_info_response *resp
 
 char *serializeFSGetFileInfoResponse(void *data, int *size) {
 	int offset = 0, i;
-	ipc_struct_start_transform_reduce_response *response = data;
-	uint32_t entriesSize = getYAMAStartTransformationResponseEntriesSize(response);
+	ipc_struct_fs_get_file_info_response *response = data;
+	uint32_t entriesSize = getFSGetFileInfoResponseEntriesSize(response);
 	char *buffer;
 
-	buffer = malloc(*size = getYAMAStartTransformationResponseSize(response));
+	buffer = malloc(*size = getFSGetFileInfoResponseSize(response));
 	memcpy(buffer + offset, &(response->entriesCount), sizeof(uint32_t));
 	offset += sizeof(uint32_t);
 	memcpy(buffer + offset, &entriesSize, sizeof(uint32_t));
@@ -191,23 +191,25 @@ char *serializeFSGetFileInfoResponse(void *data, int *size) {
 	response->entriesSize = entriesSize;
 
 	for (i = 0; i < response->entriesCount; i++) {
-		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
-		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
-		offset += strlen(currentEntry->workerIP);
+		ipc_struct_fs_get_file_info_response_entry *currentEntry = response->entries + i;
+		memcpy(buffer + offset, currentEntry->firstCopyNodeID, strlen(currentEntry->firstCopyNodeID)); //firstCopyNodeID
+		offset += strlen(currentEntry->firstCopyNodeID);
 		buffer[offset] = '\0';
 		offset += 1;
-		memcpy(buffer + offset, &(currentEntry->workerPort), sizeof(uint32_t));
+
+		memcpy(buffer + offset, &(currentEntry->firstCopyBlockID), sizeof(uint32_t)); //firstCopyBlockID
 		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, &(currentEntry->blockID), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, &(currentEntry->usedBytes), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-		memcpy(buffer + offset, currentEntry->tempPath, strlen(currentEntry->tempPath));
-		offset += strlen(currentEntry->tempPath);
+
+		memcpy(buffer + offset, currentEntry->secondCopyNodeID, strlen(currentEntry->secondCopyNodeID)); //secondCopyNodeID
+		offset += strlen(currentEntry->secondCopyNodeID);
 		buffer[offset] = '\0';
 		offset += 1;
+
+		memcpy(buffer + offset, &(currentEntry->secondCopyBlockID), sizeof(uint32_t)); //secondCopyBlockID
+		offset += sizeof(uint32_t);
+
+		memcpy(buffer + offset, &(currentEntry->blockSize), sizeof(uint32_t)); //blockSize
+		offset += sizeof(uint32_t);
 	}
 
 	return buffer;
