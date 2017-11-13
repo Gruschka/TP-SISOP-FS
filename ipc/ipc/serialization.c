@@ -150,7 +150,34 @@ char *serializeFSGetFileInfoRequest(void *data, int *size) {
 }
 
 // FS_GET_FILE_INFO_RESPONSE
-char *serializeYAMAStartTransformationResponse(void *data, int *size) {
+uint32_t getFSGetFileInfoResponseEntrySize(ipc_struct_fs_get_file_info_response_entry *entry) {
+	return (sizeof(uint32_t) * 3) +
+			strlen(entry->firstCopyNodeID) + 1 +
+			strlen(entry->secondCopyNodeID) + 1;
+}
+
+uint32_t getFSGetFileInfoResponseEntriesSize(ipc_struct_fs_get_file_info_response *response) {
+	int i;
+	uint32_t result = 0;
+
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_fs_get_file_info_response_entry *currentEntry = response->entries + i;
+		result += getFSGetFileInfoResponseEntrySize(currentEntry);
+	}
+
+	return result;
+}
+
+uint32_t getFSGetFileInfoResponseSize(ipc_struct_fs_get_file_info_response *response) {
+	uint32_t result = 0;
+
+	result += sizeof(uint32_t) * 2; //entriesCount + entriesSize
+	result += getFSGetFileInfoResponseEntriesSize(response);
+
+	return result;
+}
+
+char *serializeFSGetFileInfoResponse(void *data, int *size) {
 	int offset = 0, i;
 	ipc_struct_start_transform_reduce_response *response = data;
 	uint32_t entriesSize = getYAMAStartTransformationResponseEntriesSize(response);
