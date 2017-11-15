@@ -66,7 +66,7 @@ void main() {
 	previouslyConnectedNodesNames = list_create();
 	fs_mount(&myFS); //Crea los directorios del FS
 
-	fs_restorePreviousStatus();
+	//fs_restorePreviousStatus();
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
@@ -514,7 +514,7 @@ int fs_isStable() {
 			buffer[strlen(buffer) - 1] = '\0';
 		}
 
-		char *fullFilePath = string_from_format("/mnt/FS/%s", buffer);
+		char *fullFilePath = string_from_format("%s", buffer);
 		fileMetadata = config_create(fullFilePath);
 		char *sizeString = config_get_string_value(fileMetadata, "TAMANIO");
 		size = atoi(sizeString);
