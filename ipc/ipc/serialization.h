@@ -81,10 +81,11 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_start_transform_reduce_response;
 
 typedef struct {
-	uint32_t transformScriptContentSize;
-	void *transformScriptContent;
+	uint32_t scriptContentSize;
+	void *scriptContent;
 	uint32_t block;
 	uint32_t usedBytes;
+	uint32_t tempFilePathLength;
 	char *tempFilePath;
 }__attribute__((packed)) ipc_struct_worker_start_transform_request;
 

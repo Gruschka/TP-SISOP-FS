@@ -154,54 +154,47 @@ void *createServer() {
 void connectionHandler(int client_sock){
 	pid_t pid;
 	int status;
-	uint32_t operation;
-	char *script;
-	uint32_t scriptLength;
+
 	const int blockSize = 1024*1024;
 
 	if((pid=fork()) == 0){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
+		uint32_t operation;
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
-		recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
-		script = malloc(scriptLength);
-		recv(client_sock, script, sizeof(scriptLength), 0);
 		switch(operation){
 			case WORKER_START_TRANSFORM_REQUEST:{
-				//typedef struct {
-				//	uint32_t transformScriptContentSize;
-				//	void *transformScriptContent;
-				//	uint32_t block;
-				//	uint32_t usedBytes;
-				//	char *tempFilePath;
-				//}__attribute__((packed)) ipc_struct_worker_start_transform_request;
+				ipc_struct_worker_start_transform_request request;
 
-				uint32_t block;
-				recv(client_sock, &block, sizeof(uint32_t), 0);
+				recv(client_sock, &(request.scriptContentSize), sizeof(uint32_t), 0);
+				request.scriptContent = malloc(request.scriptContentSize);
+				recv(client_sock, &(request.scriptContent), request.scriptContentSize, 0);
 
-				uint32_t temporalNameLength;
-				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
+				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
 
-				char *temporalName = malloc(temporalNameLength);
-				recv(client_sock, temporalName, temporalNameLength, 0);
+				recv(client_sock, &(request.usedBytes), sizeof(uint32_t),0);
+
+				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
+				request.tempFilePath = malloc(request.tempFilePathLength);
+				recv(client_sock, request.tempFilePath, request.tempFilePathLength, 0);
 
 				char *template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
-				long int bytesToRead = (block * blockSize) + blockSize;
-				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, script, temporalName);
+				long int bytesToRead = (request.block * blockSize) + blockSize;
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, request.scriptContent, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, bytesToRead, blockSize, script, temporalName);
+				sprintf(buffer, template, bytesToRead, blockSize, request.scriptContent, request.tempFilePath);
 				buffer[templateSize] = '\0';
 				system(buffer);
 
 				fileNode * file = malloc (sizeof(fileNode));
-				file->filePath = malloc(temporalNameLength);
-				memcpy(file->filePath, temporalName, temporalNameLength);
+				file->filePath = malloc(request.tempFilePathLength);
+				memcpy(file->filePath, request.tempFilePath, request.tempFilePathLength);
 				list_add(fileList, file);
 
 				free(buffer);
-				free(temporalName);
 				free(file);
-				free(script);
+				free(request.scriptContent);
+				free(request.tempFilePath);
 
 				int checkCode = OK;
 				send(client_sock, &checkCode, sizeof(int), 0);
@@ -212,6 +205,12 @@ void connectionHandler(int client_sock){
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 				list_add(fileList, fileToReduce);
+
+				uint32_t scriptLength;
+				recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
+
+				char *script = malloc(scriptLength);
+				recv(client_sock, script, sizeof(scriptLength), 0);
 
 				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
@@ -254,6 +253,12 @@ void connectionHandler(int client_sock){
 
 				}
 
+				uint32_t scriptLength;
+				recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
+
+				char *script = malloc(scriptLength);
+				recv(client_sock, script, sizeof(scriptLength), 0);
+
 				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
 
@@ -282,6 +287,12 @@ void connectionHandler(int client_sock){
 				int closeCode, registerSize = 0;
 				int clientCode = 0;
 				char * registerToSend = malloc(256);
+
+				uint32_t scriptLength;
+				recv(client_sock, &scriptLength, sizeof(uint32_t), 0);
+
+				char *script = malloc(scriptLength);
+				recv(client_sock, script, sizeof(scriptLength), 0);
 
 				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(int), 0);

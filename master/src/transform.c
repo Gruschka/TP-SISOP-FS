@@ -27,10 +27,10 @@
 void *connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	master_TransformRequest *request = (master_TransformRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
-	ipc_struct_test_message testMessage;
-	testMessage.blah = 'A';
-	testMessage.bleh = strdup("QTI AMIGO");
-	ipc_sendMessage(sockfd, TEST_MESSAGE, &testMessage);
+	ipc_struct_worker_start_transform_request workerRequest;
+	//TODO: (Fede) levantar el script de transformación
+
+
 	return NULL;
 }
 
