@@ -19,6 +19,7 @@
 #include "configuration.h"
 
 pthread_mutex_t stateTable_mutex;
+pthread_mutex_t nodesList_mutex;
 
 yama_configuration configuration;
 t_log *logger;
@@ -137,7 +138,7 @@ void test() {
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Hello from the other side    xD");
+	log_debug(logger, "Hello from the other side xD");
 	int sockfd = ipc_createAndListen(8888, 0);
 
 	struct sockaddr_in cliaddr;
@@ -181,6 +182,7 @@ void initialize() {
 	stateTable = list_create();
 	nodesList = list_create();
 	pthread_mutex_init(&stateTable_mutex, NULL);
+	pthread_mutex_init(&nodesList_mutex, NULL);
 }
 
 int main(int argc, char** argv) {
