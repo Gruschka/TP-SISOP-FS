@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 5
+#define OPERATIONS_COUNT 11
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,

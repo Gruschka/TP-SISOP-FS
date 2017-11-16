@@ -157,12 +157,8 @@ void connectionHandler(int client_sock){
 	uint32_t operation;
 	char *script;
 	uint32_t scriptLength;
-	uint32_t block;
-	long int bytesToRead;
 	const int blockSize = 1024*1024;
-	char * buffer;
-	char * temporalName;
-	uint32_t temporalNameLength;
+
 	if((pid=fork()) == 0){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
@@ -172,52 +168,72 @@ void connectionHandler(int client_sock){
 		recv(client_sock, script, sizeof(scriptLength), 0);
 		switch(operation){
 			case WORKER_START_TRANSFORM_REQUEST:{
-				fileNode * file = malloc (sizeof(fileNode));
-				int checkCode = OK;
+				//typedef struct {
+				//	uint32_t transformScriptContentSize;
+				//	void *transformScriptContent;
+				//	uint32_t block;
+				//	uint32_t usedBytes;
+				//	char *tempFilePath;
+				//}__attribute__((packed)) ipc_struct_worker_start_transform_request;
+
+				uint32_t block;
 				recv(client_sock, &block, sizeof(uint32_t), 0);
-				bytesToRead = (block * blockSize) + blockSize;
+
+				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t),0);
-				temporalName = malloc(temporalNameLength);
+
+				char *temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
-				file->filePath = malloc(temporalNameLength);
-				memcpy(file->filePath, temporalName, temporalNameLength);
-				char * template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
+
+				char *template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
+				long int bytesToRead = (block * blockSize) + blockSize;
 				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, script, temporalName);
-				buffer = malloc(templateSize + 1);
+				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, bytesToRead, blockSize, script, temporalName);
 				buffer[templateSize] = '\0';
 				system(buffer);
+
+				fileNode * file = malloc (sizeof(fileNode));
+				file->filePath = malloc(temporalNameLength);
+				memcpy(file->filePath, temporalName, temporalNameLength);
 				list_add(fileList, file);
+
 				free(buffer);
 				free(temporalName);
 				free(file);
 				free(script);
+
+				int checkCode = OK;
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
 				t_list * filesList;
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
-				int checkCode = OK;
-
-
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 				list_add(fileList, fileToReduce);
 
+				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
-				temporalName = malloc(temporalNameLength);
+
+				char *temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
+
 				pairingFiles(filesList, temporalName);
-				char * template = "%s %s > %s";
+
+				char *template = "%s %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
-				buffer = malloc(templateSize + 1);
+				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, temporalName, script, temporalName);
 				buffer[templateSize] = '\0';
 				system(buffer);
+
 				free(buffer);
 				free(script);
 				free(temporalName);
 				free(fileToReduce);
+
+				int checkCode = OK;
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
@@ -225,7 +241,6 @@ void connectionHandler(int client_sock){
 				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 				t_list * workerList;
 				int workerListSize, i = 0;
-				int checkCode = OK;
 
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 
@@ -239,24 +254,27 @@ void connectionHandler(int client_sock){
 
 				}
 
+				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
-				temporalName = malloc(temporalNameLength);
+
+				char *temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
 
-
-
-
 				pairingGlobalFiles(workerList, temporalName);
+
 				char * template = "%s %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
-				buffer = malloc(templateSize + 1);
+				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, temporalName, script, temporalName);
 				buffer[templateSize] = '\0';
 				system(buffer);
+
 				free(workerToRequest);
 				free(buffer);
 				free(script);
 				free(temporalName);
+
+				int checkCode = OK;
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
@@ -264,9 +282,13 @@ void connectionHandler(int client_sock){
 				int closeCode, registerSize = 0;
 				int clientCode = 0;
 				char * registerToSend = malloc(256);
+
+				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(int), 0);
-				temporalName = malloc(temporalNameLength);
+
+				char *temporalName = malloc(temporalNameLength);
 				recv(client_sock, temporalName, temporalNameLength, 0);
+
 				FILE * fileToOpen;
 				fileToOpen = fopen(temporalName, "r");
 				if(fileToOpen == NULL){
@@ -291,6 +313,7 @@ void connectionHandler(int client_sock){
 					}
 					recv(client_sock, &closeCode, sizeof(int), 0);
 				}
+
 				close(client_sock);
 				free(registerToSend);
 				fclose(fileToOpen);
