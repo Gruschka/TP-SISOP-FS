@@ -16,7 +16,13 @@ typedef enum ipc_operation {
 	TEST_MESSAGE,
 	FS_GET_FILE_INFO,
 	YAMA_START_TRANSFORM_REDUCE_REQUEST,
-	YAMA_START_TRANSFORM_REDUCE_RESPONSE
+	YAMA_START_TRANSFORM_REDUCE_RESPONSE,
+	WORKER_START_TRANSFORM_REQUEST,
+	WORKER_START_TRANSFORM_RESPONSE,
+	WORKER_START_LOCAL_REDUCTION_REQUEST,
+	WORKER_START_LOCAL_REDUCTION_RESPONSE,
+	WORKER_START_GLOBAL_REDUCTION_REQUEST,
+	WORKER_START_GLOBAL_REDUCTION_RESPONSE
 } ipc_operation;
 
 typedef void *(*DeserializationFunction)(char *buffer);
@@ -57,6 +63,14 @@ typedef struct {
 	uint32_t entriesSize;
 	ipc_struct_start_transform_reduce_response_entry *entries;
 }__attribute__((packed)) ipc_struct_start_transform_reduce_response;
+
+typedef struct {
+	uint32_t transformScriptContentSize;
+	void *transformScriptContent;
+	uint32_t block;
+	uint32_t usedBytes;
+	char *tempFilePath;
+}__attribute__((packed)) ipc_struct_worker_start_transform_request;
 
 void serialization_initialize();
 

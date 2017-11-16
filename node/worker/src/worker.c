@@ -18,6 +18,7 @@
 
 #include "worker.h"
 #include "configWorker.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,16 +28,18 @@
 #include <errno.h>
 #include <unistd.h>   //close
 #include <arpa/inet.h>    //close
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
 #include <sys/wait.h>
-#define TRANSFORMATION 1
-#define LOCAL_REDUCTION 2
-#define GLOBAL_REDUCTION 3
-#define SLAVE_WORKER 4
+#include <sys/types.h>
+#include <sys/socket.h>
+
+#include <ipc/ipc.h>
+#include <ipc/serialization.h>
+
+#define SLAVE_WORKER 123456
 #define OK 1
 #define REGISTER_REQUEST 15
 #define FILE_CLOSE_REQUEST 16
@@ -168,7 +171,7 @@ void connectionHandler(int client_sock){
 		script = malloc(scriptLength);
 		recv(client_sock, script, sizeof(scriptLength), 0);
 		switch(operation){
-			case TRANSFORMATION:{
+			case WORKER_START_TRANSFORM_REQUEST:{
 				fileNode * file = malloc (sizeof(fileNode));
 				int checkCode = OK;
 				recv(client_sock, &block, sizeof(uint32_t), 0);
@@ -192,7 +195,7 @@ void connectionHandler(int client_sock){
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
-			case LOCAL_REDUCTION:{
+			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
 				t_list * filesList;
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
 				int checkCode = OK;
@@ -218,7 +221,7 @@ void connectionHandler(int client_sock){
 				send(client_sock, &checkCode, sizeof(int), 0);
 				break;
 			}
-			case GLOBAL_REDUCTION:{
+			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
 				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 				t_list * workerList;
 				int workerListSize, i = 0;
