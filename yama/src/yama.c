@@ -104,6 +104,14 @@ void test() {
 
 	log_debug(logger, "Found path: %s", found->tempPath);
 	testSerialization();
+
+	int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
+	request->filePath = "/users/guille/capo.txt";
+
+	ipc_sendMessage(fsFd, YAMA_START_TRANSFORM_REDUCE_REQUEST, request);
+
+	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
 }
 
 void *server_mainThread() {
