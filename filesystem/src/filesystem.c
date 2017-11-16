@@ -68,6 +68,10 @@ void main() {
 
 	//fs_restorePreviousStatus();
 
+	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+	fs_info("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+
+
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
@@ -354,7 +358,23 @@ int fs_ls(char *directoryPath) {
 int fs_info(char *filePath) {
 
 	printf("Showing info of file file %s\n", filePath);
-	return 0;
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
+	int amountOfBlockTuples = amountOfBlocks / 2;
+
+
+	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+
+
+	int i = 0;
+
+	//printf("Showing info of file file %s\n", filePath);
+	for(i = 0; i < amountOfBlockTuples; i++){
+
+		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
+	}
+
+	//free(arrayOfBlockTuples);
+	return EXIT_SUCCESS;
 
 }
 
@@ -1692,5 +1712,101 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 
 	return 0;
 
+
+}
+
+t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
+
+
+	if(fs_directoryExists(filePath) == NULL){
+
+		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
+		//return NULL;
+	}
+
+	t_fileBlockTuple blockTupleInfo;
+
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
+	int amountOfBlockTuples = amountOfBlocks / 2;
+	t_fileBlockTuple output[amountOfBlocks];
+
+	int i = 0;
+	int j = 0;
+	int copy = 0;
+
+	for(i = 0; i < amountOfBlockTuples; i++){
+
+		copy = 0;
+
+		for(j = 0; j < 2; j++){
+
+			t_config *fileConfig = config_create(filePath);//Creo el config
+
+			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+					i, copy);
+			char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
+									blockToSearch);
+			char **nodeBlockTupleAsArray = string_get_string_as_array(
+										nodeBlockTupleAsString);
+
+			if(j == 0){ //es el primer bloque
+				output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
+				output[i].firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
+				char * blockSize = config_get_string_value(fileConfig,blockSizeString);
+				output[i].blockSize = atoi(blockSize);
+				free(blockSizeString);
+
+			}else{// es el copia
+				output[i].secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				strcpy(output[i].secondCopyNodeID, nodeBlockTupleAsArray[0]);
+				output[i].secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+
+			}
+
+			copy = 1;
+			free(blockToSearch);
+			config_destroy(fileConfig);
+
+		}
+
+
+	}
+
+	return output;
+
+
+
+
+
+
+}
+
+int fs_getAmountOfBlocksOfAFile(char *file){
+
+	if(fs_directoryExists(file) == NULL){
+		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
+		//return NULL;
+	}
+
+	t_config *fileConfig = config_create(file);
+
+	int totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+
+	int totalAmountOfBlocks = (totalBlockKeys / 3) * 2; //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
+	//=> Divido las entradas que quedan por 3 y me da la cantidad de bloques sin copias. Multiplico por 2 para contemplar las copias
+
+	config_destroy(fileConfig);
+	return totalAmountOfBlocks;
+
+
+}
+
+void fs_dumpBlockTuple(t_fileBlockTuple blockTuple){
+
+	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
+	printf("BLOCK:[%d] COPY:[1] NODE:[%s]\n", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
+	printf("BLOCK SIZE: %d\n", blockTuple.blockSize);
 
 }
