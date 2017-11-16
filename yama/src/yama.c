@@ -42,6 +42,18 @@ void nodesList_addNode(char *nodeID) {
 	list_add(nodesList, new);
 }
 
+node *nodesList_getNode(char *nodeID) {
+	int i;
+
+	for (i = 0; i < list_size(nodesList); i++) {
+		node *current = list_get(nodesList, i);
+
+		if (strcmp(current->nodeID, nodeID) == 0) return current;
+	}
+
+	return NULL;
+}
+
 yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t nodeID) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
