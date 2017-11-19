@@ -105,7 +105,8 @@ void test() {
 	log_debug(logger, "Found path: %s", found->tempPath);
 	testSerialization();
 
-	int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	int fsFd = ipc_createAndConnect(8081, "10.0.1.52");
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = "/users/guille/capo.txt";
 
