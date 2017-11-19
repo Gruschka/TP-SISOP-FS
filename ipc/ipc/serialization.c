@@ -69,7 +69,7 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 
 	response->entries = entries;
 
-	return NULL;
+	return response;
 }
 
 // YAMA_START_TRANSFORMATION_REQUEST

@@ -136,6 +136,7 @@ void test() {
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
+	printf(response->entriesCount);
 }
 
 void *server_mainThread() {
