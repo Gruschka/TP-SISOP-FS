@@ -74,6 +74,7 @@ void main() {
 
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
+	fs_yamaConnectionThread();
 
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
@@ -83,7 +84,6 @@ void main() {
 		sleep(5);
 	}
 
-	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
