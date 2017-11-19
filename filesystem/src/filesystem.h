@@ -4,6 +4,7 @@
 #include <commons/bitarray.h>
 #include <commons/collections/list.h>
 #include <stdio.h>
+#include <ipc/serialization.h>
 
 #define BLOCK_SIZE 1048576
 
@@ -123,7 +124,9 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
 int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
-t_fileBlockTuple *fs_getFileBlockTuples(char *filePath);
+ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath);
+ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePath);
+
 int fs_getAmountOfBlocksOfAFile(char *file);
 void fs_dumpBlockTuple(t_fileBlockTuple blockTuple);
 //Console commands

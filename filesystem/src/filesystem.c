@@ -75,7 +75,6 @@ void main() {
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
-	fs_yamaConnectionThread();
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
@@ -84,6 +83,7 @@ void main() {
 		sleep(5);
 	}
 
+	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -504,6 +504,9 @@ void fs_waitForYama() {
 		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(new_socket, FS_GET_FILE_INFO_REQUEST);
 		printf("Request: %s", request->filePath);
 		printf("Hello message sent\n");
+
+		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(request->filePath);
+		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		sleep(5);
 	}
 
@@ -1714,7 +1717,7 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 
 }
 
-t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
+ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath){
 
 
 	if(!fs_directoryExists(filePath)){
@@ -1722,12 +1725,9 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 		//return NULL;
 	}
 
-	t_fileBlockTuple blockTupleInfo;
-
 	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
 	int amountOfBlockTuples = amountOfBlocks / 2;
-	t_fileBlockTuple *output = malloc(sizeof(t_fileBlockTuple) * amountOfBlockTuples);
-	t_fileBlockTuple outputCopy[amountOfBlocks];
+	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlockTuples);
 
 
 	int i = 0;
@@ -1748,7 +1748,7 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 									blockToSearch);
 			char **nodeBlockTupleAsArray = string_get_string_as_array(
 										nodeBlockTupleAsString);
-			t_fileBlockTuple *currentTuple = output + i;
+			ipc_struct_fs_get_file_info_response_entry *currentTuple = output + i;
 			if(j == 0){ //es el primer bloque
 
 				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
@@ -1802,8 +1802,22 @@ int fs_getAmountOfBlocksOfAFile(char *file){
 
 void fs_dumpBlockTuple(t_fileBlockTuple blockTuple){
 
+
 	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
 	printf("BLOCK:[%d] COPY:[1] NODE:[%s]\n", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
 	printf("BLOCK SIZE: %d\n", blockTuple.blockSize);
+
+}
+
+ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *file){
+
+	int amountOfBlockTuples = fs_getAmountOfBlocksOfAFile(file) / 2;
+	ipc_struct_fs_get_file_info_response *response = malloc(sizeof(ipc_struct_fs_get_file_info_response));
+
+	response->entriesCount = amountOfBlockTuples;
+	response->entries = fs_getFileBlockTuples(file);
+
+	return response;
+
 
 }
