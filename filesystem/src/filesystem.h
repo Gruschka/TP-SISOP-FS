@@ -7,6 +7,15 @@
 
 #define BLOCK_SIZE 1048576
 
+
+typedef struct {
+ char *firstCopyNodeID;
+ int firstCopyBlockID;
+ char *secondCopyNodeID;
+ int secondCopyBlockID;
+ int blockSize;
+}t_fileBlockTuple;
+
 typedef enum fileTypes {
 	T_BINARY,
 	T_TEXT
@@ -114,6 +123,9 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
 int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
+t_fileBlockTuple *fs_getFileBlockTuples(char *filePath);
+int fs_getAmountOfBlocksOfAFile(char *file);
+void fs_dumpBlockTuple(t_fileBlockTuple blockTuple);
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);

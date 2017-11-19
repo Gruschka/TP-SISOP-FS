@@ -26,6 +26,12 @@ typedef struct yama_state_table_entry {
 	yama_job_status status;
 } yama_state_table_entry;
 
+typedef struct node {
+	char *nodeID;
+	uint32_t currentOperationsCount;
+	uint32_t totalOperationsCount;
+} node;
+
 void loadConfiguration();
 void signalHandler(int);
 

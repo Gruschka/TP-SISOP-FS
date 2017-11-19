@@ -14,14 +14,18 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 #include <arpa/inet.h>
+#include <string.h>
 #include "yama.h"
 #include "configuration.h"
 
 pthread_mutex_t stateTable_mutex;
+pthread_mutex_t nodesList_mutex;
 
 yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;
+t_list *nodesList;
+node *lastAssignedNode;
 pthread_t serverThread;
 
 void yst_addEntry(yama_state_table_entry *entry) {
@@ -30,9 +34,28 @@ void yst_addEntry(yama_state_table_entry *entry) {
 	pthread_mutex_unlock(&stateTable_mutex);
 }
 
-yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t nodeID) {
-	yama_state_table_entry *result = NULL;
+void nodesList_addNode(char *nodeID) {
+	node *new = malloc(sizeof(node));
+	new->nodeID = strdup(nodeID);
+	new->currentOperationsCount = 0;
+	new->totalOperationsCount = 0;
 
+	list_add(nodesList, new);
+}
+
+node *nodesList_getNode(char *nodeID) {
+	int i;
+
+	for (i = 0; i < list_size(nodesList); i++) {
+		node *current = list_get(nodesList, i);
+
+		if (strcmp(current->nodeID, nodeID) == 0) return current;
+	}
+
+	return NULL;
+}
+
+yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t nodeID) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currEntry = list_get(stateTable, i);
@@ -116,7 +139,7 @@ void test() {
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Hello from the other side    xD");
+	log_debug(logger, "Hello from the other side xD");
 	int sockfd = ipc_createAndListen(8888, 0);
 
 	struct sockaddr_in cliaddr;
@@ -158,7 +181,9 @@ void initialize() {
 	serialization_initialize();
 
 	stateTable = list_create();
+	nodesList = list_create();
 	pthread_mutex_init(&stateTable_mutex, NULL);
+	pthread_mutex_init(&nodesList_mutex, NULL);
 }
 
 int main(int argc, char** argv) {

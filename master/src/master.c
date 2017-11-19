@@ -26,8 +26,8 @@
 // qué bloque de cada uno de ellos se debe aplicar transformación,
 // y nombre del archivo temporal donde se debe almacenar el resultado.
 // Por cada tarea de transformación:
-// 1. TODO: crear un hilo
-// 2. TODO: conectarse al worker correspondiente
+// 1. crear un hilo
+// 2. conectarse al worker correspondiente
 // 3. TODO: enviarle el programa de transformación
 // 4. TODO: indicarle sobre qué bloque debe ejecutar el programa, la cantidad
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde

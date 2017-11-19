@@ -32,6 +32,8 @@
 #include <sys/mman.h> //para bitmap
 #include <stdlib.h> //Para EXIT_SUCCESS y EXIT_FAILURE
 #include <math.h> //Para redondear los bits
+#include <ipc/ipc.h>
+#include <ipc/serialization.h>
 
 /********* GLOBAL RESOURCES **********/
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
@@ -59,7 +61,7 @@ enum flags {
 
 /********* MAIN **********/
 void main() {
-
+	serialization_initialize();
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create(); //Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
@@ -68,7 +70,12 @@ void main() {
 
 	//fs_restorePreviousStatus();
 
+	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+
+
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
+
+	fs_yamaConnectionThread();
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
@@ -77,7 +84,6 @@ void main() {
 		sleep(5);
 	}
 
-	//fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -353,8 +359,22 @@ int fs_ls(char *directoryPath) {
 }
 int fs_info(char *filePath) {
 
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
+	int amountOfBlockTuples = amountOfBlocks / 2;
+
+
+	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
 	printf("Showing info of file file %s\n", filePath);
-	return 0;
+
+
+	int i = 0;
+
+	for(i = 0; i < amountOfBlockTuples; i++){
+
+		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
+	}
+
+	return EXIT_SUCCESS;
 
 }
 
@@ -463,7 +483,7 @@ void fs_waitForYama() {
 
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(8080);
+	address.sin_port = htons(8081);
 
 // Forcefully attaching socket to the port 8080
 	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
@@ -481,9 +501,8 @@ void fs_waitForYama() {
 	}
 
 	while (1) {
-		valread = read(new_socket, buffer, 1024);
-		printf("%s\n", buffer);
-		send(new_socket, hello, strlen(hello), 0);
+		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(new_socket, FS_GET_FILE_INFO_REQUEST);
+		printf("Request: %s", request->filePath);
 		printf("Hello message sent\n");
 		sleep(5);
 	}
@@ -615,14 +634,14 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
 
 		log_info(logger,"FS will restore previous session");
-
+		/*
 		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
 			log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
 			int closeResult = close(new_socket);
 			if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
 			pthread_cancel(pthread_self());
 			return;
-		}
+		}*/
 
 	}
 
@@ -1692,5 +1711,99 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 
 	return 0;
 
+
+}
+
+t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
+
+
+	if(!fs_directoryExists(filePath)){
+		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
+		//return NULL;
+	}
+
+	t_fileBlockTuple blockTupleInfo;
+
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
+	int amountOfBlockTuples = amountOfBlocks / 2;
+	t_fileBlockTuple *output = malloc(sizeof(t_fileBlockTuple) * amountOfBlockTuples);
+	t_fileBlockTuple outputCopy[amountOfBlocks];
+
+
+	int i = 0;
+	int j = 0;
+	int copy = 0;
+
+	for(i = 0; i < amountOfBlockTuples; i++){
+
+		copy = 0;
+
+		for(j = 0; j < 2; j++){
+
+			t_config *fileConfig = config_create(filePath);//Creo el config
+
+			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+					i, copy);
+			char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
+									blockToSearch);
+			char **nodeBlockTupleAsArray = string_get_string_as_array(
+										nodeBlockTupleAsString);
+			t_fileBlockTuple *currentTuple = output + i;
+			if(j == 0){ //es el primer bloque
+
+				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				//strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
+				char * blockSize = config_get_string_value(fileConfig,blockSizeString);
+				currentTuple->blockSize = atoi(blockSize);
+				free(blockSizeString);
+
+			}else{// es el copia
+				currentTuple->secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				strcpy(currentTuple->secondCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+
+			}
+
+			copy = 1;
+			free(blockToSearch);
+			config_destroy(fileConfig);
+
+		}
+
+
+	}
+
+	return output;
+
+}
+
+int fs_getAmountOfBlocksOfAFile(char *file){
+
+	if(fs_directoryExists(file) == NULL){
+		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
+		//return NULL;
+	}
+
+	t_config *fileConfig = config_create(file);
+
+	int totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+
+	int totalAmountOfBlocks = (totalBlockKeys / 3) * 2; //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
+	//=> Divido las entradas que quedan por 3 y me da la cantidad de bloques sin copias. Multiplico por 2 para contemplar las copias
+
+	config_destroy(fileConfig);
+	return totalAmountOfBlocks;
+
+
+}
+
+void fs_dumpBlockTuple(t_fileBlockTuple blockTuple){
+
+	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
+	printf("BLOCK:[%d] COPY:[1] NODE:[%s]\n", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
+	printf("BLOCK SIZE: %d\n", blockTuple.blockSize);
 
 }
