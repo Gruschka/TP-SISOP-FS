@@ -68,7 +68,7 @@ void main() {
 	previouslyConnectedNodesNames = list_create();
 	fs_mount(&myFS); //Crea los directorios del FS
 
-	//fs_restorePreviousStatus();
+	fs_restorePreviousStatus();
 
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
@@ -634,19 +634,25 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	list_add(connectedNodes, &newDataNode);
 
 
-	if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
-
+	/*if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
 		log_info(logger,"FS will restore previous session");
-		/*
+
 		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
-			log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
-			int closeResult = close(new_socket);
-			if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
-			pthread_cancel(pthread_self());
-			return;
-		}*/
+
+			if(!(fs_amountOfConnectedNodesFromPreviousStatus() == list_size(previouslyConnectedNodesNames))){//If all the previously connected nodes didnt connect, do not allow any other node
+				log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
+				int closeResult = close(new_socket);
+				if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
+				pthread_cancel(pthread_self());
+				return;
+			}
+
+		}
+
 
 	}
+
+*/
 
 	//Send connection confirmation
 	send(new_socket, hello, strlen(hello), 0);
@@ -1821,3 +1827,53 @@ ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *file){
 
 
 }
+
+int fs_amountOfConnectedNodesFromPreviousStatus(){
+	int listSize = list_size(connectedNodes);
+	int i;
+	int output = 0;
+	t_dataNode * aux;
+
+	if (listSize == 0){
+		log_error(logger,"fs_amountOfPreviousStatus: No DataNodes connected");
+		return -1;
+	}
+
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(connectedNodes, i);
+		if(fs_isDataNodeIncludedInPreviouslyConnectedNodes(aux->name)){
+			output++;
+		}
+
+	}
+
+	if(output == 0){
+		log_error(logger,"fs_amountOfPreviousStatus: No dataNode from Previous session");
+		return 0;
+	}
+
+	log_debug(logger,"fs_amountOfPreviousStatus: Currently %d out of %d connected nodes are from previous session",output,listSize);
+	return output;
+
+}
+
+int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName){
+	int listSize = list_size(previouslyConnectedNodesNames);
+	int i;
+	int output = 0;
+	t_dataNode * aux;
+
+	if (listSize == 0)
+		printf("No data nodes connected\n");
+
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(previouslyConnectedNodesNames, i);
+		if(!strcmp(aux->name, nodeName)) return 1;
+
+	}
+
+	return 0;
+
+}
+
+

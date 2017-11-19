@@ -126,6 +126,7 @@ int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath);
 ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePath);
+int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName);
 
 int fs_getAmountOfBlocksOfAFile(char *file);
 void fs_dumpBlockTuple(t_fileBlockTuple blockTuple);
