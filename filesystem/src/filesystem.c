@@ -33,6 +33,7 @@
 #include <stdlib.h> //Para EXIT_SUCCESS y EXIT_FAILURE
 #include <math.h> //Para redondear los bits
 #include <ipc/ipc.h>
+#include <ipc/serialization.h>
 
 /********* GLOBAL RESOURCES **********/
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
@@ -60,7 +61,7 @@ enum flags {
 
 /********* MAIN **********/
 void main() {
-
+	serialization_initialize();
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	connectedNodes = list_create(); //Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
@@ -70,10 +71,11 @@ void main() {
 	//fs_restorePreviousStatus();
 
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
-	fs_info("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
+
+	fs_yamaConnectionThread();
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
@@ -82,7 +84,6 @@ void main() {
 		sleep(5);
 	}
 
-	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -482,7 +483,7 @@ void fs_waitForYama() {
 
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(8080);
+	address.sin_port = htons(8081);
 
 // Forcefully attaching socket to the port 8080
 	if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
@@ -500,7 +501,8 @@ void fs_waitForYama() {
 	}
 
 	while (1) {
-
+		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(new_socket, FS_GET_FILE_INFO_REQUEST);
+		printf("Request: %s", request->filePath);
 		printf("Hello message sent\n");
 		sleep(5);
 	}
@@ -632,14 +634,14 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
 
 		log_info(logger,"FS will restore previous session");
-
+		/*
 		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
 			log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
 			int closeResult = close(new_socket);
 			if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
 			pthread_cancel(pthread_self());
 			return;
-		}
+		}*/
 
 	}
 
@@ -1774,14 +1776,7 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 
 	}
 
-//	memcpy(outputCopy,output,sizeof(output));
-
 	return output;
-
-
-
-
-
 
 }
 
