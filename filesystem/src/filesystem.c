@@ -32,6 +32,7 @@
 #include <sys/mman.h> //para bitmap
 #include <stdlib.h> //Para EXIT_SUCCESS y EXIT_FAILURE
 #include <math.h> //Para redondear los bits
+#include <ipc/ipc.h>
 
 /********* GLOBAL RESOURCES **********/
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
@@ -81,7 +82,7 @@ void main() {
 		sleep(5);
 	}
 
-	//fs_yamaConnectionThread();
+	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -357,23 +358,21 @@ int fs_ls(char *directoryPath) {
 }
 int fs_info(char *filePath) {
 
-	printf("Showing info of file file %s\n", filePath);
 	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
 	int amountOfBlockTuples = amountOfBlocks / 2;
 
 
-	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
+	printf("Showing info of file file %s\n", filePath);
 
 
 	int i = 0;
 
-	//printf("Showing info of file file %s\n", filePath);
 	for(i = 0; i < amountOfBlockTuples; i++){
 
 		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
 	}
 
-	//free(arrayOfBlockTuples);
 	return EXIT_SUCCESS;
 
 }
@@ -501,9 +500,7 @@ void fs_waitForYama() {
 	}
 
 	while (1) {
-		valread = read(new_socket, buffer, 1024);
-		printf("%s\n", buffer);
-		send(new_socket, hello, strlen(hello), 0);
+
 		printf("Hello message sent\n");
 		sleep(5);
 	}
@@ -1718,8 +1715,7 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 
 
-	if(fs_directoryExists(filePath) == NULL){
-
+	if(!fs_directoryExists(filePath)){
 		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
 		//return NULL;
 	}
@@ -1728,7 +1724,9 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 
 	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
 	int amountOfBlockTuples = amountOfBlocks / 2;
-	t_fileBlockTuple output[amountOfBlocks];
+	t_fileBlockTuple *output = malloc(sizeof(t_fileBlockTuple) * amountOfBlockTuples);
+	t_fileBlockTuple outputCopy[amountOfBlocks];
+
 
 	int i = 0;
 	int j = 0;
@@ -1748,20 +1746,22 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 									blockToSearch);
 			char **nodeBlockTupleAsArray = string_get_string_as_array(
 										nodeBlockTupleAsString);
-
+			t_fileBlockTuple *currentTuple = output + i;
 			if(j == 0){ //es el primer bloque
-				output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
-				output[i].firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+
+				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				//strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
 				char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
 				char * blockSize = config_get_string_value(fileConfig,blockSizeString);
-				output[i].blockSize = atoi(blockSize);
+				currentTuple->blockSize = atoi(blockSize);
 				free(blockSizeString);
 
 			}else{// es el copia
-				output[i].secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				strcpy(output[i].secondCopyNodeID, nodeBlockTupleAsArray[0]);
-				output[i].secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				currentTuple->secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
+				strcpy(currentTuple->secondCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
 
 			}
 
@@ -1773,6 +1773,8 @@ t_fileBlockTuple *fs_getFileBlockTuples(char *filePath){
 
 
 	}
+
+//	memcpy(outputCopy,output,sizeof(output));
 
 	return output;
 
