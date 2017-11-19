@@ -106,11 +106,11 @@ void test() {
 	testSerialization();
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	int fsFd = ipc_createAndConnect(8081, "10.0.1.52");
+	int fsFd = ipc_createAndConnect(8081, "10.0.1.152");
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = "/users/guille/capo.txt";
 
-	ipc_sendMessage(fsFd, YAMA_START_TRANSFORM_REDUCE_REQUEST, request);
+	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
 }
