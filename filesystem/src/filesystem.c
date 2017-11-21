@@ -73,6 +73,7 @@ void main() {
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
 
+	fs_getAmountOfBlocksOfAFile("/mnt/FS/metadata/archivos/1/ejemplo2.txt");
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 	fs_yamaConnectionThread();
 
@@ -198,7 +199,70 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 	printf("removing block %d whose copy is block %d from file %s\n",
 			blockNumberToRemove, numberOfCopyBlock, filePath);
 
-	return 0;
+	// get parent path
+	char **splitPath = string_split(filePath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath);
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+
+	if(blockNumberToRemove > amountOfBlocks){
+		log_error(logger,"block number to remove does not exist");
+		return EXIT_FAILURE;
+	}
+
+	t_dataNode dataNode;
+	t_dataNode dataNodeCopy;
+	t_dataNode *targetDataNode;
+	int blockNumber;
+	int blockCopyNumber;
+
+	dataNode.name = string_from_format("%s",blockArray[blockNumberToRemove].firstCopyNodeID);
+	blockNumber = blockArray[blockNumberToRemove].firstCopyBlockID;
+	dataNodeCopy.name = string_from_format("%s",blockArray[blockNumberToRemove].secondCopyNodeID);
+	blockCopyNumber = blockArray[blockNumberToRemove].secondCopyBlockID;
+
+
+	if(fs_isDataNodeAlreadyConnected(dataNode) && fs_isDataNodeAlreadyConnected(dataNodeCopy)){
+		if(numberOfCopyBlock == 0){
+			targetDataNode = fs_getNodeFromNodeName(dataNode.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockNumber);
+		}else{
+			targetDataNode = fs_getNodeFromNodeName(dataNodeCopy.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockCopyNumber);
+		}
+	}else{
+		log_error(logger,"not enough copies of the block to perform rm operation");
+		return EXIT_FAILURE;
+	}
+
+	fs_deleteBlockFromMetadata(physicalPath,blockNumberToRemove,numberOfCopyBlock);
+
+	free(dataNode.name);
+	free(dataNodeCopy.name);
+
+	return EXIT_SUCCESS;
 }
 int fs_rename(char *filePath, char *nombreFinal) {
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
@@ -1779,14 +1843,27 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 		for(j = 0; j < 2; j++){
 
 			t_config *fileConfig = config_create(filePath);//Creo el config
+			ipc_struct_fs_get_file_info_response_entry *currentTuple = output + i;
 
 			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
 					i, copy);
 			char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
 									blockToSearch);
+			if(nodeBlockTupleAsString == NULL){
+				log_error(logger,"fs_getFileBlockTuples: Block tuple: %s not found",blockToSearch);
+				config_destroy(fileConfig);
+
+				if(j=0)
+				currentTuple->firstCopyNodeID = NULL;
+
+				if(j=1)
+				currentTuple->secondCopyNodeID = NULL;
+
+				break;
+			}
+
 			char **nodeBlockTupleAsArray = string_get_string_as_array(
 										nodeBlockTupleAsString);
-			ipc_struct_fs_get_file_info_response_entry *currentTuple = output + i;
 			if(j == 0){ //es el primer bloque
 
 				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
@@ -1827,9 +1904,36 @@ int fs_getAmountOfBlocksOfAFile(char *file){
 
 	t_config *fileConfig = config_create(file);
 
-	int totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+	float totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
 
-	int totalAmountOfBlocks = (totalBlockKeys / 3) * 2; //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
+
+	char *blockToSearch = string_from_format("BLOQUE0COPIA0");
+	char *nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
+
+	int block = 0;
+	int copy = 0;
+	int totalAmountOfBlocks = 0;
+	while(nodeBlockTupleAsString != NULL){
+
+		totalAmountOfBlocks++;
+		block++;
+
+		if(copy = 0){
+			copy = 1;
+		} else if(copy = 1){
+			copy = 0;
+		}
+
+		free(blockToSearch);
+		free(nodeBlockTupleAsString);
+		blockToSearch = string_from_format("BLOQUE%dCOPIA%d",block,copy);
+		nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
+
+	}
+
+
+
+	//float totalAmountOfBlocks = floor((totalBlockKeys / 3) * 2); //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
 	//=> Divido las entradas que quedan por 3 y me da la cantidad de bloques sin copias. Multiplico por 2 para contemplar las copias
 
 	config_destroy(fileConfig);
@@ -1948,4 +2052,53 @@ int fs_deleteFileFromIndex(char *path){
 	return EXIT_SUCCESS;
 }
 
+int fs_deleteBlockFromMetadata(char *path,int block, int copy){
+	char* inFileName = path;
+	char* outFileName = string_from_format("%s.tmp",path);
+	FILE* inFile = fopen(inFileName, "r");
+	FILE* outFile = fopen(outFileName, "w+");
+	char line [1024]; // maybe you have to user better value here
+	memset(line,0,1024);
+	int lineCount = 0;
 
+	if( inFile == NULL )
+	{
+	    printf("Open Error");
+	}
+
+
+	char *blockAndCopyString = string_from_format("BLOQUE%dCOPIA%d",block,copy);
+	int blockAndCopyStringLength = strlen(blockAndCopyString);
+	char *auxiliaryString;
+
+	while( fgets(line, sizeof(line), inFile) != NULL )
+	{
+		auxiliaryString = strdup(line);
+		if(strlen(auxiliaryString)>blockAndCopyStringLength+1){
+			auxiliaryString[blockAndCopyStringLength] = '\0';
+		}
+	    if(strcmp(blockAndCopyString,auxiliaryString))
+	    {
+	        fprintf(outFile, "%s", line);
+	    }
+
+	    lineCount++;
+		free(auxiliaryString);
+	}
+
+
+	fclose(outFile);
+
+	// possible you have to remove old file here before
+	fclose(inFile);
+	remove(inFileName);
+	if( !rename(outFileName,inFileName ) )
+	{
+	    log_error(logger,"Rename Error");
+	    return EXIT_FAILURE;
+	}
+
+	free(blockAndCopyString);
+
+	return EXIT_SUCCESS;
+}
