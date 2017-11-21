@@ -56,7 +56,8 @@ enum flags {
 	EMPTY = 100,
 	DIRECTORY_TABLE_MAX_AMOUNT = 100,
 	DATANODE_ALREADY_CONNECTED = 1,
-	DATANODE_IS_FROM_PREVIOUS_SESSION =1
+	DATANODE_IS_FROM_PREVIOUS_SESSION =1,
+	BLOCK_DOES_NOT_EXIST = -1
 };
 
 /********* MAIN **********/
@@ -74,8 +75,6 @@ void main() {
 
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
-	fs_yamaConnectionThread();
-
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
@@ -84,6 +83,7 @@ void main() {
 		sleep(5);
 	}
 
+	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -104,9 +104,9 @@ int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
 	// get parent path
-	char **splitPath = string_get_string_as_array(filePath);
+	char **splitPath = string_split(filePath,"/");
 	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
-	int fileNameLength = strlen(splitPath[splitPathElementCount]);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
 
 	char *parentPath = strdup(filePath);
 	parentPath[strlen(parentPath)-fileNameLength] = 0;
@@ -120,7 +120,7 @@ int fs_rm(char *filePath) {
 
 	//check file exists
 	//transform path to physical path
-	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount]);
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
 	FILE *fileMetadata = fopen(physicalPath,"r+");
 	if(!fileMetadata){
 		log_error(logger,"fs_rm: file doesnt exist");
@@ -128,15 +128,38 @@ int fs_rm(char *filePath) {
 	}
 
 	//todo: release occupied blocks
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+	t_dataNode dataNode;
+	t_dataNode dataNodeCopy;
+	t_dataNode *targetDataNode;
+	while(blockIterator < (amountOfBlocks/2)){
+		dataNode.name = string_from_format("%s",blockArray[blockIterator].firstCopyNodeID);
+		dataNodeCopy.name = string_from_format("%s",blockArray[blockIterator].secondCopyNodeID);
+		if(fs_isDataNodeAlreadyConnected(dataNode)){
+			targetDataNode = fs_getNodeFromNodeName(dataNode.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockArray[blockIterator].firstCopyBlockID);
+			free(dataNode.name);
+		}
+		if(fs_isDataNodeAlreadyConnected(dataNodeCopy)){
+			targetDataNode = fs_getNodeFromNodeName(dataNodeCopy.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockArray[blockIterator].secondCopyBlockID);
+			free(dataNodeCopy.name);
+		}
+		blockIterator+=1;
+	}
 
 	//todo: update file index
+	fs_deleteFileFromIndex(physicalPath);
 
 	//todo: delete metadata file
+	fclose(fileMetadata);
+	remove(physicalPath);
 
 	free(splitPath);
 	free(parentPath);
 	free(physicalPath);
-	fclose(fileMetadata);
 
 	return EXIT_SUCCESS;
 }
@@ -147,7 +170,7 @@ int fs_rm_dir(char *dirPath) {
 	if (directory && !fs_directoryIsParent(directory)) {
 		//el directorio existe y no tiene childrens
 		char *physicalPath = string_from_format("%s/%d",myFS.filesDirectoryPath,directory->index);
-		if(fs_directoryExists(physicalPath)){
+		if(!fs_directoryIsEmpty(physicalPath)){
 			log_error(logger,"fs_rm_dir: directory is not empty, cant remove");
 			return EXIT_FAILURE;
 		}
@@ -175,7 +198,70 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 	printf("removing block %d whose copy is block %d from file %s\n",
 			blockNumberToRemove, numberOfCopyBlock, filePath);
 
-	return 0;
+	// get parent path
+	char **splitPath = string_split(filePath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath);
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+
+	if(blockNumberToRemove > amountOfBlocks){
+		log_error(logger,"block number to remove does not exist");
+		return EXIT_FAILURE;
+	}
+
+	t_dataNode dataNode;
+	t_dataNode dataNodeCopy;
+	t_dataNode *targetDataNode;
+	int blockNumber;
+	int blockCopyNumber;
+
+	dataNode.name = string_from_format("%s",blockArray[blockNumberToRemove].firstCopyNodeID);
+	blockNumber = blockArray[blockNumberToRemove].firstCopyBlockID;
+	dataNodeCopy.name = string_from_format("%s",blockArray[blockNumberToRemove].secondCopyNodeID);
+	blockCopyNumber = blockArray[blockNumberToRemove].secondCopyBlockID;
+
+
+	if(fs_isDataNodeAlreadyConnected(dataNode) && fs_isDataNodeAlreadyConnected(dataNodeCopy)){
+		if(numberOfCopyBlock == 0){
+			targetDataNode = fs_getNodeFromNodeName(dataNode.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockNumber);
+		}else{
+			targetDataNode = fs_getNodeFromNodeName(dataNodeCopy.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockCopyNumber);
+		}
+	}else{
+		log_error(logger,"not enough copies of the block to perform rm operation");
+		return EXIT_FAILURE;
+	}
+
+	fs_deleteBlockFromMetadata(physicalPath,blockNumberToRemove,numberOfCopyBlock);
+
+	free(dataNode.name);
+	free(dataNodeCopy.name);
+
+	return EXIT_SUCCESS;
 }
 int fs_rename(char *filePath, char *nombreFinal) {
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
@@ -634,19 +720,25 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	list_add(connectedNodes, &newDataNode);
 
 
-	if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
-
+	/*if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
 		log_info(logger,"FS will restore previous session");
-		/*
+
 		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
-			log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
-			int closeResult = close(new_socket);
-			if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
-			pthread_cancel(pthread_self());
-			return;
-		}*/
+
+			if(!(fs_amountOfConnectedNodesFromPreviousStatus() == list_size(previouslyConnectedNodesNames))){//If all the previously connected nodes didnt connect, do not allow any other node
+				log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
+				int closeResult = close(new_socket);
+				if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
+				pthread_cancel(pthread_self());
+				return;
+			}
+
+		}
+
 
 	}
+
+*/
 
 	//Send connection confirmation
 	send(new_socket, hello, strlen(hello), 0);
@@ -1485,13 +1577,22 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		iterator++;
 	}
 
-	FILE *fileIndex = fopen(myFS.FSFileList,"w+");
-	fwrite(filePathWithName,strlen(filePathWithName),1,fileIndex);
+
+	FILE *fileIndex = fopen(myFS.FSFileList,"a+");
+	if(!fileIndex){
+		fileIndex = fopen(myFS.FSFileList,"w+");
+	}
+	char *filePathWithNameAndNewline = string_from_format("%s\n",filePathWithName);
+	fseek(fileIndex,0,SEEK_END);
+	fwrite(filePathWithNameAndNewline,strlen(filePathWithNameAndNewline),1,fileIndex);
 	fclose(fileIndex);
 
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);
 	fclose(metadataFile);
+	free(filePathWithName);
+	free(filePathWithNameAndNewline);
+
 }
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
 	//todo: implementar con ipc
@@ -1720,51 +1821,71 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath){
 
 
-	if(!fs_directoryExists(filePath)){
-		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
-		//return NULL;
-	}
+	FILE * fileToOpen = fopen(filePath,"r");
+		if(fileToOpen == NULL){
+			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",filePath);
+			close(fileToOpen);
+			return EXIT_FAILURE;
+		}
+
+	close(fileToOpen);
+
+
 
 	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
 	int amountOfBlockTuples = amountOfBlocks / 2;
-	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlockTuples);
+	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlocks);
 
 
 	int i = 0;
 	int j = 0;
 	int copy = 0;
 
-	for(i = 0; i < amountOfBlockTuples; i++){
+	for(i = 0; i < amountOfBlocks; i++){
 
 		copy = 0;
 
 		for(j = 0; j < 2; j++){
 
 			t_config *fileConfig = config_create(filePath);//Creo el config
+			ipc_struct_fs_get_file_info_response_entry *currentTuple = output + i;
 
 			char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
 					i, copy);
 			char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
 									blockToSearch);
+			if(nodeBlockTupleAsString == NULL){
+				log_error(logger,"fs_getFileBlockTuples: Block tuple: %s not found",blockToSearch);
+				config_destroy(fileConfig);
+
+				if(j==0){
+					currentTuple->firstCopyNodeID = NULL;
+					currentTuple->firstCopyBlockID = BLOCK_DOES_NOT_EXIST;
+				}
+
+				if(j==1){
+					currentTuple->secondCopyNodeID = NULL;
+					currentTuple->secondCopyBlockID = BLOCK_DOES_NOT_EXIST;
+				}
+
+				if(copy==1)copy=0;
+				if(copy==0)copy=1;
+				continue;
+			}
+
+			char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
+			char * blockSize = config_get_string_value(fileConfig,blockSizeString);
+			currentTuple->blockSize = atoi(blockSize);
+			free(blockSizeString);
+
 			char **nodeBlockTupleAsArray = string_get_string_as_array(
 										nodeBlockTupleAsString);
-			ipc_struct_fs_get_file_info_response_entry *currentTuple = output + i;
 			if(j == 0){ //es el primer bloque
-
-				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				//strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
-				char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
-				char * blockSize = config_get_string_value(fileConfig,blockSizeString);
-				currentTuple->blockSize = atoi(blockSize);
-				free(blockSizeString);
-
 			}else{// es el copia
-				currentTuple->secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				strcpy(currentTuple->secondCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
-
 			}
 
 			copy = 1;
@@ -1782,19 +1903,57 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 int fs_getAmountOfBlocksOfAFile(char *file){
 
-	if(fs_directoryExists(file) == NULL){
-		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
-		//return NULL;
-	}
+	FILE * fileToOpen = fopen(file,"r");
+		if(fileToOpen == NULL){
+			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",file);
+			close(fileToOpen);
+			return EXIT_FAILURE;
+		}
+
+	close(fileToOpen);
 
 	t_config *fileConfig = config_create(file);
 
-	int totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+	int totalKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+	int totalBlockKeys = totalKeys - 2;
+	int i = 0;
+	int j = 0;
+	int copy = 0;
+	int totalAmountOfBlocks = 0;
 
-	int totalAmountOfBlocks = (totalBlockKeys / 3) * 2; //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
-	//=> Divido las entradas que quedan por 3 y me da la cantidad de bloques sin copias. Multiplico por 2 para contemplar las copias
 
-	config_destroy(fileConfig);
+
+	for(i = 0; i < totalBlockKeys; i++){
+
+			copy = 0;
+
+			for(j = 0; j < 2; j++){
+
+				t_config *fileConfig = config_create(file);//Creo el config
+				char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+						i, copy);
+				char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
+										blockToSearch);
+
+				if(nodeBlockTupleAsString == NULL){
+					log_error(logger,"fs_getAmountOfBlocks: Block tuple: %s not found",blockToSearch);
+					config_destroy(fileConfig);
+					free(blockToSearch);
+
+					if(copy==1)copy=0;
+					if(copy==0)copy=1;
+					continue;
+				}
+
+				totalAmountOfBlocks++;
+				copy = 1;
+				free(blockToSearch);
+				config_destroy(fileConfig);
+
+			}
+	}
+
+
 	return totalAmountOfBlocks;
 
 
@@ -1820,4 +1979,143 @@ ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *file){
 	return response;
 
 
+}
+
+int fs_amountOfConnectedNodesFromPreviousStatus(){
+	int listSize = list_size(connectedNodes);
+	int i;
+	int output = 0;
+	t_dataNode * aux;
+
+	if (listSize == 0){
+		log_error(logger,"fs_amountOfPreviousStatus: No DataNodes connected");
+		return -1;
+	}
+
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(connectedNodes, i);
+		if(fs_isDataNodeIncludedInPreviouslyConnectedNodes(aux->name)){
+			output++;
+		}
+
+	}
+
+	if(output == 0){
+		log_error(logger,"fs_amountOfPreviousStatus: No dataNode from Previous session");
+		return 0;
+	}
+
+	log_debug(logger,"fs_amountOfPreviousStatus: Currently %d out of %d connected nodes are from previous session",output,listSize);
+	return output;
+
+}
+
+int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName){
+	int listSize = list_size(previouslyConnectedNodesNames);
+	int i;
+	int output = 0;
+	t_dataNode * aux;
+
+	if (listSize == 0)
+		printf("No data nodes connected\n");
+
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(previouslyConnectedNodesNames, i);
+		if(!strcmp(aux->name, nodeName)) return 1;
+
+	}
+
+	return 0;
+
+}
+
+int fs_deleteFileFromIndex(char *path){
+	char* inFileName = myFS.FSFileList;
+	char* outFileName = string_from_format("%s.tmp",myFS.FSFileList);
+	FILE* inFile = fopen(inFileName, "r");
+	FILE* outFile = fopen(outFileName, "w+");
+	char line [1024]; // maybe you have to user better value here
+	memset(line,0,1024);
+	int lineCount = 0;
+
+	if( inFile == NULL )
+	{
+	    printf("Open Error");
+	}
+
+	while( fgets(line, sizeof(line), inFile) != NULL )
+	{
+		line[strlen(line)-1] = '\0';
+	    if(strcmp(line,path))
+	    {
+	        fprintf(outFile, "%s\n", line);
+	    }
+
+	    lineCount++;
+	}
+
+
+	fclose(outFile);
+
+	// possible you have to remove old file here before
+	fclose(inFile);
+	remove(inFileName);
+	if( !rename(outFileName,inFileName ) )
+	{
+	    log_error(logger,"Rename Error");
+	    return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
+}
+
+int fs_deleteBlockFromMetadata(char *path,int block, int copy){
+	char* inFileName = path;
+	char* outFileName = string_from_format("%s.tmp",path);
+	FILE* inFile = fopen(inFileName, "r");
+	FILE* outFile = fopen(outFileName, "w+");
+	char line [1024]; // maybe you have to user better value here
+	memset(line,0,1024);
+	int lineCount = 0;
+
+	if( inFile == NULL )
+	{
+	    printf("Open Error");
+	}
+
+
+	char *blockAndCopyString = string_from_format("BLOQUE%dCOPIA%d",block,copy);
+	int blockAndCopyStringLength = strlen(blockAndCopyString);
+	char *auxiliaryString;
+
+	while( fgets(line, sizeof(line), inFile) != NULL )
+	{
+		auxiliaryString = strdup(line);
+		if(strlen(auxiliaryString)>blockAndCopyStringLength+1){
+			auxiliaryString[blockAndCopyStringLength] = '\0';
+		}
+	    if(strcmp(blockAndCopyString,auxiliaryString))
+	    {
+	        fprintf(outFile, "%s", line);
+	    }
+
+	    lineCount++;
+		free(auxiliaryString);
+	}
+
+
+	fclose(outFile);
+
+	// possible you have to remove old file here before
+	fclose(inFile);
+	remove(inFileName);
+	if( !rename(outFileName,inFileName ) )
+	{
+	    log_error(logger,"Rename Error");
+	    return EXIT_FAILURE;
+	}
+
+	free(blockAndCopyString);
+
+	return EXIT_SUCCESS;
 }
