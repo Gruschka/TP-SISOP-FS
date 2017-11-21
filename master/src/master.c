@@ -65,7 +65,7 @@
 // y el nombre y path bajo el cual deberá almacenarse.
 // TODO: esperar confirmación y notificar a YAMA.
 //
-// TODO: replanificación
+// TODO: replanificación.
 // TODO: métricas
 // TODO: logs
 
