@@ -88,13 +88,14 @@ int fs_console_validateOp(char * newLine) {
 				printf("remove operation failed\n");
 
 		} else {
-			//If not -b or -d
-			opResult = fs_rm(parameter_list[1]);
-			if (!fs_console_operationEndedSuccessfully(opResult))
-				printf("remove operation failed\n");
 
+			if(sizeof_parameter_list == 2){
+				//If not -b or -d
+				opResult = fs_rm(parameter_list[1]);
+				if (!fs_console_operationEndedSuccessfully(opResult))
+					printf("remove operation failed\n");
+			}
 		}
-
 	}
 
 	if (!strcmp(operation, "rename")) {

@@ -68,7 +68,7 @@ void main() {
 	previouslyConnectedNodesNames = list_create();
 	fs_mount(&myFS); //Crea los directorios del FS
 
-	fs_restorePreviousStatus();
+	//fs_restorePreviousStatus();
 
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
@@ -104,9 +104,9 @@ int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
 	// get parent path
-	char **splitPath = string_get_string_as_array(filePath);
+	char **splitPath = string_split(filePath,"/");
 	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
-	int fileNameLength = strlen(splitPath[splitPathElementCount]);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
 
 	char *parentPath = strdup(filePath);
 	parentPath[strlen(parentPath)-fileNameLength] = 0;
@@ -120,7 +120,7 @@ int fs_rm(char *filePath) {
 
 	//check file exists
 	//transform path to physical path
-	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount]);
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
 	FILE *fileMetadata = fopen(physicalPath,"r+");
 	if(!fileMetadata){
 		log_error(logger,"fs_rm: file doesnt exist");
@@ -128,15 +128,38 @@ int fs_rm(char *filePath) {
 	}
 
 	//todo: release occupied blocks
+	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+	t_dataNode dataNode;
+	t_dataNode dataNodeCopy;
+	t_dataNode *targetDataNode;
+	while(blockIterator < (amountOfBlocks/2)){
+		dataNode.name = string_from_format("%s",blockArray[blockIterator].firstCopyNodeID);
+		dataNodeCopy.name = string_from_format("%s",blockArray[blockIterator].secondCopyNodeID);
+		if(fs_isDataNodeAlreadyConnected(dataNode)){
+			targetDataNode = fs_getNodeFromNodeName(dataNode.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockArray[blockIterator].firstCopyBlockID);
+			free(dataNode.name);
+		}
+		if(fs_isDataNodeAlreadyConnected(dataNodeCopy)){
+			targetDataNode = fs_getNodeFromNodeName(dataNodeCopy.name);
+			fs_cleanBlockFromDataNode(targetDataNode,blockArray[blockIterator].secondCopyBlockID);
+			free(dataNodeCopy.name);
+		}
+		blockIterator+=1;
+	}
 
 	//todo: update file index
+	fs_deleteFileFromIndex(physicalPath);
 
 	//todo: delete metadata file
+	fclose(fileMetadata);
+	remove(physicalPath);
 
 	free(splitPath);
 	free(parentPath);
 	free(physicalPath);
-	fclose(fileMetadata);
 
 	return EXIT_SUCCESS;
 }
@@ -147,7 +170,7 @@ int fs_rm_dir(char *dirPath) {
 	if (directory && !fs_directoryIsParent(directory)) {
 		//el directorio existe y no tiene childrens
 		char *physicalPath = string_from_format("%s/%d",myFS.filesDirectoryPath,directory->index);
-		if(fs_directoryExists(physicalPath)){
+		if(!fs_directoryIsEmpty(physicalPath)){
 			log_error(logger,"fs_rm_dir: directory is not empty, cant remove");
 			return EXIT_FAILURE;
 		}
@@ -1491,13 +1514,22 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		iterator++;
 	}
 
-	FILE *fileIndex = fopen(myFS.FSFileList,"w+");
-	fwrite(filePathWithName,strlen(filePathWithName),1,fileIndex);
+
+	FILE *fileIndex = fopen(myFS.FSFileList,"a+");
+	if(!fileIndex){
+		fileIndex = fopen(myFS.FSFileList,"w+");
+	}
+	char *filePathWithNameAndNewline = string_from_format("%s\n",filePathWithName);
+	fseek(fileIndex,0,SEEK_END);
+	fwrite(filePathWithNameAndNewline,strlen(filePathWithNameAndNewline),1,fileIndex);
 	fclose(fileIndex);
 
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);
 	fclose(metadataFile);
+	free(filePathWithName);
+	free(filePathWithNameAndNewline);
+
 }
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
 	//todo: implementar con ipc
@@ -1874,6 +1906,46 @@ int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName){
 
 	return 0;
 
+}
+
+int fs_deleteFileFromIndex(char *path){
+	char* inFileName = myFS.FSFileList;
+	char* outFileName = string_from_format("%s.tmp",myFS.FSFileList);
+	FILE* inFile = fopen(inFileName, "r");
+	FILE* outFile = fopen(outFileName, "w+");
+	char line [1024]; // maybe you have to user better value here
+	memset(line,0,1024);
+	int lineCount = 0;
+
+	if( inFile == NULL )
+	{
+	    printf("Open Error");
+	}
+
+	while( fgets(line, sizeof(line), inFile) != NULL )
+	{
+		line[strlen(line)-1] = '\0';
+	    if(strcmp(line,path))
+	    {
+	        fprintf(outFile, "%s\n", line);
+	    }
+
+	    lineCount++;
+	}
+
+
+	fclose(outFile);
+
+	// possible you have to remove old file here before
+	fclose(inFile);
+	remove(inFileName);
+	if( !rename(outFileName,inFileName ) )
+	{
+	    log_error(logger,"Rename Error");
+	    return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
 }
 
 
