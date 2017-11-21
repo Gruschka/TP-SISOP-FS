@@ -56,7 +56,8 @@ enum flags {
 	EMPTY = 100,
 	DIRECTORY_TABLE_MAX_AMOUNT = 100,
 	DATANODE_ALREADY_CONNECTED = 1,
-	DATANODE_IS_FROM_PREVIOUS_SESSION =1
+	DATANODE_IS_FROM_PREVIOUS_SESSION =1,
+	BLOCK_DOES_NOT_EXIST = -1
 };
 
 /********* MAIN **********/
@@ -73,10 +74,7 @@ void main() {
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
 
-	fs_getAmountOfBlocksOfAFile("/mnt/FS/metadata/archivos/1/ejemplo2.txt");
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
-	fs_yamaConnectionThread();
-
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
 
@@ -85,6 +83,7 @@ void main() {
 		sleep(5);
 	}
 
+	fs_yamaConnectionThread();
 
 	fs_console_launch();
 }
@@ -1822,21 +1821,27 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath){
 
 
-	if(!fs_directoryExists(filePath)){
-		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
-		//return NULL;
-	}
+	FILE * fileToOpen = fopen(filePath,"r");
+		if(fileToOpen == NULL){
+			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",filePath);
+			close(fileToOpen);
+			return EXIT_FAILURE;
+		}
+
+	close(fileToOpen);
+
+
 
 	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
 	int amountOfBlockTuples = amountOfBlocks / 2;
-	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlockTuples);
+	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlocks);
 
 
 	int i = 0;
 	int j = 0;
 	int copy = 0;
 
-	for(i = 0; i < amountOfBlockTuples; i++){
+	for(i = 0; i < amountOfBlocks; i++){
 
 		copy = 0;
 
@@ -1853,33 +1858,34 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 				log_error(logger,"fs_getFileBlockTuples: Block tuple: %s not found",blockToSearch);
 				config_destroy(fileConfig);
 
-				if(j=0)
-				currentTuple->firstCopyNodeID = NULL;
+				if(j==0){
+					currentTuple->firstCopyNodeID = NULL;
+					currentTuple->firstCopyBlockID = BLOCK_DOES_NOT_EXIST;
+				}
 
-				if(j=1)
-				currentTuple->secondCopyNodeID = NULL;
+				if(j==1){
+					currentTuple->secondCopyNodeID = NULL;
+					currentTuple->secondCopyBlockID = BLOCK_DOES_NOT_EXIST;
+				}
 
-				break;
+				if(copy==1)copy=0;
+				if(copy==0)copy=1;
+				continue;
 			}
+
+			char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
+			char * blockSize = config_get_string_value(fileConfig,blockSizeString);
+			currentTuple->blockSize = atoi(blockSize);
+			free(blockSizeString);
 
 			char **nodeBlockTupleAsArray = string_get_string_as_array(
 										nodeBlockTupleAsString);
 			if(j == 0){ //es el primer bloque
-
-				//output[i].firstCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				//strcpy(output[i].firstCopyNodeID, nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
-				char *blockSizeString = string_from_format("BLOQUE%dBYTES",	i);
-				char * blockSize = config_get_string_value(fileConfig,blockSizeString);
-				currentTuple->blockSize = atoi(blockSize);
-				free(blockSizeString);
-
 			}else{// es el copia
-				currentTuple->secondCopyNodeID = malloc(strlen(nodeBlockTupleAsArray[0]));
-				strcpy(currentTuple->secondCopyNodeID, nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
-
 			}
 
 			copy = 1;
@@ -1897,46 +1903,57 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 int fs_getAmountOfBlocksOfAFile(char *file){
 
-	if(fs_directoryExists(file) == NULL){
-		log_error(logger,"fs_getFileBlockTuple:file %s doesnt exist - cant get block info");
-		//return NULL;
-	}
+	FILE * fileToOpen = fopen(file,"r");
+		if(fileToOpen == NULL){
+			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",file);
+			close(fileToOpen);
+			return EXIT_FAILURE;
+		}
+
+	close(fileToOpen);
 
 	t_config *fileConfig = config_create(file);
 
-	float totalBlockKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
-
-
-	char *blockToSearch = string_from_format("BLOQUE0COPIA0");
-	char *nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
-
-	int block = 0;
+	int totalKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+	int totalBlockKeys = totalKeys - 2;
+	int i = 0;
+	int j = 0;
 	int copy = 0;
 	int totalAmountOfBlocks = 0;
-	while(nodeBlockTupleAsString != NULL){
 
-		totalAmountOfBlocks++;
-		block++;
 
-		if(copy = 0){
-			copy = 1;
-		} else if(copy = 1){
+
+	for(i = 0; i < totalBlockKeys; i++){
+
 			copy = 0;
-		}
 
-		free(blockToSearch);
-		free(nodeBlockTupleAsString);
-		blockToSearch = string_from_format("BLOQUE%dCOPIA%d",block,copy);
-		nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
+			for(j = 0; j < 2; j++){
 
+				t_config *fileConfig = config_create(file);//Creo el config
+				char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+						i, copy);
+				char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
+										blockToSearch);
+
+				if(nodeBlockTupleAsString == NULL){
+					log_error(logger,"fs_getAmountOfBlocks: Block tuple: %s not found",blockToSearch);
+					config_destroy(fileConfig);
+					free(blockToSearch);
+
+					if(copy==1)copy=0;
+					if(copy==0)copy=1;
+					continue;
+				}
+
+				totalAmountOfBlocks++;
+				copy = 1;
+				free(blockToSearch);
+				config_destroy(fileConfig);
+
+			}
 	}
 
 
-
-	//float totalAmountOfBlocks = floor((totalBlockKeys / 3) * 2); //Por cada bloque se hacen 3 entradas: COPIA0 COPIA1 y BYTES
-	//=> Divido las entradas que quedan por 3 y me da la cantidad de bloques sin copias. Multiplico por 2 para contemplar las copias
-
-	config_destroy(fileConfig);
 	return totalAmountOfBlocks;
 
 
