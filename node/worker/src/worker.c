@@ -166,9 +166,9 @@ void connectionHandler(int client_sock){
 			case WORKER_START_TRANSFORM_REQUEST:{
 				ipc_struct_worker_start_transform_request request;
 
-				recv(client_sock, &(request.scriptContentSize), sizeof(uint32_t), 0);
-				request.scriptContent = malloc(request.scriptContentSize);
-				recv(client_sock, &(request.scriptContent), request.scriptContentSize, 0);
+				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
+				request.scriptContent = malloc(request.scriptContentLength);
+				recv(client_sock, &(request.scriptContent), request.scriptContentLength * sizeof(char), 0);
 
 				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
 
@@ -176,7 +176,7 @@ void connectionHandler(int client_sock){
 
 				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
 				request.tempFilePath = malloc(request.tempFilePathLength);
-				recv(client_sock, request.tempFilePath, request.tempFilePathLength, 0);
+				recv(client_sock, request.tempFilePath, request.tempFilePathLength * sizeof(char), 0);
 
 				char *template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
 				long int bytesToRead = (request.block * blockSize) + blockSize;
