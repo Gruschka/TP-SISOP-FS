@@ -10,6 +10,8 @@
 #include <stddef.h>
 
 extern uint32_t scheduling_baseAvailability;
+uint32_t maximumLoad = 0;
+uint32_t workersList_count;
 t_list *workersList; //Circular list
 
 t_list *getCircularList(t_list *linear) {
@@ -42,19 +44,7 @@ uint32_t clock_getAvailability(Worker *worker) {
 }
 
 uint32_t wClock_getAvailability(Worker *worker) {
-	Worker *current = NULL;
-	t_list *circular = getCircularList(workersList);
-
-	int index = 0;
-	while (current != worker) {
-		current = list_get(circular, index);
-		index++;
-	}
-	index--;
-
-
-
-	return 1;
+	return maximumLoad - worker->currentLoad;
 }
 
 void scheduling_initialize() {
@@ -64,5 +54,40 @@ void scheduling_initialize() {
 }
 
 void scheduling_addWorker(Worker *worker) {
-	list_add(workersList, worker);
+	list_add_in_index(workersList, workersList_count, worker);
+
+	if (workersList_count == 0) {
+		t_link_element *last = workersList->head;
+
+		while (last->next != NULL) {
+			last = last->next;
+		}
+
+		last->next = workersList->head;
+	} else {
+		int i = workersList_count;
+		t_link_element *last = workersList->head;
+		while (i--) {
+			last = last->next;
+		}
+
+		last->next = workersList->head;
+	}
+
+	workersList_count++;
 }
+
+
+//Worker *current = NULL;
+//t_list *circular = getCircularList(workersList);
+//
+//int index = 0;
+//while (current != worker) {
+//	current = list_get(circular, index);
+//	index++;
+//}
+//index--; // index es la posicion del elemento en el que arranco dentro del clock
+//
+//while (1) {
+//
+//}

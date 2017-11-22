@@ -18,8 +18,8 @@ typedef enum {
 
 typedef struct {
 	char name;
-	uint32_t totalTasksCount;
-	uint32_t availability;
+	uint32_t historicalLoad;
+	uint32_t currentLoad;
 } Worker;
 typedef uint32_t (*AvailabilityFunction)(Worker *);
 
