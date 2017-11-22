@@ -164,25 +164,25 @@ void connectionHandler(int client_sock){
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
 		switch(operation){
 			case WORKER_START_TRANSFORM_REQUEST:{
+				log_debug(logger, "Transformation Stage");
 				ipc_struct_worker_start_transform_request request;
 
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 				request.scriptContent = malloc(request.scriptContentLength);
-				recv(client_sock, &(request.scriptContent), request.scriptContentLength * sizeof(char), 0);
+				recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), 0);
 
 				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
 
-				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0); //FIXME: (Fede) para qué se usa?
-
+				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
 				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
 				request.tempFilePath = malloc(request.tempFilePathLength);
 				recv(client_sock, request.tempFilePath, request.tempFilePathLength * sizeof(char), 0);
 
 				char *template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
-				long int bytesToRead = (request.block * blockSize) + blockSize;
-				int templateSize = snprintf(NULL, 0, template, bytesToRead, blockSize, request.scriptContent, request.tempFilePath);
+				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, request.usedBytes, request.scriptContent, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, bytesToRead, blockSize, request.scriptContent, request.tempFilePath);
+				sprintf(buffer, template, bytesToRead, request.usedBytes, request.scriptContent, request.tempFilePath);
 				buffer[templateSize] = '\0';
 				system(buffer);
 
@@ -201,6 +201,7 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
+				log_debug(logger, "Local Reduction Stage");
 				t_list * filesList;
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
@@ -237,10 +238,11 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
+				log_debug(logger, "Global Reduction Stage");
 				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 				t_list * workerList;
 				int workerListSize, i = 0;
-
+				uint32_t sockFs;
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 
 				list_add(workerList, workerToRequest);
@@ -274,6 +276,9 @@ void connectionHandler(int client_sock){
 				buffer[templateSize] = '\0';
 				system(buffer);
 
+				//TODO conectarme al FS y enviarle el archivo, en caso de que falle la escritura avisarle a Master
+				sockFs = connectToFileSystem();
+
 				free(workerToRequest);
 				free(buffer);
 				free(script);
@@ -284,6 +289,7 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case SLAVE_WORKER:{
+				log_debug(logger, "Slave Worker Stage");
 				int closeCode, registerSize = 0;
 				int clientCode = 0;
 				char * registerToSend = malloc(256);
@@ -496,5 +502,34 @@ int connectToWorker(fileGlobalNode * worker){
 	return sockfd;
 }
 
+int connectToFileSystem(){
+	int sockfd;
+	struct sockaddr_in serv_addr;
+	struct hostent *server;
+
+	printf("\nFileSystem Ip: %s Port No: %d", configuration.filesystemIP, configuration.filesystemPort);
+	printf("\nConnecting to FileSystem\n");
+
+	/* Create a socket point */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	if (sockfd < 0) {
+		perror("ERROR opening socket");
+		exit(1);
+	}
+
+	server = gethostbyname(configuration.filesystemIP);
+	bzero((char *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	bcopy((char *) server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+	serv_addr.sin_port = htons(configuration.filesystemPort);
+
+	/* Now connect to the server */
+	if (connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
+		perror("ERROR connecting");
+		exit(1);
+	}
+	return sockfd;
+}
 
 
