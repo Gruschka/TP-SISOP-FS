@@ -82,7 +82,7 @@ typedef struct {
 
 typedef struct {
 	uint32_t scriptContentLength;
-	void *scriptContent;
+	char *scriptContent;
 	uint32_t block;
 	uint32_t usedBytes;
 	uint32_t tempFilePathLength;
