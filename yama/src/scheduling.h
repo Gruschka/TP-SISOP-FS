@@ -17,14 +17,15 @@ typedef enum {
 } scheduling_algorithm;
 
 typedef struct {
+	char name;
 	uint32_t totalTasksCount;
 	uint32_t availability;
-} worker;
-typedef uint32_t (*AvailabilityFunction)(worker *);
+} Worker;
+typedef uint32_t (*AvailabilityFunction)(Worker *);
 
 AvailabilityFunction availabilityFunctions[ALGORITHMS_COUNT];
 scheduling_algorithm scheduling_currentAlgorithm;
-uint32_t scheduling_getAvailability(worker *);
-void scheduling_addWorker(worker *worker);
+uint32_t scheduling_getAvailability(Worker *);
+void scheduling_addWorker(Worker *worker);
 
 #endif /* SCHEDULING_H_ */

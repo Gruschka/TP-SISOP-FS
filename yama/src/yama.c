@@ -145,8 +145,20 @@ void testFSConnection() {
 
 void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_currentAlgorithm = algorithm;
-	worker *worker = malloc(sizeof(worker));
-	printf("Availability: %d", scheduling_getAvailability(worker));
+	Worker *workerA = malloc(sizeof(Worker));
+	workerA->name = 'A';
+	Worker *workerB = malloc(sizeof(Worker));
+	workerB->name = 'B';
+	Worker *workerC = malloc(sizeof(Worker));
+	workerC->name = 'C';
+
+	scheduling_addWorker(workerA);
+	scheduling_addWorker(workerB);
+	scheduling_addWorker(workerC);
+
+
+
+	printf("Availability: %d", scheduling_getAvailability(workerA));
 }
 
 void test() {
