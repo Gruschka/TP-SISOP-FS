@@ -128,13 +128,13 @@ int fs_rm(char *filePath) {
 	}
 
 	//todo: release occupied blocks
-	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
 	int blockIterator = 0;
 	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
 	t_dataNode dataNode;
 	t_dataNode dataNodeCopy;
 	t_dataNode *targetDataNode;
-	while(blockIterator < (amountOfBlocks/2)){
+	while(blockIterator < amountOfBlocks){
 		dataNode.name = string_from_format("%s",blockArray[blockIterator].firstCopyNodeID);
 		dataNodeCopy.name = string_from_format("%s",blockArray[blockIterator].secondCopyNodeID);
 		if(fs_isDataNodeAlreadyConnected(dataNode)){
@@ -222,7 +222,7 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 		return EXIT_FAILURE;
 	}
 
-	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(physicalPath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
 	int blockIterator = 0;
 	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
 
@@ -445,8 +445,7 @@ int fs_ls(char *directoryPath) {
 }
 int fs_info(char *filePath) {
 
-	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
-	int amountOfBlockTuples = amountOfBlocks / 2;
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
 
 
 	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
@@ -455,11 +454,12 @@ int fs_info(char *filePath) {
 
 	int i = 0;
 
-	for(i = 0; i < amountOfBlockTuples; i++){
+	for(i = 0; i < amountOfBlocks; i++){
 
 		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
 	}
 
+	fs_destroyNodeTupleArray(arrayOfBlockTuples, amountOfBlocks);
 	return EXIT_SUCCESS;
 
 }
@@ -593,6 +593,8 @@ void fs_waitForYama() {
 
 		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(request->filePath);
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
+		int length = fs_getNumberOfBlocksOfAFile(request->filePath);
+		fs_destroyNodeTupleArray(response->entries, length);
 		sleep(5);
 	}
 
@@ -1832,8 +1834,7 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 
 
-	int amountOfBlocks = fs_getAmountOfBlocksOfAFile(filePath);
-	int amountOfBlockTuples = amountOfBlocks / 2;
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
 	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlocks);
 
 
@@ -1901,11 +1902,11 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 }
 
-int fs_getAmountOfBlocksOfAFile(char *file){
+int fs_getAmountOfBlocksAndCopiesOfAFile(char *file){
 
 	FILE * fileToOpen = fopen(file,"r");
 		if(fileToOpen == NULL){
-			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",file);
+			log_error(logger,"fs_getAmountOfBlocksAndCopiesOfAFile: File %s does not exist",file);
 			close(fileToOpen);
 			return EXIT_FAILURE;
 		}
@@ -1936,7 +1937,7 @@ int fs_getAmountOfBlocksOfAFile(char *file){
 										blockToSearch);
 
 				if(nodeBlockTupleAsString == NULL){
-					log_error(logger,"fs_getAmountOfBlocks: Block tuple: %s not found",blockToSearch);
+					log_error(logger,"fs_getAmountOfBlocksAndCopiesOfAFile: Block tuple: %s not found",blockToSearch);
 					config_destroy(fileConfig);
 					free(blockToSearch);
 
@@ -1970,7 +1971,7 @@ void fs_dumpBlockTuple(t_fileBlockTuple blockTuple){
 
 ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *file){
 
-	int amountOfBlockTuples = fs_getAmountOfBlocksOfAFile(file) / 2;
+	int amountOfBlockTuples = fs_getNumberOfBlocksOfAFile(file);
 	ipc_struct_fs_get_file_info_response *response = malloc(sizeof(ipc_struct_fs_get_file_info_response));
 
 	response->entriesCount = amountOfBlockTuples;
@@ -2070,6 +2071,7 @@ int fs_deleteFileFromIndex(char *path){
 }
 
 int fs_deleteBlockFromMetadata(char *path,int block, int copy){
+
 	char* inFileName = path;
 	char* outFileName = string_from_format("%s.tmp",path);
 	FILE* inFile = fopen(inFileName, "r");
@@ -2119,3 +2121,90 @@ int fs_deleteBlockFromMetadata(char *path,int block, int copy){
 
 	return EXIT_SUCCESS;
 }
+
+int fs_getNumberOfBlocksOfAFile(char *file){
+
+	FILE * fileToOpen = fopen(file,"r");
+		if(fileToOpen == NULL){
+			log_error(logger,"fs_getNumberOfBlocksOfAFile: File %s does not exist",file);
+			close(fileToOpen);
+			return EXIT_FAILURE;
+		}
+
+	close(fileToOpen);
+
+	t_config *fileConfig = config_create(file);
+
+	int totalKeys = config_keys_amount(fileConfig); //Tamanio y tipo de archivo estan siempre y no importan en este caso
+	int totalBlockKeys = totalKeys - 2;
+	int i = 0;
+	int j = 0;
+	int copy = 0;
+	int totalAmountOfBlocks = 0;
+
+
+	for(i = 0; i < totalBlockKeys; i++){
+
+			copy = 0;
+
+			for(j = 0; j < 2; j++){
+
+				t_config *fileConfig = config_create(file);//Creo el config
+				char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",
+						i, copy);
+				char *nodeBlockTupleAsString = config_get_string_value(fileConfig,
+										blockToSearch);
+
+				if(nodeBlockTupleAsString == NULL){
+					log_error(logger,"fs_getNumberOfBlocksOfAFile: Block tuple: %s not found",blockToSearch);
+					config_destroy(fileConfig);
+					free(blockToSearch);
+
+					if(copy==1)copy=0;
+					if(copy==0)copy=1;
+					continue;
+				}
+
+				totalAmountOfBlocks++;
+				copy = 1;
+				free(blockToSearch);
+				config_destroy(fileConfig);
+				break;
+
+			}
+	}
+
+
+	return totalAmountOfBlocks;
+
+
+
+
+}
+
+void fs_freeTuple(ipc_struct_fs_get_file_info_response_entry *tuple){
+
+
+	return;
+
+}
+
+void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple, int arrayLength){
+
+	int i = 0;
+
+	for(i = 0; i < arrayLength ; i++){
+		log_info(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
+		free(tuple[i].firstCopyNodeID);
+		free(tuple[i].secondCopyNodeID);
+	}
+
+	free(tuple);
+
+
+	return;
+
+}
+
+
+
