@@ -69,7 +69,32 @@
 // TODO: métricas
 // TODO: logs
 
-void connectToYamaAndSendData(char *inputFilePath) {
+char *readFile(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
+
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
+
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
+
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+
+	/* copy the file into the buffer */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return buffer;
+}
+
+void connectToYamaAndStartTransform(char *inputFilePath, char *transformScript) {
 	t_config *config = config_create("conf/master.conf");
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = config_get_string_value(config, "YAMA_IP");
@@ -89,6 +114,7 @@ void connectToYamaAndSendData(char *inputFilePath) {
 		master_TransformRequest *transformRequest = transformRequests + i;
 		transformRequest->ip = strdup(entry->workerIP);
 		transformRequest->port = entry->workerPort;
+		transformRequest->transformScript = transformScript;
 		transformRequest->block = entry->blockID;
 		transformRequest->usedBytes = entry->usedBytes;
 		transformRequest->tempFilePath = strdup(entry->tempPath);
@@ -114,6 +140,11 @@ int main(int argc, char **argv) {
 	char *outputFilePath = argv[4];
 
 	serialization_initialize();
-	connectToYamaAndSendData(strdup(inputFilePath));
+
+	char *transformScript = readFile(transformScriptPath);
+
+	connectToYamaAndStartTransform(strdup(inputFilePath), transformScript);
+
+	free(transformScript);
 	return EXIT_SUCCESS;
 }
