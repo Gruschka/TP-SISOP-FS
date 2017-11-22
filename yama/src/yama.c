@@ -17,10 +17,12 @@
 #include <string.h>
 #include "yama.h"
 #include "configuration.h"
+#include "scheduling.h"
 
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
+uint32_t scheduling_baseAvailability = 0;
 yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;
@@ -65,6 +67,35 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 	return NULL;
 }
 
+void testStateTable() {
+	yama_state_table_entry *first = malloc(sizeof(yama_state_table_entry));
+		yama_state_table_entry *second = malloc(sizeof(yama_state_table_entry));
+
+		first->blockNumber = 1;
+		first->jobID = 1;
+		first->masterID = 1;
+		first->nodeID = 1;
+		first->stage = IN_PROCESS;
+		first->tempPath = "/tmp/1";
+
+		yst_addEntry(first);
+
+		second->blockNumber = 2;
+		second->jobID = 2;
+		second->masterID = 2;
+		second->nodeID = 2;
+		second->stage = IN_PROCESS;
+		second->tempPath = "/tmp/2";
+
+		yst_addEntry(second);
+
+		pthread_mutex_lock(&stateTable_mutex);
+		yama_state_table_entry *found = yst_getEntry(1, 1, 1);
+		pthread_mutex_unlock(&stateTable_mutex);
+
+		log_debug(logger, "Found path: %s", found->tempPath);
+}
+
 void testSerialization() {
 	ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
 	first->blockID = 1;
@@ -99,34 +130,7 @@ void testSerialization() {
 	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
 }
 
-void test() {
-	yama_state_table_entry *first = malloc(sizeof(yama_state_table_entry));
-	yama_state_table_entry *second = malloc(sizeof(yama_state_table_entry));
-
-	first->blockNumber = 1;
-	first->jobID = 1;
-	first->masterID = 1;
-	first->nodeID = 1;
-	first->stage = IN_PROCESS;
-	first->tempPath = "/tmp/1";
-
-	yst_addEntry(first);
-
-	second->blockNumber = 2;
-	second->jobID = 2;
-	second->masterID = 2;
-	second->nodeID = 2;
-	second->stage = IN_PROCESS;
-	second->tempPath = "/tmp/2";
-
-	yst_addEntry(second);
-
-	pthread_mutex_lock(&stateTable_mutex);
-	yama_state_table_entry *found = yst_getEntry(1, 1, 1);
-	pthread_mutex_unlock(&stateTable_mutex);
-
-	log_debug(logger, "Found path: %s", found->tempPath);
-	testSerialization();
+void testFSConnection() {
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	int fsFd = ipc_createAndConnect(8081, "10.0.1.152");
@@ -136,11 +140,36 @@ void test() {
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
-	printf(response->entriesCount);
+	printf("File %s has %d blocks", response->entriesCount);
+}
+
+void testScheduling(scheduling_algorithm algorithm) {
+	scheduling_currentAlgorithm = algorithm;
+	Worker *workerA = malloc(sizeof(Worker));
+	workerA->name = 'A';
+	Worker *workerB = malloc(sizeof(Worker));
+	workerB->name = 'B';
+	Worker *workerC = malloc(sizeof(Worker));
+	workerC->name = 'C';
+
+	scheduling_addWorker(workerA);
+	scheduling_addWorker(workerB);
+	scheduling_addWorker(workerC);
+
+
+
+	printf("Availability: %d", scheduling_getAvailability(workerA));
+}
+
+void test() {
+//	testStateTable();
+//	testSerialization();
+//	testFSConnection();
+	testScheduling(W_CLOCK);
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Hello from the other side xD");
+	log_debug(logger, "Waiting for masters");
 	int sockfd = ipc_createAndListen(8888, 0);
 
 	struct sockaddr_in cliaddr;
@@ -180,6 +209,7 @@ void *server_mainThread() {
 
 void initialize() {
 	serialization_initialize();
+	scheduling_initialize();
 
 	stateTable = list_create();
 	nodesList = list_create();
