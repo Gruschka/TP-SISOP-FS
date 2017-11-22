@@ -172,7 +172,7 @@ void connectionHandler(int client_sock){
 
 				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
 
-				recv(client_sock, &(request.usedBytes), sizeof(uint32_t),0);
+				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0); //FIXME: (Fede) para qué se usa?
 
 				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
 				request.tempFilePath = malloc(request.tempFilePathLength);
@@ -186,7 +186,7 @@ void connectionHandler(int client_sock){
 				buffer[templateSize] = '\0';
 				system(buffer);
 
-				fileNode * file = malloc (sizeof(fileNode));
+				fileNode *file = malloc (sizeof(fileNode));
 				file->filePath = malloc(request.tempFilePathLength);
 				memcpy(file->filePath, request.tempFilePath, request.tempFilePathLength);
 				list_add(fileList, file);
