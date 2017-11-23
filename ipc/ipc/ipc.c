@@ -26,7 +26,7 @@ int ipc_getNextOperationId(int socket) {
 }
 
 
-// Reads from a socket and returns a deserialized struct
+// Reads from a socket and returns a deserialized struct + and handshake
 void *ipc_recvMessage(int sockfd, int type) {
 	char *buffer;
 	ipc_struct_header header;
