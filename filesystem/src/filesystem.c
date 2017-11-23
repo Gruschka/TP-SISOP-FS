@@ -131,7 +131,7 @@ int fs_rm(char *filePath) {
 		return EXIT_FAILURE;
 	}
 
-	//todo: release occupied blocks
+	// release occupied blocks
 	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
 	int blockIterator = 0;
 	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
@@ -154,10 +154,10 @@ int fs_rm(char *filePath) {
 		blockIterator+=1;
 	}
 
-	//todo: update file index
+	// update file index
 	fs_deleteFileFromIndex(physicalPath);
 
-	//todo: delete metadata file
+	// delete metadata file
 	fclose(fileMetadata);
 	remove(physicalPath);
 
@@ -268,9 +268,11 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 	return EXIT_SUCCESS;
 }
 int fs_rename(char *filePath, char *nombreFinal) {
+	//todo: testear a fondo
+	//todo: validar mensajes (funciona y tira operation failed)
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
 	t_directory *toRename;
-	//todo: chequear si es un archivo
+
 	if (toRename = fs_directoryExists(filePath)) {
 		memset(toRename->name, 0, 255);
 		strcpy(toRename->name, nombreFinal);
@@ -281,11 +283,41 @@ int fs_rename(char *filePath, char *nombreFinal) {
 		fseek(myFS.directoryTableFile,
 				sizeof(t_directory) * myFS.amountOfDirectories, SEEK_SET);
 	} else {
-		log_error(logger, "fs_rename: dir to rename doesnt exist");
+		// get parent path
+		char **splitPath = string_split(filePath,"/");
+		int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+		int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+		char *parentPath = strdup(filePath);
+		parentPath[strlen(parentPath)-fileNameLength-1] = 0;
+
+		//check parent path exists and get parent dir
+		t_directory *parent = fs_directoryExists(parentPath);
+		if(!parent){
+			log_error(logger,"fs_rm: directory doesnt exist");
+			return EXIT_FAILURE;
+		}
+
+		//check file exists
+		//transform path to physical path
+		char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+		FILE *fileMetadata = fopen(physicalPath,"r+");
+		if(!fileMetadata){
+			log_error(logger,"fs_rm: file doesnt exist");
+			return EXIT_FAILURE;
+		}
+		fclose(fileMetadata);
+		char *newName = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,nombreFinal);
+		rename(physicalPath,newName);
+		fs_updateFileFromIndex(physicalPath,newName);
+		free(physicalPath);
+		free(newName);
+		free(parentPath);
+
 		return EXIT_FAILURE;
 	}
 
-	return EXIT_SUCCESS;
+	return EXIT_FAILURE;
 }
 int fs_mv(char *origFilePath, char *destFilePath) {
 	printf("moving %s to %s\n", origFilePath, destFilePath);
@@ -443,7 +475,30 @@ int fs_ls(char *directoryPath) {
 			printf("%d    \n", myFS.directoryTable[iterator].parent);
 			iterator++;
 		}
+	}else{
+		t_directory *directory = fs_directoryExists(directoryPath);
+		if(!directory){
+			log_error(logger,"fs_rm: directory doesnt exist");
+			return EXIT_FAILURE;
+		}
+		char *physicalPath = string_from_format("%s/%d",myFS.filesDirectoryPath,directory->index);
+		DIR *dir = opendir(physicalPath);
+		if (!dir)
+		{
+		    /* Directory doesnt exist. */
+			free(physicalPath);
+		    closedir(dir);
+		    printf(" \n");
+		    return 0;
+		}
+
+		char *command = string_from_format("ls %s",physicalPath);
+		int result = system(command);
+		free(physicalPath);
+		free(command);
+		return 0;
 	}
+
 	return 0;
 
 }
@@ -1402,10 +1457,10 @@ t_directory *fs_childOfParentExists(char *child, t_directory *parent) {
 }
 t_directory *fs_directoryExists(char *directory) {
 
-	t_directory *root = malloc(sizeof(t_directory));
-	root->index = 0;
-	strcpy(root->name, "root");
-	root->parent = -1;
+//	t_directory *root = malloc(sizeof(t_directory));
+//	root->index = 0;
+//	strcpy(root->name, "root");
+//	root->parent = -1;
 
 	char **splitDirectory = string_split(directory, "/");
 	int amountOfDirectories = fs_amountOfElementsInArray(splitDirectory);
@@ -1417,19 +1472,14 @@ t_directory *fs_directoryExists(char *directory) {
 		lastDirectoryReference = directoryReference;
 		directoryReference = fs_childOfParentExists(splitDirectory[iterator],
 				directoryReference);
-		iterator++;
 		if (directoryReference == NULL) {
 			//no existe child para ese parent
-			//ver si es el ultimo dir
-			if (iterator == amountOfDirectories) {
-			} else {
-				//no existe y no es el ultimo, es decir no existe el parent
-				// se aborta la creacion
-				log_error(logger,
-						"fs_directoryExists: parent directory for directory to create doesnt exist puto");
-				return NULL;
-			}
+			log_error(logger,
+					"fs_directoryExists: parent directory for directory to create doesnt exist");
+			return NULL;
 		} else {
+			iterator++;
+
 			if (iterator == amountOfDirectories) {
 				// dir exists, abort
 				//log_error(logger,"directory already exists puto");
@@ -1569,10 +1619,10 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	//list failed packages and resend to 2nd alternative, else abort.
 	int operationStatus;
 
-	if (operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)) {
-		log_error(logger, "fs_storeFile: Error with data transmition to nodes");
-		return EXIT_FAILURE;
-	}
+//	if (operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)) {
+//		log_error(logger, "fs_storeFile: Error with data transmition to nodes");
+//		return EXIT_FAILURE;
+//	}
 
 	//set metadata values
 	char *fileSizeString = string_from_format("%d", fileSize);
@@ -2271,5 +2321,14 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 
 }
 
-
+int fs_updateFileFromIndex(char *old, char *new){
+	fs_deleteFileFromIndex(old);
+	char *newName = string_from_format("%s\n",new);
+	FILE *fileIndex = fopen(myFS.FSFileList,"a+");
+	fseek(fileIndex,0,SEEK_END);
+	fwrite(newName,strlen(newName),1,fileIndex);
+	free(newName);
+	fclose(fileIndex);
+	return EXIT_SUCCESS;
+}
 
