@@ -8,71 +8,55 @@
 
 #include <commons/collections/list.h>
 #include <stddef.h>
+#include <pthread.h>
 
 extern uint32_t scheduling_baseAvailability;
 uint32_t maximumLoad = 0;
 uint32_t workersList_count;
+pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
 
-t_list *getCircularList(t_list *linear) {
-	t_list *circular = list_create();
-
-	int i;
-	for (i = 0; i < list_size(linear); i++) {
-		list_add(circular, list_get(linear, i));
-	}
-
-	if (i > 0) { //list has items
-		t_link_element *last = circular->head;
-
-		while (last->next != NULL) {
-			last = last->next;
-		}
-
-		last->next = linear->head;
-	}
-
-	return circular;
-}
-
 uint32_t scheduling_getAvailability(Worker *worker) {
-	return scheduling_baseAvailability + availabilityFunctions[scheduling_currentAlgorithm](worker);
+	uint32_t availability = scheduling_baseAvailability + workloadCalculationFunctions[scheduling_currentAlgorithm](worker);
+
+	return availability;
 }
 
-uint32_t clock_getAvailability(Worker *worker) {
+uint32_t clock_getWorkload(Worker *worker) {
 	return 0;
 }
 
-uint32_t wClock_getAvailability(Worker *worker) {
+uint32_t wClock_getWorkload(Worker *worker) {
 	return maximumLoad - worker->currentLoad;
 }
 
+void calculateMaximumWorkload() { // + MEJORAS EN EL MENU
+	int i;
+
+	for (i = 0; i < workersList_count; i++) {
+		Worker *worker = list_get(workersList, i);
+		if (worker->currentLoad > maximumLoad)
+			maximumLoad = worker->currentLoad;
+	}
+}
+
 void scheduling_initialize() {
-	availabilityFunctions[CLOCK] = clock_getAvailability;
-	availabilityFunctions[W_CLOCK] = wClock_getAvailability;
+	workloadCalculationFunctions[CLOCK] = clock_getWorkload;
+	workloadCalculationFunctions[W_CLOCK] = wClock_getWorkload;
 	workersList = list_create();
+	pthread_mutex_init(&workersList_mutex, NULL);
 }
 
 void scheduling_addWorker(Worker *worker) {
 	list_add_in_index(workersList, workersList_count, worker);
 
-	if (workersList_count == 0) {
-		t_link_element *last = workersList->head;
-
-		while (last->next != NULL) {
-			last = last->next;
-		}
-
-		last->next = workersList->head;
-	} else {
-		int i = workersList_count;
-		t_link_element *last = workersList->head;
-		while (i--) {
-			last = last->next;
-		}
-
-		last->next = workersList->head;
+	int i = workersList_count;
+	t_link_element *last = workersList->head;
+	while (i--) {
+		last = last->next;
 	}
+
+	last->next = workersList->head;
 
 	workersList_count++;
 }

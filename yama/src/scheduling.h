@@ -12,6 +12,16 @@
 
 #define ALGORITHMS_COUNT 2
 
+typedef struct {
+	char *workerID;
+	uint32_t blockID;
+} ExecutionPlanEntry;
+
+typedef struct {
+	uint32_t entriesCount;
+	ExecutionPlanEntry *entries;
+} ExecutionPlan;
+
 typedef enum {
 	CLOCK, W_CLOCK
 } scheduling_algorithm;
@@ -21,9 +31,10 @@ typedef struct {
 	uint32_t historicalLoad;
 	uint32_t currentLoad;
 } Worker;
-typedef uint32_t (*AvailabilityFunction)(Worker *);
 
-AvailabilityFunction availabilityFunctions[ALGORITHMS_COUNT];
+typedef uint32_t (*WorkloadCalculationFunction)(Worker *);
+
+WorkloadCalculationFunction workloadCalculationFunctions[ALGORITHMS_COUNT];
 scheduling_algorithm scheduling_currentAlgorithm;
 uint32_t scheduling_getAvailability(Worker *);
 void scheduling_addWorker(Worker *worker);
