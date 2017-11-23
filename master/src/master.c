@@ -85,7 +85,7 @@ char *readFile(char *path) {
 	buffer = calloc( 1, lSize+1 );
 	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
 
-	/* copy the file into the buffer */
+	/* copy the file into the buffer // AND HANDSHAKE */
 	if( 1!=fread( buffer , lSize, 1 , fp) )
 	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
 

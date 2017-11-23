@@ -22,7 +22,7 @@
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
-uint32_t scheduling_baseAvailability = 0;
+uint32_t scheduling_baseAvailability = 1;
 yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;
@@ -143,22 +143,56 @@ void testFSConnection() {
 	printf("File %s has %d blocks", response->entriesCount);
 }
 
+ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
+	ipc_struct_fs_get_file_info_response_entry *entry = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry));
+	entry->blockSize = 50;
+	entry->firstCopyBlockID = block1;
+	entry->secondCopyBlockID = block2;
+	entry->firstCopyNodeID = node1;
+	entry->secondCopyNodeID = node2;
+	return entry;
+}
+
 void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_currentAlgorithm = algorithm;
+	ipc_struct_fs_get_file_info_response *testResponse = malloc(sizeof(ipc_struct_fs_get_file_info_response));
+	ipc_struct_fs_get_file_info_response_entry *entry1 = testScheduling_createEntry("NodeA", 1, "NodeB", 1);
+	ipc_struct_fs_get_file_info_response_entry *entry2 = testScheduling_createEntry("NodeB", 3, "NodeC", 2);
+	ipc_struct_fs_get_file_info_response_entry *entry3 = testScheduling_createEntry("NodeD", 1, "NodeE", 1);
+
+	ipc_struct_fs_get_file_info_response_entry entries[3] = { *entry1, *entry2, *entry3 } ;
+	testResponse->entries = entries;
+
+	testResponse->entriesCount = 3;
+
 	Worker *workerA = malloc(sizeof(Worker));
-	workerA->name = 'A';
+	workerA->name = "NodeA";
+	workerA->currentLoad = 0;
+	workerA->historicalLoad = 0;
 	Worker *workerB = malloc(sizeof(Worker));
-	workerB->name = 'B';
+	workerB->name = "NodeB";
+	workerB->currentLoad = 0;
+	workerB->historicalLoad = 0;
 	Worker *workerC = malloc(sizeof(Worker));
-	workerC->name = 'C';
+	workerC->name = "NodeC";
+	workerC->currentLoad = 0;
+	workerC->historicalLoad = 0;
+	Worker *workerD = malloc(sizeof(Worker));
+	workerD->name = "NodeD";
+	workerD->currentLoad = 0;
+	workerD->historicalLoad = 0;
+	Worker *workerE = malloc(sizeof(Worker));
+	workerE->name = "NodeE";
+	workerE->currentLoad = 0;
+	workerE->historicalLoad = 0;
 
 	scheduling_addWorker(workerA);
 	scheduling_addWorker(workerB);
 	scheduling_addWorker(workerC);
-
-
-
-	printf("Availability: %d", scheduling_getAvailability(workerA));
+	scheduling_addWorker(workerD);
+	scheduling_addWorker(workerE);
+	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
+	printf("Execution plan: %d", executionPlan->entriesCount);
 }
 
 void test() {
