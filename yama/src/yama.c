@@ -22,7 +22,7 @@
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
-uint32_t scheduling_baseAvailability = 0;
+uint32_t scheduling_baseAvailability = 1;
 yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;

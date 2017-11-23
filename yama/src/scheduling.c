@@ -105,9 +105,10 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	uint32_t offset = maximumAvailabilityWorkerIdx;
 	uint32_t baseAvailabilitySnapshot = scheduling_baseAvailability;
 
+	int moves = 0; // cantidad de veces que movi el clock
+
 	int i;
 	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
-		int moves = 0; // cantidad de veces que movi el clock
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
 		BlockInfo *blockInfo = response->entries;
 
@@ -136,7 +137,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				moves++;
 			}
 
-			if (moves == workersList_count && !assigned) { //es porque di toda la vuelta y no lo encontre.
+			if (moves % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
 				int i;
 				for (i = 0; i < workersList_count; i++) {
 					Worker *worker = list_get(workersList, i);
