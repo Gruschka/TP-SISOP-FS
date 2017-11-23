@@ -106,6 +106,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 
 	Worker *clock = maximumAvailabilityWorker;
 	uint32_t offset = maximumAvailabilityWorkerIdx;
+	uint32_t baseAvailabilitySnapshot = scheduling_baseAvailability;
 
 	int i;
 	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
@@ -115,23 +116,42 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 
 		Copy copy = workerContainsBlock(clock, blockInfo);
 
-		if (copy != NONE && clock->availability > 0) {
-			clock->availability--; // se le baja disponibilidad en 1
-			clock = list_get(workersList, offset); moves++; // se avanza el clock
-			currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
-			currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
-			offset++;
-			break;
+//		if (copy != NONE && clock->availability > 0) { //si esta en el primero y tiene disponibilidad
+//			clock->availability--; // se le baja disponibilidad en 1
+//			clock = list_get(workersList, offset + moves); moves++; // se avanza el clock
+//			currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
+//			currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
+//			break;
+//		}
+		int assigned = 0;
+		while (!assigned) { // toda la vueltita bb
+			clock = list_get(workersList, offset + moves);
+			Copy copy = workerContainsBlock(clock, blockInfo);
+
+			if (copy == NONE) {
+				moves++;
+			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
+				clock->availability--;
+				clock = list_get(workersList, offset + moves); moves++;
+				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
+				currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
+				assigned = 1;
+			} else { // tiene el bloque pero no tiene disponibilidad
+				clock->availability = scheduling_baseAvailability;
+				moves++;
+			}
+
+			if (moves == workersList_count && !assigned) { //es porque di toda la vuelta y no lo encontre.
+				//todo: toda la vueltita sumando uase
+				int i;
+				for (i = 0; i < workersList_count; i++) {
+					Worker *worker = list_get(workersList, i);
+					worker->availability += baseAvailabilitySnapshot;
+				}
+			}
 		}
 
-		while (moves < workersList_count) { // toda la vueltita bb
 
-		}
-
-
-		if (moves == workersList_count) { //es porque di toda la vuelta y no lo encontre.
-			//todo: toda la vueltita sumando uase
-		}
 	}
 
 	return executionPlan;
