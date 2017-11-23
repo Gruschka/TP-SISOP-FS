@@ -36,7 +36,7 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
-/********* GLOBAL RESOURCES **********/
+/********* GLOBAL RESOURCES AND HANDSHAKE**********/
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
 t_list *previouslyConnectedNodesNames; //Only the names
 t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
