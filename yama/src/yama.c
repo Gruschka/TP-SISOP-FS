@@ -143,12 +143,45 @@ void testFSConnection() {
 	printf("File %s has %d blocks", response->entriesCount);
 }
 
+ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
+	ipc_struct_fs_get_file_info_response_entry *entry = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry));
+	entry->blockSize = 50;
+	entry->firstCopyBlockID = block1;
+	entry->secondCopyBlockID = block2;
+	entry->firstCopyNodeID = node1;
+	entry->secondCopyNodeID = node2;
+	return entry;
+}
+
 void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_currentAlgorithm = algorithm;
 	ipc_struct_fs_get_file_info_response *testResponse = malloc(sizeof(ipc_struct_fs_get_file_info_response));
-
+	ipc_struct_fs_get_file_info_response_entry *entry1 = testScheduling_createEntry("NodeA", 1, "NodeB", 1);
+	ipc_struct_fs_get_file_info_response_entry *entry2 = testScheduling_createEntry("NodeB", 3, "NodeC", 2);
+	ipc_struct_fs_get_file_info_response_entry *entry3 = testScheduling_createEntry("NodeD", 1, "NodeE", 1);
+	testResponse->entries = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * 3);
+	ipc_struct_fs_get_file_info_response_entry *tmp = testResponse->entries;
+	tmp = entry1; tmp++;
+	tmp = entry2; tmp++;
+	tmp = entry3;
 	testResponse->entriesCount = 3;
-//	testResponse->entries
+
+	Worker *workerA = malloc(sizeof(Worker));
+	workerA->name = "NodeA";
+	Worker *workerB = malloc(sizeof(Worker));
+	workerB->name = "NodeB";
+	Worker *workerC = malloc(sizeof(Worker));
+	workerC->name = "NodeC";
+	Worker *workerD = malloc(sizeof(Worker));
+	workerD->name = "NodeD";
+	Worker *workerE = malloc(sizeof(Worker));
+	workerE->name = "NodeE";
+
+	scheduling_addWorker(workerA);
+	scheduling_addWorker(workerB);
+	scheduling_addWorker(workerC);
+	scheduling_addWorker(workerD);
+	scheduling_addWorker(workerE);
 	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
 	printf("Execution plan: %d", executionPlan->entriesCount);
 }

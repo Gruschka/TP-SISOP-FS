@@ -114,15 +114,6 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
 		BlockInfo *blockInfo = response->entries;
 
-		Copy copy = workerContainsBlock(clock, blockInfo);
-
-//		if (copy != NONE && clock->availability > 0) { //si esta en el primero y tiene disponibilidad
-//			clock->availability--; // se le baja disponibilidad en 1
-//			clock = list_get(workersList, offset + moves); moves++; // se avanza el clock
-//			currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
-//			currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
-//			break;
-//		}
 		int assigned = 0;
 
 		while (!assigned) { // toda la vueltita bb
@@ -135,7 +126,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			clock = list_get(workersList, offset + moves);
 			Copy copy = workerContainsBlock(clock, blockInfo);
 
-			if (copy == NONE) {
+			if (copy == NONE) { // no tiene el bloque, sigo avanzando
 				moves++;
 			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
 				clock->availability--;
@@ -149,7 +140,6 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			}
 
 			if (moves == workersList_count && !assigned) { //es porque di toda la vuelta y no lo encontre.
-				//todo: toda la vueltita sumando uase
 				int i;
 				for (i = 0; i < workersList_count; i++) {
 					Worker *worker = list_get(workersList, i);
