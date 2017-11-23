@@ -159,23 +159,32 @@ void testScheduling(scheduling_algorithm algorithm) {
 	ipc_struct_fs_get_file_info_response_entry *entry1 = testScheduling_createEntry("NodeA", 1, "NodeB", 1);
 	ipc_struct_fs_get_file_info_response_entry *entry2 = testScheduling_createEntry("NodeB", 3, "NodeC", 2);
 	ipc_struct_fs_get_file_info_response_entry *entry3 = testScheduling_createEntry("NodeD", 1, "NodeE", 1);
-	testResponse->entries = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * 3);
-	ipc_struct_fs_get_file_info_response_entry *tmp = testResponse->entries;
-	tmp = entry1; tmp++;
-	tmp = entry2; tmp++;
-	tmp = entry3;
+
+	ipc_struct_fs_get_file_info_response_entry entries[3] = { *entry1, *entry2, *entry3 } ;
+	testResponse->entries = entries;
+
 	testResponse->entriesCount = 3;
 
 	Worker *workerA = malloc(sizeof(Worker));
 	workerA->name = "NodeA";
+	workerA->currentLoad = 0;
+	workerA->historicalLoad = 0;
 	Worker *workerB = malloc(sizeof(Worker));
 	workerB->name = "NodeB";
+	workerB->currentLoad = 0;
+	workerB->historicalLoad = 0;
 	Worker *workerC = malloc(sizeof(Worker));
 	workerC->name = "NodeC";
+	workerC->currentLoad = 0;
+	workerC->historicalLoad = 0;
 	Worker *workerD = malloc(sizeof(Worker));
 	workerD->name = "NodeD";
+	workerD->currentLoad = 0;
+	workerD->historicalLoad = 0;
 	Worker *workerE = malloc(sizeof(Worker));
 	workerE->name = "NodeE";
+	workerE->currentLoad = 0;
+	workerE->historicalLoad = 0;
 
 	scheduling_addWorker(workerA);
 	scheduling_addWorker(workerB);

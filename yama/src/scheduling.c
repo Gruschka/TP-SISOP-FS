@@ -52,12 +52,9 @@ void calculateAvailability() { //calcula availability y maximumAvailabilityWorke
 		uint32_t availability = scheduling_getAvailability(worker);
 		worker->availability = availability;
 
-		int hasSameAvailabilityThanMax = maximumAvailabilityWorker->availability == worker->availability;
-		int hasLessHistoricalLoadThanMax = worker->historicalLoad < maximumAvailabilityWorker->historicalLoad;
-
 		if (maximumAvailabilityWorker == NULL ||
 				maximumAvailabilityWorker->availability < worker->availability ||
-				(hasSameAvailabilityThanMax && hasLessHistoricalLoadThanMax)) {
+				((maximumAvailabilityWorker->availability == worker->availability) && (worker->historicalLoad < maximumAvailabilityWorker->historicalLoad))) {
 			maximumAvailabilityWorker = worker;
 			maximumAvailabilityWorkerIdx = i;
 		}
