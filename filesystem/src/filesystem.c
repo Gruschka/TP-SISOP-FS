@@ -1721,7 +1721,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 
 }
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
-	//todo: implementar con ipc
+	//todo: testear
 	int listSize = list_size(packageList);
 	int iterator = 0;
 	t_threadOperation *operation;
