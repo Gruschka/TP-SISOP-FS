@@ -163,10 +163,11 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 			operationBuffer = malloc(size);
 			memset(buffer,0,size);
 			read(sockfd, operationBuffer, size);
-
-			//todo: escribir(size,buffer,blockNumber)
+			dataNode_setBlock(blockNumber,operationBuffer);
 		}else{
-			//read
+			void *blockRead = malloc(BLOCK_SIZE);
+			blockRead = dataNode_getBlock(blockNumber);
+
 		}
 
 		sleep(5);
