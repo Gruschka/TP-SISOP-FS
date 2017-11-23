@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
 
 	logger = log_create(logFile, "DataNode", 1, LOG_LEVEL_DEBUG);
 
-	//Validar parametros de entrada // AND HANDSHAKE
+	//Validar parametros de entrada
 	if (argc < 2) {
 		log_error(logger, "Falta pasar la ruta del archivo de configuracion");
 		return EXIT_FAILURE;
