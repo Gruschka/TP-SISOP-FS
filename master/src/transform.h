@@ -31,6 +31,7 @@
 typedef struct master_TransformRequest {
 	char *ip;
 	uint32_t port;
+	char *transformScript;
 	uint32_t block;
 	uint32_t usedBytes;
 	char *tempFilePath;

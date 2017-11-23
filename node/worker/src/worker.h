@@ -35,5 +35,6 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName);
 void pairingFiles();
 void *createServer();
 int connectToWorker(fileGlobalNode * worker);
+int connectToFileSystem();
 
 #endif /* WORKER_H_ */

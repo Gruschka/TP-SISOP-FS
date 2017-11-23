@@ -65,41 +65,85 @@
 // y el nombre y path bajo el cual deberá almacenarse.
 // TODO: esperar confirmación y notificar a YAMA.
 //
-// TODO: replanificación
+// TODO: replanificación.
 // TODO: métricas
 // TODO: logs
 
-void connectToYamaAndSendData(char *inputFilePath) {
-	t_config *config = config_create("conf/master.conf");
-	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
-	char *yamaIP = config_get_string_value(config, "YAMA_IP");
+char *readFile(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
 
-	int sockfd = ipc_createAndConnect(yamaPort, strdup(yamaIP));
-	ipc_struct_start_transform_reduce_request request;
-	request.filePath = strdup(inputFilePath);
-	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
 
-	ipc_struct_start_transform_reduce_response *response = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
 
-	master_TransformRequest *transformRequests = malloc(sizeof(master_TransformRequest) * response->entriesCount);
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
 
-	int i;
-	for (i = 0; i < response->entriesCount; i++) {
-		ipc_struct_start_transform_reduce_response_entry *entry = response->entries + i;
-		master_TransformRequest *transformRequest = transformRequests + i;
-		transformRequest->ip = strdup(entry->workerIP);
-		transformRequest->port = entry->workerPort;
-		transformRequest->block = entry->blockID;
-		transformRequest->usedBytes = entry->usedBytes;
-		transformRequest->tempFilePath = strdup(entry->tempPath);
-	}
+	/* copy the file into the buffer */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return buffer;
+}
+
+void connectToYamaAndStartTransform(char *inputFilePath, char *transformScript) {
+//	t_config *config = config_create("conf/master.conf");
+//	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+//	char *yamaIP = config_get_string_value(config, "YAMA_IP");
+//
+//	int sockfd = ipc_createAndConnect(yamaPort, strdup(yamaIP));
+//	ipc_struct_start_transform_reduce_request request;
+//	request.filePath = strdup(inputFilePath);
+//	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+//
+//	ipc_struct_start_transform_reduce_response *response = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+//
+//	master_TransformRequest *transformRequests = malloc((sizeof(master_TransformRequest) * response->entriesCount) + 1);
+//
+//	int i;
+//	for (i = 0; i < response->entriesCount; i++) {
+//		ipc_struct_start_transform_reduce_response_entry *entry = response->entries + i;
+//		master_TransformRequest *transformRequest = transformRequests + i;
+//		transformRequest->ip = strdup(entry->workerIP);
+//		transformRequest->port = entry->workerPort;
+//		transformRequest->transformScript = transformScript;
+//		transformRequest->block = entry->blockID;
+//		transformRequest->usedBytes = entry->usedBytes;
+//		transformRequest->tempFilePath = strdup(entry->tempPath);
+//	}
+//
+//  transformRequests[i] = NULL;
+//
+//	master_transform_start(transformRequests);
+//
+//	free(response->entries);
+//	free(response);
+//	free(inputFilePath);
+//	config_destroy(config);
+
+	master_TransformRequest *transformRequests = malloc(sizeof(master_TransformRequest));
+	master_TransformRequest *transformRequest = transformRequests;
+	transformRequest->ip = "192.168.1.105";
+	transformRequest->port = 5050;
+	transformRequest->transformScript = strdup(transformScript);
+	transformRequest->block = 3;
+	transformRequest->usedBytes = 26;
+	transformRequest->tempFilePath = "this/is/the/temp/path.bin";
+
+//	(transformRequests + 1) = NULL;
 
 	master_transform_start(transformRequests);
 
-	free(response->entries);
-	free(response);
 	free(inputFilePath);
-	config_destroy(config);
+	free(transformScript);
 }
 
 int main(int argc, char **argv) {
@@ -114,6 +158,14 @@ int main(int argc, char **argv) {
 	char *outputFilePath = argv[4];
 
 	serialization_initialize();
-	connectToYamaAndSendData(strdup(inputFilePath));
+
+	char *transformScript = readFile(transformScriptPath);
+
+	connectToYamaAndStartTransform(strdup(inputFilePath), strdup(transformScript));
+
+	while (1) {
+
+	}
+
 	return EXIT_SUCCESS;
 }

@@ -140,10 +140,13 @@ ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePa
 int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName);
 int fs_deleteFileFromIndex(char *path);
 int fs_deleteBlockFromMetadata(char *path,int block, int copy);
-
-
-int fs_getAmountOfBlocksOfAFile(char *file);
+int fs_getNumberOfBlocksOfAFile(char *file);
+int fs_getAmountOfBlocksAndCopiesOfAFile(char *file);
 void fs_dumpBlockTuple(t_fileBlockTuple blockTuple);
+void fs_freeTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
+void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *array, int length);
+
+
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);
