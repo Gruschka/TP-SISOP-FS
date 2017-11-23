@@ -13,6 +13,10 @@
 
 #define ALGORITHMS_COUNT 2
 
+typedef enum {
+	FIRST, SECOND, NONE
+} Copy;
+
 typedef struct {
 	char *workerID;
 	uint32_t blockID;
@@ -28,7 +32,7 @@ typedef enum {
 } scheduling_algorithm;
 
 typedef struct {
-	char name;
+	char *name;
 	uint32_t historicalLoad;
 	uint32_t currentLoad;
 	uint32_t availability;

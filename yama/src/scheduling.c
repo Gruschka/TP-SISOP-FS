@@ -9,6 +9,7 @@
 #include <commons/collections/list.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <string.h>
 #include <pthread.h>
 
 extern uint32_t scheduling_baseAvailability;
@@ -17,6 +18,7 @@ uint32_t workersList_count;
 pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
 Worker *maximumAvailabilityWorker = NULL;
+uint32_t maximumAvailabilityWorkerIdx = 0;
 
 uint32_t scheduling_getAvailability(Worker *worker) {
 	uint32_t availability = scheduling_baseAvailability + workloadCalculationFunctions[scheduling_currentAlgorithm](worker);
@@ -42,7 +44,7 @@ void calculateMaximumWorkload() {
 	}
 }
 
-void calculateAvailability() {
+void calculateAvailability() { //calcula availability y maximumAvailabilityWorker
 	int i;
 
 	for (i = 0; i < workersList_count; i++) {
@@ -50,8 +52,15 @@ void calculateAvailability() {
 		uint32_t availability = scheduling_getAvailability(worker);
 		worker->availability = availability;
 
-		if (maximumAvailabilityWorker == NULL || maximumAvailabilityWorker->availability < availability)
+		int hasSameAvailabilityThanMax = maximumAvailabilityWorker->availability == worker->availability;
+		int hasLessHistoricalLoadThanMax = worker->historicalLoad < maximumAvailabilityWorker->historicalLoad;
+
+		if (maximumAvailabilityWorker == NULL ||
+				maximumAvailabilityWorker->availability < worker->availability ||
+				(hasSameAvailabilityThanMax && hasLessHistoricalLoadThanMax)) {
 			maximumAvailabilityWorker = worker;
+			maximumAvailabilityWorkerIdx = i;
+		}
 	}
 }
 
@@ -76,6 +85,16 @@ void scheduling_addWorker(Worker *worker) {
 	workersList_count++;
 }
 
+Copy workerContainsBlock(Worker *worker, BlockInfo *block) {
+	if (strcmp(block->firstCopyNodeID, worker->name) == 0) {
+		return FIRST;
+	} else if (strcmp(block->secondCopyNodeID, worker->name) == 0) {
+		return SECOND;
+	}
+
+	return NONE;
+}
+
 ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	uint32_t blocksCount = response->entriesCount;
 	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
@@ -83,14 +102,36 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	executionPlan->entries = malloc(sizeof(ExecutionPlanEntry) * blocksCount);
 
 	calculateMaximumWorkload();
-	calculateAvailability();
-//	Worker *clock =
+	calculateAvailability(); //calcula availability y maximumAvailabilityWorker
+
+	Worker *clock = maximumAvailabilityWorker;
+	uint32_t offset = maximumAvailabilityWorkerIdx;
+
 	int i;
-	for (i = 0; i < blocksCount; i++) {
+	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
+		int moves = 0; // cantidad de veces que movi el clock
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
 		BlockInfo *blockInfo = response->entries;
 
+		Copy copy = workerContainsBlock(clock, blockInfo);
 
+		if (copy != NONE && clock->availability > 0) {
+			clock->availability--; // se le baja disponibilidad en 1
+			clock = list_get(workersList, offset); moves++; // se avanza el clock
+			currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
+			currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
+			offset++;
+			break;
+		}
+
+		while (moves < workersList_count) { // toda la vueltita bb
+
+		}
+
+
+		if (moves == workersList_count) { //es porque di toda la vuelta y no lo encontre
+			//todo: toda la vueltita sumando uase
+		}
 	}
 
 	return executionPlan;
