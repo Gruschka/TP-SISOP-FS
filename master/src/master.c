@@ -28,8 +28,8 @@
 // Por cada tarea de transformación:
 // 1. crear un hilo
 // 2. conectarse al worker correspondiente
-// 3. TODO: enviarle el programa de transformación
-// 4. TODO: indicarle sobre qué bloque debe ejecutar el programa, la cantidad
+// 3. enviarle el programa de transformación
+// 4. indicarle sobre qué bloque debe ejecutar el programa, la cantidad
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
 // 5. TODO: esperar confirmación de cada etapa y comunicar a YAMA el resultado
