@@ -2,7 +2,9 @@
 #define FILESYSTEM_H_
 
 #include <commons/bitarray.h>
+#include <semaphore.h>
 #include <commons/collections/list.h>
+#include <commons/collections/queue.h>
 #include <stdio.h>
 #include <ipc/serialization.h>
 
@@ -29,6 +31,13 @@ typedef struct binaryStructure {
 	int weight;
 } t_binaryStructure; //size = 22b
 
+typedef struct threadOperation {
+	uint32_t operationId;
+	uint32_t size;
+	uint32_t blockNumber;
+	void *buffer;
+} t_threadOperation;
+
 typedef struct dataNode {
 
 	char *name;
@@ -39,10 +48,10 @@ typedef struct dataNode {
 	int bitmapFileDescriptor;
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
-
+	sem_t *threadSemaphore;
+	t_queue *operationsQueue;
 
 } t_dataNode;
-
 typedef struct blockPackage {
 
 	int blockNumber;
@@ -78,7 +87,9 @@ typedef struct FS {
 	t_directory directoryTable[100];
 	int bitmapFileDescriptor;
 	int nodeTableFileDescriptor;
-	int _directoryIndexAutonumber; //no modificar valor a mano!
+	////////////////////////////////////////////////////////////////// WARNING
+	int _directoryIndexAutonumber; //no modificar valor a mano! ▁ ▂ ▄ ▅ ▆ ▇ █ ŴÃŘŇĮŇĞ █ ▇ ▆ ▅ ▄ ▂ ▁
+	////////////////////////////////////////////////////////////////// WARNING
 	int usePreviousStatus;
 } t_FS;
 

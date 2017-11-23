@@ -143,11 +143,32 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 
 	//wait for request from fs
-
+	uint32_t operationType;
+	uint32_t size;
+	uint32_t blockNumber;
+	void *operationBuffer;
 	while (1) {
 
 		//Codigo para escuchar pedidos del fs aca;lk;lk
-		//printf("DataNode %s esperando pedidos del FS\n",dataNode.config.nodeName);
+		//leo operation type
+		read(sockfd, &operationType, sizeof(uint32_t));
+
+		if(operationType){
+			//write
+			//leo size a escribir
+			read(sockfd, &size, sizeof(uint32_t));
+			//leo block a escribir
+			read(sockfd, &blockNumber, sizeof(uint32_t));
+			//leo buffer
+			operationBuffer = malloc(size);
+			memset(buffer,0,size);
+			read(sockfd, operationBuffer, size);
+
+			//todo: escribir(size,buffer,blockNumber)
+		}else{
+			//read
+		}
+
 		sleep(5);
 
 	}

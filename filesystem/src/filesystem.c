@@ -19,6 +19,7 @@
 /********* INCLUDES **********/
 #include "filesystem.h"
 #include <pthread.h>
+#include <semaphore.h>
 #include <netinet/in.h>
 #include <commons/log.h>
 #include <commons/config.h>
@@ -73,7 +74,6 @@ void main() {
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
 
-	fs_getAmountOfBlocksOfAFile("/mnt/FS/metadata/archivos/1/ejemplo2.txt");
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 	fs_yamaConnectionThread();
 
@@ -93,9 +93,12 @@ void main() {
 int fs_format() {
 
 	fclose(myFS.directoryTableFile);
-	remove(myFS.directoryTablePath);
+	char *command = string_from_format("rm -r %s",myFS.mountDirectoryPath);
+	int result = system(command);
+	free(command);
+	myFS._directoryIndexAutonumber = 0; // ▁ ▂ ▄ ▅ ▆ ▇ █ ŴÃŘŇĮŇĞ █ ▇ ▆ ▅ ▄ ▂ ▁
 
-	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
+	fs_mount(&myFS);
 	//Do stuff
 	printf("format\n");
 	return 0;
@@ -638,13 +641,21 @@ int fs_isStable() {
 					iterator, copy);
 			char *nodeBlockTupleAsString = config_get_string_value(fileMetadata,
 					blockToSearch);
-			char **nodeBlockTupleAsArray = string_get_string_as_array(
-					nodeBlockTupleAsString);
+			char **nodeBlockTupleAsArray = NULL;
+			int blockNumber = -1;
 
-			int blockNumber = atoi(nodeBlockTupleAsArray[1]);
+			if(nodeBlockTupleAsString!=NULL){
+				nodeBlockTupleAsArray = string_get_string_as_array(
+									nodeBlockTupleAsString);
+				blockNumber = atoi(nodeBlockTupleAsArray[1]);
+			}
 
+			char *nodeName = NULL;
+			if(nodeBlockTupleAsArray != NULL){
+				nodeName = nodeBlockTupleAsArray[0];
+			}
 			//si tenes el nodo y el nodo tiene el bloque esta OK, me chupa un huevo la data
-			if (!fs_checkNodeBlockTupleConsistency(nodeBlockTupleAsArray[0],
+			if (!fs_checkNodeBlockTupleConsistency(nodeName,
 					blockNumber)) {
 				free(blockToSearch);
 				iterator++;
@@ -692,25 +703,25 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 
 }
 void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
-
+	sem_t *mutex = malloc(sizeof(sem_t));
 	int valread, cant;
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS";
 	int new_socket = (int *) dataNodeSocket;
 
-	t_dataNode newDataNode;
+	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
 
 	//Read Node name
 	valread = read(new_socket, buffer, 1024);
 	printf("New node connected: %s\n", buffer);
 
-	newDataNode.name = malloc(sizeof(buffer));
-	memset(newDataNode.name, 0, sizeof(newDataNode));
-	strcpy(newDataNode.name, buffer);
-	printf("Node name:%s\n", newDataNode.name);
+	newDataNode->name = malloc(sizeof(buffer));
+	memset(newDataNode->name, 0, sizeof(newDataNode));
+	strcpy(newDataNode->name, buffer);
+	printf("Node name:%s\n", newDataNode->name);
 
-	if(fs_isDataNodeAlreadyConnected(newDataNode)){//Dont accept another node with same ID a
-		log_error(logger, "fs_connectionHandler: Node %s already connected - Aborting connection", newDataNode.name);
+	if(fs_isDataNodeAlreadyConnected(*newDataNode)){//Dont accept another node with same ID a
+		log_error(logger, "fs_connectionHandler: Node %s already connected - Aborting connection", newDataNode->name);
 		int closeResult = close(new_socket);
 		if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
 		pthread_cancel(pthread_self());
@@ -718,7 +729,10 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	}
 	//If the Node isnt already connected->include it to the global lists of connected nodes
-	list_add(connectedNodes, &newDataNode);
+	sem_init(mutex,0,0);
+	newDataNode->threadSemaphore = mutex;
+	newDataNode->operationsQueue = queue_create();
+	list_add(connectedNodes, newDataNode);
 
 
 	/*if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
@@ -747,20 +761,20 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	//Read amount of blocks
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
-	newDataNode.amountOfBlocks = cant;
-	printf("Amount of blocks:%d\n", newDataNode.amountOfBlocks);
+	newDataNode->amountOfBlocks = cant;
+	printf("Amount of blocks:%d\n", newDataNode->amountOfBlocks);
 
 
-	fs_openOrCreateBitmap(myFS, &newDataNode);
+	fs_openOrCreateBitmap(myFS, newDataNode);
 
-	newDataNode.freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(&newDataNode);
-	newDataNode.occupiedBlocks = newDataNode.amountOfBlocks - newDataNode.freeBlocks;
+	newDataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(newDataNode);
+	newDataNode->occupiedBlocks = newDataNode->amountOfBlocks - newDataNode->freeBlocks;
 
-	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode.name, newDataNode.amountOfBlocks, newDataNode.freeBlocks, newDataNode.occupiedBlocks);
+	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode->name, newDataNode->amountOfBlocks, newDataNode->freeBlocks, newDataNode->occupiedBlocks);
 
 
 
-	int nodeTableUpdate = fs_updateNodeTable(newDataNode);
+	int nodeTableUpdate = fs_updateNodeTable(*newDataNode);
 
 	/*if (nodeTableUpdate == DATANODE_ALREADY_CONNECTED) {
 	 log_error(logger,
@@ -774,6 +788,31 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	while (1) {
 
 		//printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
+		sem_wait(mutex);
+
+		//pop operation
+		t_threadOperation *operation = queue_pop(newDataNode->operationsQueue);
+
+		//serializo
+		int serializedOperationSize = sizeof(uint32_t)*2 + operation->size;
+		void *serializedOperation = malloc(serializedOperationSize);
+		memset(serializedOperation,0,serializedOperationSize);
+		int offset = 0;
+
+		memcpy(serializedOperation+offset,operation->operationId,sizeof(uint32_t));
+		offset+=sizeof(uint32_t);
+
+		memcpy(serializedOperation+offset,operation->size,sizeof(uint32_t));
+		offset+=sizeof(uint32_t);
+
+		memcpy(serializedOperation+offset,operation->blockNumber,sizeof(uint32_t));
+		offset+=sizeof(uint32_t);
+
+		memcpy(serializedOperation+offset,operation->buffer,operation->size);
+		free(operation);
+
+		//send operation
+		send(new_socket, serializedOperation, serializedOperationSize, 0);
 
 		sleep(5);
 
@@ -1131,6 +1170,7 @@ int fs_openOrCreateDirectoryTableFile(char *directory) {
 
 	if (myFS.directoryTableFile == NULL) {
 		//hay que crearlo
+		myFS.amountOfDirectories = 0;
 		myFS.directoryTableFile = fopen(myFS.directoryTablePath, "wb+");
 
 		//cargo root
@@ -1284,6 +1324,9 @@ int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio d
 	return EXIT_SUCCESS;
 }
 int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber) { //No puede abrirlo => Lo crea
+	if(dataNodeName == NULL || blockNumber == -1){
+		return EXIT_FAILURE;
+	}
 	t_dataNode *connectedNode;
 	connectedNode = fs_getNodeFromNodeName(dataNodeName);
 	if (connectedNode == NULL) {
@@ -1597,7 +1640,28 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 }
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
 	//todo: implementar con ipc
-	return EXIT_SUCCESS; //hardcodeado durlock
+	int listSize = list_size(packageList);
+	int iterator = 0;
+	t_threadOperation *operation;
+
+	// mando paquetes
+	while(iterator < listSize){
+		//armo operacion global
+		t_blockPackage *package = list_get(packageList,iterator);
+		operation = malloc(sizeof(t_threadOperation));
+		operation->operationId = 1; //todo: reemplazar por define 0=read 1=write
+		operation->size = package->blockSize;
+		operation->buffer = malloc(package->blockSize);
+		memcpy(operation->buffer,package->buffer,package->blockSize);
+
+		//pusheo al datanode
+		queue_push(package->destinationNode->operationsQueue,operation);
+
+		//signaleo al thread
+		sem_post(package->destinationNode->threadSemaphore);
+		iterator++;
+	}
+	return EXIT_SUCCESS; //hardcodeado durlock ad handshake
 }
 int fs_getFirstFreeBlockFromNode(t_dataNode *dataNode) {
 
