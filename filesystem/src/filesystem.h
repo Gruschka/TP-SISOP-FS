@@ -146,6 +146,11 @@ int fs_getAmountOfBlocksAndCopiesOfAFile(char *file);
 void fs_dumpBlockTuple(t_fileBlockTuple blockTuple);
 void fs_freeTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
 void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *array, int length);
+char *fs_isAFile(char *path);
+char *fs_isFileContainedBy(char *filePhysicalPath, t_directory *parent);
+int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent);
+
+
 
 
 //Console commands

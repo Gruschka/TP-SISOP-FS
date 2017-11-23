@@ -323,12 +323,20 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 	printf("moving %s to %s\n", origFilePath, destFilePath);
 	t_directory *originDirectory;
 	t_directory *destinationDirectory;
-
+	int isAFile = 0;
+	char *physicalFilePath = NULL;
 	//chequeo si origen existe
-	//todo: chequear si es un archivo
 	if (!(originDirectory = fs_directoryExists(origFilePath))) {
-		log_error(logger, "fs_mv: aborting mv - origin directory doesnt exist");
-		return EXIT_FAILURE;
+		//origin not a dir
+		physicalFilePath = fs_isAFile(origFilePath);
+		if(physicalFilePath != NULL){
+			//origin is a file
+			isAFile++;
+			FILE *fileMetadata = fopen(physicalFilePath,"r+");
+		}else{
+			log_error(logger, "fs_mv: aborting mv - origin directory/file doesnt exist");
+			return EXIT_FAILURE;
+		}
 	}
 
 	//chequeo si destino existe
@@ -338,14 +346,27 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 	}
 
 	//chequeo si original ya existe en destino
+	//todo: no anda con archivos
 	char *originName = strrchr(origFilePath, '/');
 	char *destinationFullName = strdup(destFilePath);
 	string_append(&destinationFullName, originName);
 
-	if (!fs_directoryExists(destinationFullName)) {
+	if (fs_directoryExists(destinationFullName) != NULL) {
 		log_error(logger,
 				"fs_mv: aborting mv - origin directory already exists in destination");
 		return EXIT_FAILURE;
+	}else{
+		//check if file is contained in destination
+		if(isAFile){
+			if(fs_isFileContainedBy(physicalFilePath,destinationDirectory)){
+				log_error(logger,
+						"fs_mv: aborting mv - origin file already exists in destination");
+				return EXIT_FAILURE;
+			}else{
+				fs_moveFileTo(physicalFilePath,destinationDirectory);
+				return EXIT_SUCCESS;
+			}
+		}
 	}
 
 	originDirectory->parent = destinationDirectory->index;
@@ -360,6 +381,15 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 int fs_cat(char *filePath) {
 	printf("Showing file %s\n", filePath);
 	return -1;
+	//todo: armar lista de packets igual que fs_store, pero para pedir lecturas
+	// La diferencia principal radica que en store tenés 2 * cant de bloques
+	// en read tenes que leer 1 vez cada bloque entonces si el archivo tiene 3 bloques, son 3 paquetes
+	// t_blockPackage package
+	//package.blockCopyNumber = Copia a leer
+	//package.blockNumber = Bloque a leer (e.g. 0,1,2)
+	//	package.blockSize = tamaño a leer;
+	//	package.destinationBlock = bloque fisico en el nodo;
+	//	package.destinationNode = referencia al nodo destino;
 
 }
 int fs_mkdir(char *directoryPath) {
@@ -1488,7 +1518,7 @@ t_directory *fs_directoryExists(char *directory) {
 		}
 	}
 
-	return EXIT_FAILURE;
+	return NULL;
 }
 int fs_directoryIsParent(t_directory *directory) {
 	int iterator = 0;
@@ -2332,3 +2362,81 @@ int fs_updateFileFromIndex(char *old, char *new){
 	return EXIT_SUCCESS;
 }
 
+char *fs_isAFile(char *path){
+	char **splitPath = string_split(path,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(path);
+	parentPath[strlen(parentPath)-fileNameLength-1] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"parent directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"physical file doesnt exist");
+		return NULL;
+	}
+	fclose(fileMetadata);
+	int iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+	free(parentPath);
+	return physicalPath;
+}
+
+char *fs_isFileContainedBy(char *filePhysicalPath, t_directory *parent){
+	char **splitPath = string_split(filePhysicalPath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int parentIndex = strlen(splitPath[splitPathElementCount-2]);
+	int returnValue = 0;
+
+	if(parentIndex == parent->index){
+		returnValue++;
+	}
+
+	int iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+
+	return returnValue;
+}
+
+int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent){
+	char **splitPath = string_split(filePhysicalPath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+
+	char *newFileName = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,basename(filePhysicalPath));
+	char *parentPath = string_from_format("%s/%d",myFS.filesDirectoryPath,parent->index,basename(filePhysicalPath));
+
+	fs_openOrCreateDirectory(parentPath,0);
+	fs_updateFileFromIndex(filePhysicalPath,newFileName);
+
+	char *command = string_from_format("mv %s %s",filePhysicalPath,newFileName);
+
+	system(command);
+
+	int iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+	free(newFileName);
+	free(parentPath);
+	free(command);
+
+	return 1;
+
+}
