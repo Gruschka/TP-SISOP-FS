@@ -129,7 +129,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 		}
 
 
-		if (moves == workersList_count) { //es porque di toda la vuelta y no lo encontre
+		if (moves == workersList_count) { //es porque di toda la vuelta y no lo encontre.
 			//todo: toda la vueltita sumando uase
 		}
 	}
