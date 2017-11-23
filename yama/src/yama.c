@@ -145,20 +145,12 @@ void testFSConnection() {
 
 void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_currentAlgorithm = algorithm;
-	Worker *workerA = malloc(sizeof(Worker));
-	workerA->name = 'A';
-	Worker *workerB = malloc(sizeof(Worker));
-	workerB->name = 'B';
-	Worker *workerC = malloc(sizeof(Worker));
-	workerC->name = 'C';
+	ipc_struct_fs_get_file_info_response *testResponse = malloc(sizeof(ipc_struct_fs_get_file_info_response));
 
-	scheduling_addWorker(workerA);
-	scheduling_addWorker(workerB);
-	scheduling_addWorker(workerC);
-
-
-
-	printf("Availability: %d", scheduling_getAvailability(workerA));
+	testResponse->entriesCount = 3;
+//	testResponse->entries
+	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
+	printf("Execution plan: %d", executionPlan->entriesCount);
 }
 
 void test() {

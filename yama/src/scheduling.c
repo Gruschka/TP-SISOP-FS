@@ -7,6 +7,7 @@
 #include "scheduling.h"
 
 #include <commons/collections/list.h>
+#include <stdlib.h>
 #include <stddef.h>
 #include <pthread.h>
 
@@ -15,6 +16,7 @@ uint32_t maximumLoad = 0;
 uint32_t workersList_count;
 pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
+Worker *maximumAvailabilityWorker = NULL;
 
 uint32_t scheduling_getAvailability(Worker *worker) {
 	uint32_t availability = scheduling_baseAvailability + workloadCalculationFunctions[scheduling_currentAlgorithm](worker);
@@ -30,13 +32,26 @@ uint32_t wClock_getWorkload(Worker *worker) {
 	return maximumLoad - worker->currentLoad;
 }
 
-void calculateMaximumWorkload() { // + MEJORAS EN EL MENU
+void calculateMaximumWorkload() {
 	int i;
 
 	for (i = 0; i < workersList_count; i++) {
 		Worker *worker = list_get(workersList, i);
 		if (worker->currentLoad > maximumLoad)
 			maximumLoad = worker->currentLoad;
+	}
+}
+
+void calculateAvailability() {
+	int i;
+
+	for (i = 0; i < workersList_count; i++) {
+		Worker *worker = list_get(workersList, i);
+		uint32_t availability = scheduling_getAvailability(worker);
+		worker->availability = availability;
+
+		if (maximumAvailabilityWorker == NULL || maximumAvailabilityWorker->availability < availability)
+			maximumAvailabilityWorker = worker;
 	}
 }
 
@@ -61,6 +76,25 @@ void scheduling_addWorker(Worker *worker) {
 	workersList_count++;
 }
 
+ExecutionPlan *getExecutionPlan(FileInfo *response) {
+	uint32_t blocksCount = response->entriesCount;
+	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
+	executionPlan->entriesCount = blocksCount;
+	executionPlan->entries = malloc(sizeof(ExecutionPlanEntry) * blocksCount);
+
+	calculateMaximumWorkload();
+	calculateAvailability();
+//	Worker *clock =
+	int i;
+	for (i = 0; i < blocksCount; i++) {
+		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
+		BlockInfo *blockInfo = response->entries;
+
+
+	}
+
+	return executionPlan;
+}
 
 //Worker *current = NULL;
 //t_list *circular = getCircularList(workersList);
