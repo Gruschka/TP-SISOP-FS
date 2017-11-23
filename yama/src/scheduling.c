@@ -124,7 +124,14 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 //			break;
 //		}
 		int assigned = 0;
+
 		while (!assigned) { // toda la vueltita bb
+			//TODO Si se encuentra, se deberá reducir en 1 el valor de disponibilidad
+			// y avanzar el Clock al siguiente Worker.
+			// Si dicho clock fuera a ser asignado a un Worker cuyo nivel de disponibilidad fuera 0,
+			// se deberá restaurar la disponibilidad al valor de la disponibilidad base y luego,
+			// avanzar el clock al siguiente Worker, repitiendo el paso 2.
+
 			clock = list_get(workersList, offset + moves);
 			Copy copy = workerContainsBlock(clock, blockInfo);
 
