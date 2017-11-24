@@ -391,7 +391,14 @@ int fs_cat(char *filePath) {
 
 }
 int fs_mkdir(char *directoryPath) {
-	printf("Creating directory c %s\n", directoryPath);
+
+	if(myFS.amountOfDirectories == DIRECTORY_TABLE_MAX_AMOUNT){
+		log_error(logger,"fs_mkdir: Directory table max amount reached. Aborting mkdir for directory %s", directoryPath);
+		return EXIT_FAILURE;
+	}
+
+	log_info(logger,"fs_mkdir: Creating directory c %s\n", directoryPath);
+
 	t_directory *root = malloc(sizeof(t_directory));
 	root->index = 0;
 	strcpy(root->name, "root");
