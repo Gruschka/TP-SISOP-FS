@@ -90,7 +90,7 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_worker_start_transform_request;
 
 typedef struct {
-	uint32_t suceeded;
+	uint32_t succeeded;
 }__attribute__((packed)) ipc_struct_worker_start_transform_response;
 
 void serialization_initialize();
