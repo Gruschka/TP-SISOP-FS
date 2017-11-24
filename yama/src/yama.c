@@ -278,6 +278,8 @@ int main(int argc, char** argv) {
 
 void loadConfiguration() {
 	configuration = fetchConfiguration("conf/yama.conf");
+
+	scheduling_baseAvailability = configuration.baseAvailability;
 }
 
 void signalHandler(int signo) {

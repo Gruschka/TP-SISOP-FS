@@ -9,16 +9,14 @@
 #define CONFIGURATION_H_
 
 #include <commons/config.h>
-
-typedef enum balancing_algorithm {
-	WRR, RR
-} yama_balancing_algorithm;
+#include "scheduling.h"
 
 typedef struct configuration {
 	char *filesytemIP;
 	int filesystemPort;
 	int schedulingDelay;
-	yama_balancing_algorithm balancingAlgorithm;
+	uint32_t baseAvailability;
+	scheduling_algorithm balancingAlgorithm;
 } yama_configuration;
 
 yama_configuration fetchConfiguration(char *filePath);
