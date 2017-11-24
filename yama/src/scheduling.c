@@ -20,6 +20,8 @@ t_list *workersList; //Circular list
 Worker *maximumAvailabilityWorker = NULL;
 uint32_t maximumAvailabilityWorkerIdx = 0;
 
+static void *circularlist_get(t_list *list, uint32_t index);
+
 uint32_t scheduling_getAvailability(Worker *worker) {
 	uint32_t availability = scheduling_baseAvailability + workloadCalculationFunctions[scheduling_currentAlgorithm](worker);
 
@@ -38,7 +40,7 @@ void calculateMaximumWorkload() {
 	int i;
 
 	for (i = 0; i < workersList_count; i++) {
-		Worker *worker = list_get(workersList, i);
+		Worker *worker = circularlist_get(workersList, i);
 		if (worker->currentLoad > maximumLoad)
 			maximumLoad = worker->currentLoad;
 	}
@@ -48,7 +50,7 @@ void calculateAvailability() { //calcula availability y maximumAvailabilityWorke
 	int i;
 
 	for (i = 0; i < workersList_count; i++) {
-		Worker *worker = list_get(workersList, i);
+		Worker *worker = circularlist_get(workersList, i);
 		uint32_t availability = scheduling_getAvailability(worker);
 		worker->availability = availability;
 
@@ -121,14 +123,14 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			// se deberá restaurar la disponibilidad al valor de la disponibilidad base y luego,
 			// avanzar el clock al siguiente Worker, repitiendo el paso 2.
 
-			clock = list_get(workersList, offset + moves);
+			clock = circularlist_get(workersList, offset + moves);
 			Copy copy = workerContainsBlock(clock, blockInfo);
 
 			if (copy == NONE) { // no tiene el bloque, sigo avanzando
 				moves++;
 			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
 				clock->availability--;
-				clock = list_get(workersList, offset + moves); moves++;
+				clock = circularlist_get(workersList, offset + moves); moves++;
 				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
 				currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
 				assigned = 1;
@@ -140,7 +142,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			if (moves % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
 				int i;
 				for (i = 0; i < workersList_count; i++) {
-					Worker *worker = list_get(workersList, i);
+					Worker *worker = circularlist_get(workersList, i);
 					worker->availability += baseAvailabilitySnapshot;
 				}
 			}
@@ -152,16 +154,10 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	return executionPlan;
 }
 
-//Worker *current = NULL;
-//t_list *circular = getCircularList(workersList);
-//
-//int index = 0;
-//while (current != worker) {
-//	current = list_get(circular, index);
-//	index++;
-//}
-//index--; // index es la posicion del elemento en el que arranco dentro del clock
-//
-//while (1) {
-//
-//}
+static void *circularlist_get(t_list *list, uint32_t index) {
+	t_link_element *element = list->head;
+	while (index--) {
+		element = element->next;
+	}
+	return element->data;
+}
