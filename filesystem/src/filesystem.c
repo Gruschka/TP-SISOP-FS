@@ -105,9 +105,8 @@ int fs_format() {
     fs_wipeAllConnectedDataNodes();
 	fs_updateAllConnectedNodesOnTable();
 
-	//Do stuff
-	printf("format\n");
-	return 0;
+	log_debug(logger,"Format successful");
+	return EXIT_SUCCESS;
 
 }
 int fs_rm(char *filePath) {
@@ -199,10 +198,11 @@ int fs_rm_dir(char *dirPath) {
 		ftruncate(myFS.directoryTableFile->_fileno,
 				sizeof(t_directory) * myFS.amountOfDirectories);
 	} else {
-		log_debug(logger, "fs_rm_dir: directory doesnt exist or is parent");
+		log_error(logger, "fs_rm_dir: directory doesnt exist or is parent");
+		return EXIT_FAILURE;
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) {
 	printf("removing block %d whose copy is block %d from file %s\n",
@@ -405,6 +405,11 @@ int fs_mkdir(char *directoryPath) {
 
 	log_info(logger,"fs_mkdir: Creating directory c %s\n", directoryPath);
 
+	if(!fs_directoryStartsWithSlash(directoryPath)){
+		log_error(logger,"fs_mkdir: Directory must start with '/'");
+		return EXIT_FAILURE;
+	}
+
 	t_directory *root = malloc(sizeof(t_directory));
 	root->index = 0;
 	strcpy(root->name, "root");
@@ -456,8 +461,9 @@ int fs_mkdir(char *directoryPath) {
 
 }
 int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
-	printf("Copying %s to yama directory %s\n", origFilePath, yama_directory);
 
+
+	log_debug(logger,"fs_cpfrom:Copying %s to yama directory %s\n", origFilePath, yama_directory);
 	FILE *originalFile = fopen(origFilePath, "r+");
 	if (!originalFile) {
 		log_error(logger, "fs_cpfrom: original file couldnt be opened");
@@ -475,17 +481,31 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 		return EXIT_FAILURE;
 	}
 
+
+	char *fileName = basename(origFilePath);
+	char *fullFilePathInYama = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,destinationDirectory->index,fileName);
+
+
+	FILE * fileInYama = fopen(fullFilePathInYama,"r");
+	if(fileInYama){
+		log_error(logger,"fs_cpfrom: File '%s' already exists on yama directory '%s' whose index is '%d' - Aborting cpfrom",fileName,yama_directory,destinationDirectory->index);
+		free(fullFilePathInYama);
+		fclose(fileInYama);
+		return EXIT_FAILURE;
+
+	}
+	free(fullFilePathInYama);
+
 	struct stat originalFileStats;
 	fstat(originalFile->_fileno, &originalFileStats);
 
 	t_fileType typeFile = !strcmp(fileType, "-b") ? T_BINARY : T_TEXT;
-	char *fileName = basename(origFilePath);
 	void *buffer = fs_serializeFile(originalFile, originalFileStats.st_size);
 
 	int result = fs_storeFile(yama_directory, fileName, typeFile, buffer,
 			originalFileStats.st_size);
-
-	return 0;
+	if(result == EXIT_SUCCESS) log_debug(logger,"fs_cpfrom: Stored filed successfully");
+	return EXIT_SUCCESS;
 
 }
 int fs_cpto(char *origFilePath, char *yama_directory) {
@@ -508,7 +528,8 @@ int fs_md5(char *filePath) {
 int fs_ls(char *directoryPath) {
 
 	if(directoryPath == NULL) return EXIT_FAILURE;
-	printf("Showing directory %s\n", directoryPath);
+
+	log_info(logger,"Showing directory %s\n", directoryPath);
 	int iterator = 0;
 	if (!strcmp(directoryPath, "-fs")) {
 		printf("i    n    p\n");
@@ -1728,6 +1749,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	fclose(metadataFile);
 	free(filePathWithName);
 	free(filePathWithNameAndNewline);
+	return EXIT_SUCCESS;
+
 
 }
 int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
@@ -2539,4 +2562,15 @@ int fs_wipeDirectoryTable(){
 
 
 	return EXIT_SUCCESS;
+}
+
+int fs_directoryStartsWithSlash(char *directory){
+
+	if(directory[0] == '/'){
+		log_debug(logger,"fs_directoryStartsWithFlash: TRUE");
+		return TRUE;
+	}
+	log_error(logger,"fs_directoryStartsWithFlash: FALSE");
+	return FALSE;
+
 }

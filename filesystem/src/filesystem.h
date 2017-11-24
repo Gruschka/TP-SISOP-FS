@@ -152,7 +152,7 @@ int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent);
 int fs_updateAllConnectedNodesOnTable();
 int fs_wipeAllConnectedDataNodes();
 int fs_wipeDirectoryTable();
-
+int fs_directoryStartsWithSlash(char *directory);
 
 //Console commands
 int fs_format();
