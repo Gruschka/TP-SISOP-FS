@@ -99,6 +99,9 @@ int fs_format() {
 	myFS._directoryIndexAutonumber = 0; // ▁ ▂ ▄ ▅ ▆ ▇ █ ŴÃŘŇĮŇĞ █ ▇ ▆ ▅ ▄ ▂ ▁
 
 	fs_mount(&myFS);
+    fs_wipeAllConnectedDataNodes();
+	fs_updateAllConnectedNodesOnTable();
+
 	//Do stuff
 	printf("format\n");
 	return 0;
@@ -950,14 +953,14 @@ int fs_openOrCreateDirectory(char * directory, int includeInTable) {
 		// 511 is decimal for mode 777 (octal)
 		chmod(directory, 511);
 		if (!error) {
-			log_debug(logger, "FS path created on directory %s",
+			log_debug(logger, "fs_openOrCreateDirectory: Directory: %s created",
 					myFS.mountDirectoryPath);
 		} else {
 			log_error(logger, "fs_openOrCreateDirectory: error creating path %s", strerror(errno));
 			return -1;
 		}
 	}
-	log_debug(logger, "found path");
+	log_debug(logger, "fs_openOrCreateDirectory: Found directory %s",directory);
 	closedir(newDirectory);
 
 	if (includeInTable)
@@ -974,11 +977,11 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 
 	//Intenta abrir
 	if (output = fopen(directory, "r+")) { //Existe el nodes.bin
-		log_debug(logger, "found node table file");
+		log_debug(logger, "fs_openOrCreateNodeTableFile: Found node table file");
 		myFS.nodeTableFileDescriptor = output->_fileno;
 		return 0;
 	} else { //No puede abrirlo => Lo crea
-		log_debug(logger, "node table file not found creating from scratch");
+		log_debug(logger, "fs_openOrCreateNodeTableFile: Node table file not found - creating from scratch");
 		output = fopen(directory, "w+");
 
 		memset(buffer, 0, 50);
@@ -1184,8 +1187,6 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 		return EXIT_SUCCESS;
 
 	} else { //No puede abrirlo => Lo crea
-		printf("NoExiste el data.bin");
-
 		log_debug(logger,
 				"fs_openOrCreateBitmap: Bitmap file for datanode %s not found. Creating with parameters of config file",
 				aDataNode->name);
@@ -2447,3 +2448,77 @@ int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent){
 	return 1;
 
 }
+
+int fs_updateAllConnectedNodesOnTable(){
+
+	int listSize = list_size(connectedNodes);
+	int i;
+	t_dataNode * aux;
+	if (listSize == 0){
+		log_error(logger,"fs_updateAllConnectedNodes: No data nodes connected\n");
+		return EXIT_FAILURE;
+
+	}
+
+	for (i = 0; i < listSize; i++) {
+		aux = list_get(connectedNodes, i);
+		fs_updateNodeTable(*aux);
+
+	}
+
+	return EXIT_SUCCESS;
+
+}
+
+int fs_wipeAllConnectedDataNodes(){
+
+	int listSize = list_size(connectedNodes);
+		int i;
+		t_dataNode * aux;
+		if (listSize == 0){
+			log_error(logger,"fs_wipeAllConnectedNodes: No data nodes connected\n");
+			return EXIT_FAILURE;
+
+		}
+		int result;
+		for (i = 0; i < listSize; i++) {
+			aux = list_get(connectedNodes, i);
+			result = fs_wipeDataNode(aux);
+			if(result == EXIT_FAILURE){
+				log_error(logger,"fs_wipeAllConnectedNodes: Could not wipe all connected nodes\n");
+				return EXIT_FAILURE;
+			}
+
+		}
+
+		log_info(logger,"fs_wipeAllConnectedNodes: All connected nodes have been wiped successfully");
+
+		return EXIT_SUCCESS;
+
+}
+
+int fs_wipeDataNode(t_dataNode *aDataNode){
+
+
+	if(aDataNode == NULL){
+		log_error(logger,"fs_wipeDataNode: Node %s isnt valid- wipe aborted", aDataNode->name);
+		return EXIT_FAILURE;
+	}
+	int iterator = 0;
+
+	while(iterator < aDataNode->amountOfBlocks){
+
+		bitarray_clean_bit(aDataNode->bitmap, iterator);
+			aDataNode->occupiedBlocks--;
+
+			iterator++;
+	}
+
+	aDataNode->freeBlocks = aDataNode->amountOfBlocks;
+	aDataNode->occupiedBlocks = 0;
+
+	log_info(logger,"fs_wipeDataNode: Node: %s wiped successfully", aDataNode->name);
+	return EXIT_SUCCESS;
+
+}
+

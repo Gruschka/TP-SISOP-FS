@@ -149,7 +149,8 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *array,
 char *fs_isAFile(char *path);
 char *fs_isFileContainedBy(char *filePhysicalPath, t_directory *parent);
 int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent);
-
+int fs_updateAllConnectedNodesOnTable();
+int fs_wipeAllConnectedDataNodes();
 
 
 
