@@ -95,7 +95,20 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_worker_start_transform_response;
 
 typedef struct {
-	uint32_t nodeID;
+	uint32_t scriptContentLength;
+	char *scriptContent;
+	uint32_t transformTempFilePathLength;
+	char *transformTempFilePath;
+	uint32_t reduceTempFilePathLength;
+	char *reduceTempFilePath;
+}__attribute__((packed)) ipc_struct_worker_start_local_reduce_request;
+
+typedef struct {
+	uint32_t succeeded;
+}__attribute__((packed)) ipc_struct_worker_start_local_reduce_response;
+
+typedef struct {
+	char *nodeID;
 	char *workerIP;
 	uint32_t workerPort;
 	char *transformTempPath;

@@ -27,13 +27,13 @@
 // 6. TODO: comunicar a YAMA el resultado de cada etapa
 
 typedef struct WorkerRequest {
-	uint32_t nodeID;
+	char *nodeID;
 	char *ip;
 	int port;
 	ipc_struct_worker_start_transform_request workerRequest;
 } WorkerRequest;
 
-void *connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 
@@ -81,19 +81,20 @@ void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *
 		workerRequest.tempFilePath = strdup(entry->tempPath);
 
 		WorkerRequest *request = malloc(sizeof(WorkerRequest));
-		request->nodeID = entry->nodeID;
+		request->nodeID = strdup(entry->nodeID);
 		request->ip = strdup(entry->workerIP);
 		request->port = entry->workerPort;
 		request->workerRequest = workerRequest;
 
 		// Creamos un hilo por cada worker
 		pthread_t thread;
-		if (pthread_create(&thread, NULL, connectToWorkerAndMakeRequest, request)) {
+		if (pthread_create(&thread, NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
 			//FIXME: (Fede) acá hay error
 		}
 
 		free(entry->tempPath);
 		free(entry->workerIP);
+		free(entry->nodeID);
 
 		i++;
 	}

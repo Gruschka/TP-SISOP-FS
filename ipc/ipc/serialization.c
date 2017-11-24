@@ -387,8 +387,10 @@ char *serializeMasterContinueWithLocalReductionRequest(void *data, int *size) {
 
 	for (i = 0; i < request->entriesCount; i++) {
 		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
-		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->nodeID, strlen(currentEntry->nodeID)); //nodeID
+		offset += strlen(currentEntry->nodeID);
+		buffer[offset] = '\0';
+		offset += 1;
 		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
 		offset += strlen(currentEntry->workerIP);
 		buffer[offset] = '\0';
