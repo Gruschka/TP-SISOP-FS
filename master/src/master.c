@@ -16,6 +16,7 @@
 #include <ipc/serialization.h>
 
 #include "transform.h"
+#include "utils.h"
 
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
@@ -28,11 +29,12 @@
 // Por cada tarea de transformación:
 // 1. crear un hilo
 // 2. conectarse al worker correspondiente
-// 3. TODO: enviarle el programa de transformación
-// 4. TODO: indicarle sobre qué bloque debe ejecutar el programa, la cantidad
+// 3. enviarle el programa de transformación
+// 4. indicarle sobre qué bloque debe ejecutar el programa, la cantidad
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
-// 5. TODO: esperar confirmación de cada etapa y comunicar a YAMA el resultado
+// 5. esperar confirmación de cada etapa
+// 6. TODO: comunicar a YAMA el resultado de cada etapa
 //
 // Etapa de reducción local
 // TODO: esperar indicación de YAMA con el nombre de los archivos
@@ -69,82 +71,9 @@
 // TODO: métricas
 // TODO: logs
 
-char *readFile(char *path) {
-	FILE *fp;
-	long lSize;
-	char *buffer;
-
-	fp = fopen (path, "rb" );
-	if( !fp ) perror(path),exit(1);
-
-	fseek( fp , 0L , SEEK_END);
-	lSize = ftell( fp );
-	rewind( fp );
-
-	/* allocate memory for entire content */
-	buffer = calloc( 1, lSize+1 );
-	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
-
-	/* copy the file into the buffer // AND HANDSHAKE */
-	if( 1!=fread( buffer , lSize, 1 , fp) )
-	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
-
-	fclose(fp);
-
-	return buffer;
-}
-
-void connectToYamaAndStartTransform(char *inputFilePath, char *transformScript) {
-//	t_config *config = config_create("conf/master.conf");
-//	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
-//	char *yamaIP = config_get_string_value(config, "YAMA_IP");
-//
-//	int sockfd = ipc_createAndConnect(yamaPort, strdup(yamaIP));
-//	ipc_struct_start_transform_reduce_request request;
-//	request.filePath = strdup(inputFilePath);
-//	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
-//
-//	ipc_struct_start_transform_reduce_response *response = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
-//
-//	master_TransformRequest *transformRequests = malloc((sizeof(master_TransformRequest) * response->entriesCount) + 1);
-//
-//	int i;
-//	for (i = 0; i < response->entriesCount; i++) {
-//		ipc_struct_start_transform_reduce_response_entry *entry = response->entries + i;
-//		master_TransformRequest *transformRequest = transformRequests + i;
-//		transformRequest->ip = strdup(entry->workerIP);
-//		transformRequest->port = entry->workerPort;
-//		transformRequest->transformScript = transformScript;
-//		transformRequest->block = entry->blockID;
-//		transformRequest->usedBytes = entry->usedBytes;
-//		transformRequest->tempFilePath = strdup(entry->tempPath);
-//	}
-//
-//  transformRequests[i] = NULL;
-//
-//	master_transform_start(transformRequests);
-//
-//	free(response->entries);
-//	free(response);
-//	free(inputFilePath);
-//	config_destroy(config);
-
-	master_TransformRequest *transformRequests = malloc(sizeof(master_TransformRequest));
-	master_TransformRequest *transformRequest = transformRequests;
-	transformRequest->ip = "192.168.1.105";
-	transformRequest->port = 5050;
-	transformRequest->transformScript = strdup(transformScript);
-	transformRequest->block = 3;
-	transformRequest->usedBytes = 26;
-	transformRequest->tempFilePath = "this/is/the/temp/path.bin";
-
-//	(transformRequests + 1) = NULL;
-
-	master_transform_start(transformRequests);
-
-	free(inputFilePath);
-	free(transformScript);
-}
+int yamaPort;
+char *yamaIP;
+int yamaSocket;
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -152,16 +81,51 @@ int main(int argc, char **argv) {
 		return EXIT_FAILURE;
 	}
 
+	// Levanto los argumentos
 	char *transformScriptPath = argv[1];
 	char *reduceScriptPath = argv[2];
 	char *inputFilePath = argv[3];
 	char *outputFilePath = argv[4];
 
+	// Inicializo IPC
 	serialization_initialize();
 
-	char *transformScript = readFile(transformScriptPath);
+	// Levanto la config
+	t_config *config = config_create("conf/master.conf");
+	yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+	yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
+	config_destroy(config);
 
-	connectToYamaAndStartTransform(strdup(inputFilePath), strdup(transformScript));
+	// Me conecto con YAMA
+	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
+
+	// Le aviso a YAMA que deseo comenzar un transform
+	// sobre un archivo
+	ipc_struct_start_transform_reduce_request request;
+	request.filePath = strdup(inputFilePath);
+	ipc_sendMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+
+	// Espero respuesta de YAMA indicándome a qué workers
+	// conectarme y qué enviarles
+	ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+
+	// Me conecto con los workers indicados y les
+	// envío la información necesaria para la transformación
+	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
+
+//	ipc_struct_start_transform_reduce_response *yamaResponse = malloc(sizeof(ipc_struct_start_transform_reduce_response));
+//	yamaResponse->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
+//	yamaResponse->entries->workerIP = strdup("10.0.1.19");
+//	yamaResponse->entries->workerPort = 5050;
+//	yamaResponse->entries->blockID = 3;
+//	yamaResponse->entries->usedBytes = 26;
+//	yamaResponse->entries->tempPath = strdup("this/is/the/temp/path.bin");
+//	yamaResponse->entriesCount = 1;
+//
+//	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
+
+	// Aguardo de YAMA las instrucciones para la reducción local
+	ipc_struct_master_continueWithLocalReductionRequest *yamaLocalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST);
 
 	while (1) {
 

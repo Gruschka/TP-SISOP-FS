@@ -35,6 +35,7 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -49,7 +50,7 @@ worker_configuration configuration;
 t_list * fileList;
 t_list * pruebasApareo;
 
-
+int randomNumberScript = 0;
 
 
 int main() {
@@ -168,23 +169,56 @@ void connectionHandler(int client_sock){
 				ipc_struct_worker_start_transform_request request;
 
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
-				request.scriptContent = malloc(request.scriptContentLength);
+				request.scriptContent = malloc(request.scriptContentLength + 1);
 				recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), 0);
+
+				char chmode[] = "0777";
+			    int chmodNumber;
+			    chmodNumber = strtol(chmode, 0, 8);
+				char * scriptPathFormat = "/home/utnso/transformationScript%d";
+				char *scriptPath = malloc(100);
+				sprintf(scriptPath, scriptPathFormat, randomNumberScript);
+				randomNumberScript++;
+				FILE *scriptFile = fopen(scriptPath, "w");
+				if (scriptFile == NULL) {
+					exit(-1); //fixme: ola q ace
+				}
+				fprintf(scriptFile, strdup(request.scriptContent), "");
+//				fwrite(request.scriptContent, sizeof(char), request.scriptContentLength, scriptFile);
+				fclose(scriptFile);
+				if (chmod(scriptPath, chmodNumber)){
+					perror("Permissions couldn't be given");
+					break;
+				}
 
 				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
 
 				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
 				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
-				request.tempFilePath = malloc(request.tempFilePathLength);
+				request.tempFilePath = malloc(request.tempFilePathLength + 1);
 				recv(client_sock, request.tempFilePath, request.tempFilePathLength * sizeof(char), 0);
 
-				char *template = "head -c %li /home/utnso/data.bin | tail -c %d | %s | sort > %s";
-				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
-				int templateSize = snprintf(NULL, 0, template, bytesToRead, request.usedBytes, request.scriptContent, request.tempFilePath);
+//				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
+				char *template = "echo \"hello world\" | %s";
+
+//				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
+				int templateSize = snprintf(NULL, 0, template, scriptPath);
+
+//				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, bytesToRead, request.usedBytes, request.scriptContent, request.tempFilePath);
+//				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+				sprintf(buffer, template, scriptPath);
 				buffer[templateSize] = '\0';
-				system(buffer);
+				int checkCode = 0;
+
+				checkCode = system(buffer);
+				ipc_struct_worker_start_transform_response transform_response;
+				if(checkCode == 127 || checkCode == -1){
+					transform_response.succeeded = 0;
+				}
+				else{
+					transform_response.succeeded = 1;
+				}
 
 				fileNode *file = malloc (sizeof(fileNode));
 				file->filePath = malloc(request.tempFilePathLength);
@@ -195,9 +229,9 @@ void connectionHandler(int client_sock){
 				free(file);
 				free(request.scriptContent);
 				free(request.tempFilePath);
-
-				int checkCode = OK;
-				send(client_sock, &checkCode, sizeof(int), 0);
+				uint32_t response_operation = WORKER_START_TRANSFORM_RESPONSE;
+				send(client_sock, &response_operation, sizeof(uint32_t), 0);
+				send(client_sock, &transform_response, sizeof(int), 0);
 				break;
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
@@ -221,7 +255,7 @@ void connectionHandler(int client_sock){
 
 				pairingFiles(filesList, temporalName);
 
-				char *template = "%s %s > %s";
+				char *template = "cat %s | %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
 				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, temporalName, script, temporalName);
@@ -269,7 +303,7 @@ void connectionHandler(int client_sock){
 
 				pairingGlobalFiles(workerList, temporalName);
 
-				char * template = "%s %s > %s";
+				char * template = "cat %s | %s > %s";
 				int templateSize = snprintf(NULL, 0, template, temporalName, script, temporalName);
 				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, temporalName, script, temporalName);

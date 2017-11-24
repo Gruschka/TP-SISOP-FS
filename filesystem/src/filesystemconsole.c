@@ -11,12 +11,11 @@
 #include <unistd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-
 #include "filesystem.h"
 #include <netinet/in.h>
 #include <pthread.h>
 #include <commons/string.h>
-
+#include <commons/log.h>
 
 char* fs_console_getOpFromInput(char *userInput);
 void fs_console_launch();
@@ -24,13 +23,16 @@ int fs_console_validateOp(char * newLine);
 char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput);
 
 int fs_console_operationEndedSuccessfully(int);
-
+t_log *logger;
 
 
 void fs_console_launch() {
 
+	char *logFile = tmpnam(NULL);
+	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
 	char *userInput;
 	int operationResult;
+	log_debug(logger,"fs_console_launch: Console initiated");
 
 	while (1) {
 
@@ -40,6 +42,7 @@ void fs_console_launch() {
 	        add_history(userInput);
 
 		//fs_console_waitForDataNodes();
+
 		operationResult = fs_console_validateOp(userInput);
 
 		if (operationResult == NULL)
@@ -51,6 +54,11 @@ void fs_console_launch() {
 }
 
 int fs_console_validateOp(char * newLine) {
+
+	if(strlen(newLine) == 0){
+		printf("No input provided\n");
+		return EXIT_FAILURE;
+	}
 
     char** parameter_list = string_split(newLine," ");
     int sizeof_parameter_list = cantidadDe(parameter_list);
@@ -64,18 +72,20 @@ int fs_console_validateOp(char * newLine) {
 
 	/************ format **************/
 	if (strcmp(operation, "format") == 0) {
+		log_debug(logger,"Console operation: [%s]", operation);
 		fs_format();
 
 	}
 
 	/************ rm **************/
 	if (!strcmp(operation, "rm")) {
+		log_debug(logger,"Console operation: [%s]", operation);
 
 		//-d
 		if (!strcmp(parameter_list[1], "-d")) {
 			opResult = fs_rm_dir(parameter_list[2]);
 			if (!fs_console_operationEndedSuccessfully(opResult))
-				printf("remove operation failed\n");
+				log_error(logger,"fs_console_validateOp:rm -d operation failed");
 		}
 
 		//-b
@@ -85,7 +95,7 @@ int fs_console_validateOp(char * newLine) {
 					atoi(parameter_list[4]));
 
 			if (!fs_console_operationEndedSuccessfully(opResult))
-				printf("remove operation failed\n");
+				log_error(logger,"fs_console_validateOp:rm -b operation failed");
 
 		} else {
 
@@ -93,104 +103,101 @@ int fs_console_validateOp(char * newLine) {
 				//If not -b or -d
 				opResult = fs_rm(parameter_list[1]);
 				if (!fs_console_operationEndedSuccessfully(opResult))
-					printf("remove operation failed\n");
+					log_error(logger,"fs_console_validateOp:rm operation failed");
 			}
 		}
 	}
 
 	if (!strcmp(operation, "rename")) {
-		printf("OPERATION: %s\n", operation);
-
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_rename(parameter_list[1], parameter_list[2]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("rename operation failed\n");
+			log_error(logger,"fs_console_validateOp: rename operation failed");
 
 	}
 
 	if (!strcmp(operation, "mv")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 
 		opResult = fs_mv(parameter_list[1], parameter_list[2]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("mv operation failed\n");
+			log_error(logger,"fs_console_validateOp:mv operation failed");
 	}
 
 	if (!strcmp(operation, "cat")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_cat(parameter_list[1]);
 
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("mv operation failed\n");
+			log_error(logger,"fs_console_validateOp:cat operation failed");
 
 	}
 
 	if (!strcmp(operation, "mkdir")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_mkdir(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("mkdir operation failed\n");
+			log_error(logger,"fs_console_validateOp:mkdir operation failed");
 	}
 	if (!strcmp(operation, "cpfrom")) {
-		printf("OPERATION: %s\n", operation);
-
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_cpfrom(parameter_list[1], parameter_list[2], parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("mkdir operation failed\n");
+			log_error(logger,"fs_console_validateOp:cpfrom operation failed");
 
 	}
 
 	if (!strcmp(operation, "cpto")) {
-		printf("OPERATION: %s\n", operation);
-
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_cpfrom(parameter_list[1], parameter_list[2], parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("cpto operation failed\n");
+			log_error(logger,"fs_console_validateOp:cpto operation failed");
 
 	}
 
 	if (!strcmp(operation, "cpblock")) {
-		printf("OPERATION: %s\n", operation);
-
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_cpblock(parameter_list[1], atoi(parameter_list[2]),
 				atoi(parameter_list[3]));
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("cpblock operation failed\n");
+			log_error(logger,"fs_console_validateOp:cpblock operation failed");
 
 	}
 
 	if (!strcmp(operation, "md5")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_md5(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("md5 operation failed\n");
+			log_error(logger,"fs_console_validateOp:md5 operation failed");
 	}
 
 	if (!strcmp(operation, "ls")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_ls(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("ls operation failed\n");
+			log_error(logger,"fs_console_validateOp:ls operation failed");
 	}
 
 	if (!strcmp(operation, "info")) {
-		printf("OPERATION: %s\n", operation);
+		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_info(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
-			printf("info operation failed\n");
+			log_error(logger,"fs_console_validateOp:info operation failed");
 
 	}
 
 	if (!strcmp(operation, "shownodes")) {
-			printf("OPERATION: %s\n", operation);
-			fs_show_connected_nodes();
+		log_debug(logger,"Console operation: [%s]", operation);
+		fs_show_connected_nodes();
 
 		}
 
 	if (!strncmp(operation, "exit", 4)) {
-
+		log_debug(logger,"Console operation: [%s]", operation);
 		free(parameter_list);
+		free(operation);
 		return NULL;
 	}
 
