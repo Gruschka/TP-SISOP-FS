@@ -1613,17 +1613,20 @@ int fs_getOffsetFromDirectory(t_directory *directory) {
 int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		void *buffer, int fileSize) {
 	//check if there's enough space in system (filesize * 2), else abort
+
 	int totalFileSize = 2 * fileSize;
 	int amountOfBlocks =
 			(totalFileSize % BLOCK_SIZE) ?
-					(totalFileSize / BLOCK_SIZE) + 1 :
+					(totalFileSize / BLOCK_SIZE) + 2 :
 					totalFileSize / BLOCK_SIZE;
 
-// todo: uncomment when checking for free space
-//	if(myFS.freeBlocks < amountOfBlocks){
-//		log_error(logger,"free space to store file");
-//		return EXIT_FAILURE;
-//	}
+
+
+	if(myFS.freeBlocks < amountOfBlocks){
+		log_error(logger,"fs_storeFile: Cant store file '%s' as it requires [%d] blocks and there are currently [%d] free blocks on FS ",fileName,amountOfBlocks,myFS.freeBlocks);
+		return EXIT_FAILURE;
+	}
+
 
 	//check if parent dir exists
 	t_directory *destinationDirectory = fs_directoryExists(fullFilePath);
