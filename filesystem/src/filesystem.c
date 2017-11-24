@@ -58,7 +58,9 @@ enum flags {
 	DIRECTORY_TABLE_MAX_AMOUNT = 100,
 	DATANODE_ALREADY_CONNECTED = 1,
 	DATANODE_IS_FROM_PREVIOUS_SESSION =1,
-	BLOCK_DOES_NOT_EXIST = -1
+	BLOCK_DOES_NOT_EXIST = -1,
+	TRUE = 1,
+	FALSE = 0
 };
 
 /********* MAIN **********/
@@ -97,8 +99,9 @@ int fs_format() {
 	int result = system(command);
 	free(command);
 	myFS._directoryIndexAutonumber = 0; // ▁ ▂ ▄ ▅ ▆ ▇ █ ŴÃŘŇĮŇĞ █ ▇ ▆ ▅ ▄ ▂ ▁
-
+	myFS.usePreviousStatus = FALSE;
 	fs_mount(&myFS);
+	fs_wipeDirectoryTable();
     fs_wipeAllConnectedDataNodes();
 	fs_updateAllConnectedNodesOnTable();
 
@@ -619,8 +622,8 @@ void fs_waitForDataNodes() {
 
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
-		puts("New connection accepted\n");
 
+		log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
 		pthread_t newDataNodeThread;
 
 		// Copy the value of the accepted socket, in order to pass to the thread
@@ -629,10 +632,10 @@ void fs_waitForDataNodes() {
 		if (pthread_create(&newDataNodeThread, NULL,
 				fs_dataNodeConnectionHandler, (void*) new_dataNode_socket)
 				< 0) {
-			perror("could not create thread");
+			log_error(logger,"fs_waitForDataNodes: Error creating thread after new connection!");
 		}
 
-		puts("Handler assigned");
+		log_debug(logger,"fs_waitForDataNodes: Handler assigned");
 	}
 
 }
@@ -810,12 +813,11 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	//Read Node name
 	valread = read(new_socket, buffer, 1024);
-	printf("New node connected: %s\n", buffer);
 
 	newDataNode->name = malloc(sizeof(buffer));
 	memset(newDataNode->name, 0, sizeof(newDataNode));
 	strcpy(newDataNode->name, buffer);
-	printf("Node name:%s\n", newDataNode->name);
+	log_debug(logger,"fs_dataNodeConnectionHandler: New node name: %s", newDataNode->name);
 
 	if(fs_isDataNodeAlreadyConnected(*newDataNode)){//Dont accept another node with same ID a
 		log_error(logger, "fs_connectionHandler: Node %s already connected - Aborting connection", newDataNode->name);
@@ -2522,3 +2524,19 @@ int fs_wipeDataNode(t_dataNode *aDataNode){
 
 }
 
+int fs_wipeDirectoryTable(){
+
+	log_debug(logger,"fs_wipeDirectoryTable: Wiping directory table");
+	int i = 1;//Arranca de uno porque el root siempre queda
+
+	for(i = 1; i < DIRECTORY_TABLE_MAX_AMOUNT ; i++){
+
+		myFS.directoryTable[i].index = 0;
+		myFS.directoryTable[i].name[0] = '\0';
+		myFS.directoryTable[i].parent = 0;
+
+	}
+
+
+	return EXIT_SUCCESS;
+}

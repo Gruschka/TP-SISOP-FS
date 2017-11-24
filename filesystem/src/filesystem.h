@@ -151,7 +151,7 @@ char *fs_isFileContainedBy(char *filePhysicalPath, t_directory *parent);
 int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent);
 int fs_updateAllConnectedNodesOnTable();
 int fs_wipeAllConnectedDataNodes();
-
+int fs_wipeDirectoryTable();
 
 
 //Console commands
