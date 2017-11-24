@@ -324,11 +324,15 @@ int fs_rename(char *filePath, char *nombreFinal) {
 	return EXIT_SUCCESS;
 }
 int fs_mv(char *origFilePath, char *destFilePath) {
-	printf("moving %s to %s\n", origFilePath, destFilePath);
+	log_debug(logger, "moving %s to %s\n", origFilePath, destFilePath);
 	t_directory *originDirectory;
 	t_directory *destinationDirectory;
 	int isAFile = 0;
 	char *physicalFilePath = NULL;
+
+
+
+
 	//chequeo si origen existe
 	if (!(originDirectory = fs_directoryExists(origFilePath))) {
 		//origin not a dir
@@ -349,8 +353,18 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 		return EXIT_FAILURE;
 	}
 
-	//chequeo si original ya existe en destino
-	//todo: no anda con archivos
+	char *fileName = basename(origFilePath);
+	char *fullFilePathInYama = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,destinationDirectory->index,fileName);
+
+	FILE * fileInYama = fopen(fullFilePathInYama,"r");
+	if(fileInYama){
+		log_error(logger,"fs_cpfrom: File '%s' already exists on yama directory '%s' whose index is '%d' - Aborting mv",fileName,destinationDirectory->name,destinationDirectory->index);
+		free(fullFilePathInYama);
+		fclose(fileInYama);
+		return EXIT_FAILURE;
+	}
+
+
 	char *originName = strrchr(origFilePath, '/');
 	char *destinationFullName = strdup(destFilePath);
 	string_append(&destinationFullName, originName);
@@ -532,11 +546,11 @@ int fs_ls(char *directoryPath) {
 	log_info(logger,"Showing directory %s\n", directoryPath);
 	int iterator = 0;
 	if (!strcmp(directoryPath, "-fs")) {
-		printf("i    n    p\n");
+		printf("\n[index]    [name]    [parent]\n");
 		while (iterator < myFS.amountOfDirectories) {
-			printf("%d    ", myFS.directoryTable[iterator].index);
-			printf("%s    ", myFS.directoryTable[iterator].name);
-			printf("%d    \n", myFS.directoryTable[iterator].parent);
+			printf("   %d    |", myFS.directoryTable[iterator].index);
+			printf("   %s    ", myFS.directoryTable[iterator].name);
+			printf("   %d    \n", myFS.directoryTable[iterator].parent);
 			iterator++;
 		}
 	}else{
