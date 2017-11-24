@@ -10,6 +10,6 @@
 
 #include <ipc/serialization.h>
 
-void master_transform_start(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript);
+void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript);
 
 #endif /* TRANSFORM_H_ */

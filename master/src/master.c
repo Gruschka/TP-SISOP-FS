@@ -16,6 +16,7 @@
 #include <ipc/serialization.h>
 
 #include "transform.h"
+#include "utils.h"
 
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
@@ -32,19 +33,20 @@
 // 4. indicarle sobre qué bloque debe ejecutar el programa, la cantidad
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
-// 5. TODO: esperar confirmación de cada etapa y comunicar a YAMA el resultado
+// 5. esperar confirmación de cada etapa
+// 6. TODO: comunicar a YAMA el resultado de cada etapa
 //
 // Etapa de reducción local
-// TODO: esperar indicación de YAMA con el nombre de los archivos
+// Esperar indicación de YAMA con el nombre de los archivos
 // temporales por cada nodo sobre el cual se deba aplicar reducción
 // y el nombre del archivo temporal resultado de la reducción.
 // Por cada nodo:
-// 1. TODO: crear un hilo
-// 2. TOOD: conectarse al worker
-// 3. TODO: enviarle el programa de reducción, la lista de archivos
+// 1. crear un hilo
+// 2. conectarse al worker
+// 3. enviarle el programa de reducción, la lista de archivos
 //    temporales del nodo y el nombre del temporal resultante.
-// 4. TODO: esperar confirmación del worker y notificar resultado
-//    a YAMA.
+// 4. esperar confirmación del worker
+// 5. TODO: notificar resultado a YAMA.
 //
 // Etapa de reducción global
 // TODO: recibir de YAMA la IP y puerto del worker "encargado",
@@ -69,43 +71,47 @@
 // TODO: métricas
 // TODO: logs
 
-char *readFile(char *path) {
-	FILE *fp;
-	long lSize;
-	char *buffer;
+int yamaPort;
+char *yamaIP;
+int yamaSocket;
 
-	fp = fopen (path, "rb" );
-	if( !fp ) perror(path),exit(1);
+int main(int argc, char **argv) {
+	if (argc != 5) {
+		printf("El proceso master debe recibir 4 argumentos.");
+		return EXIT_FAILURE;
+	}
 
-	fseek( fp , 0L , SEEK_END);
-	lSize = ftell( fp );
-	rewind( fp );
+	// Levanto los argumentos
+	char *transformScriptPath = argv[1];
+	char *reduceScriptPath = argv[2];
+	char *inputFilePath = argv[3];
+	char *outputFilePath = argv[4];
 
-	/* allocate memory for entire content */
-	buffer = calloc( 1, lSize+1 );
-	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+	// Inicializo IPC
+	serialization_initialize();
 
-	/* copy the file into the buffer // AND HANDSHAKE */
-	if( 1!=fread( buffer , lSize, 1 , fp) )
-	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
-
-	fclose(fp);
-
-	return buffer;
-}
-
-void connectToYamaAndStartTransform(char *inputFilePath, char *transformScript) {
+	// Levanto la config
 	t_config *config = config_create("conf/master.conf");
-	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
-	char *yamaIP = config_get_string_value(config, "YAMA_IP");
+	yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+	yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
+	config_destroy(config);
 
-	int sockfd = ipc_createAndConnect(yamaPort, strdup(yamaIP));
+	// Me conecto con YAMA
+	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
+
+	// Le aviso a YAMA que deseo comenzar un transform
+	// sobre un archivo
 	ipc_struct_start_transform_reduce_request request;
 	request.filePath = strdup(inputFilePath);
-	ipc_sendMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+	ipc_sendMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
 
-	ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(sockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
-	master_transform_start(yamaResponse, strdup(transformScript));
+	// Espero respuesta de YAMA indicándome a qué workers
+	// conectarme y qué enviarles
+	ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+
+	// Me conecto con los workers indicados y les
+	// envío la información necesaria para la transformación
+	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
 
 //	ipc_struct_start_transform_reduce_response *yamaResponse = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 //	yamaResponse->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
@@ -116,29 +122,14 @@ void connectToYamaAndStartTransform(char *inputFilePath, char *transformScript) 
 //	yamaResponse->entries->tempPath = strdup("this/is/the/temp/path.bin");
 //	yamaResponse->entriesCount = 1;
 //
-//	master_transform_start(yamaResponse, strdup(transformScript));
+//	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
 
-	free(inputFilePath);
-	free(transformScript);
-	config_destroy(config);
-}
+	// Aguardo de YAMA las instrucciones para la reducción local
+	ipc_struct_master_continueWithLocalReductionRequest *yamaLocalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST);
 
-int main(int argc, char **argv) {
-	if (argc != 5) {
-		printf("El proceso master debe recibir 4 argumentos.");
-		return EXIT_FAILURE;
-	}
-
-	char *transformScriptPath = argv[1];
-	char *reduceScriptPath = argv[2];
-	char *inputFilePath = argv[3];
-	char *outputFilePath = argv[4];
-
-	serialization_initialize();
-
-	char *transformScript = readFile(transformScriptPath);
-
-	connectToYamaAndStartTransform(strdup(inputFilePath), strdup(transformScript));
+	// Me conecto con los workers indicados y les envío
+	// la información necesaria para el reduce local
+	master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
 
 	while (1) {
 

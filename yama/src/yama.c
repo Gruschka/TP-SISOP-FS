@@ -30,6 +30,10 @@ t_list *nodesList;
 node *lastAssignedNode;
 pthread_t serverThread;
 
+int stringsAreEqual(char *str1, char *str2) {
+	return strcmp(str1, str2) == 0;
+}
+
 void yst_addEntry(yama_state_table_entry *entry) {
 	pthread_mutex_lock(&stateTable_mutex);
 	list_add(stateTable, entry);
@@ -61,7 +65,7 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currEntry = list_get(stateTable, i);
-		if (currEntry->jobID == jobID && currEntry->masterID == masterID && currEntry->nodeID == nodeID) return currEntry;
+		if (currEntry->jobID == jobID && currEntry->masterID == masterID && stringsAreEqual(currEntry->nodeID, nodeID)) return currEntry;
 	}
 
 	return NULL;
@@ -74,7 +78,7 @@ void testStateTable() {
 		first->blockNumber = 1;
 		first->jobID = 1;
 		first->masterID = 1;
-		first->nodeID = 1;
+		first->nodeID = "NodeA";
 		first->stage = IN_PROCESS;
 		first->tempPath = "/tmp/1";
 
@@ -83,7 +87,7 @@ void testStateTable() {
 		second->blockNumber = 2;
 		second->jobID = 2;
 		second->masterID = 2;
-		second->nodeID = 2;
+		second->nodeID = "NodeB";
 		second->stage = IN_PROCESS;
 		second->tempPath = "/tmp/2";
 
@@ -274,6 +278,8 @@ int main(int argc, char** argv) {
 
 void loadConfiguration() {
 	configuration = fetchConfiguration("conf/yama.conf");
+
+	scheduling_baseAvailability = configuration.baseAvailability;
 }
 
 void signalHandler(int signo) {

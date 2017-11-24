@@ -23,15 +23,17 @@
 // 4. indicarle sobre qué bloque debe ejecutar el programa, la cantidad
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
-// 5. TODO: esperar confirmación de cada etapa y comunicar a YAMA el resultado
+// 5. esperar confirmación de cada etapa
+// 6. TODO: comunicar a YAMA el resultado de cada etapa
 
 typedef struct WorkerRequest {
+	char *nodeID;
 	char *ip;
 	int port;
 	ipc_struct_worker_start_transform_request workerRequest;
 } WorkerRequest;
 
-void *connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 
@@ -65,7 +67,7 @@ void *connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	return NULL;
 }
 
-void master_transform_start(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript) {
+void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript) {
 	int i = 0;
 	while (i < yamaResponse->entriesCount) {
 		ipc_struct_start_transform_reduce_response_entry *entry = yamaResponse->entries + i;
@@ -79,18 +81,20 @@ void master_transform_start(ipc_struct_start_transform_reduce_response *yamaResp
 		workerRequest.tempFilePath = strdup(entry->tempPath);
 
 		WorkerRequest *request = malloc(sizeof(WorkerRequest));
+		request->nodeID = strdup(entry->nodeID);
 		request->ip = strdup(entry->workerIP);
 		request->port = entry->workerPort;
 		request->workerRequest = workerRequest;
 
 		// Creamos un hilo por cada worker
 		pthread_t thread;
-		if (pthread_create(&thread, NULL, connectToWorkerAndMakeRequest, request)) {
+		if (pthread_create(&thread, NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
 			//FIXME: (Fede) acá hay error
 		}
 
 		free(entry->tempPath);
 		free(entry->workerIP);
+		free(entry->nodeID);
 
 		i++;
 	}

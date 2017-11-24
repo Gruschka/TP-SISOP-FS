@@ -92,32 +92,86 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 	ipc_struct_start_transform_reduce_response_entry *entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = entries + i;
-		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
-		entriesOffset += sizeof(uint32_t);
-		offset += sizeof(uint32_t);
+		char *tmpNodeID = strdup(buffer + offset);
+		int tmpNodeIDStringLen = strlen(tmpNodeID);
+		memcpy(currentEntry->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
+		entriesOffset += tmpNodeIDStringLen + 1;
+		offset += tmpNodeIDStringLen + 1;
+
 		char *tmpConnectionString = strdup(buffer + offset);
 		int tmpConnectionStringLen = strlen(tmpConnectionString);
 		currentEntry->workerIP = malloc(tmpConnectionStringLen + 1);
 		memcpy(currentEntry->workerIP, tmpConnectionString, tmpConnectionStringLen + 1); //workerIP
 		entriesOffset += tmpConnectionStringLen + 1;
 		offset += tmpConnectionStringLen + 1;
+
 		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		memcpy(&(currentEntry->blockID), buffer + offset, sizeof(uint32_t)); //blockID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		memcpy(&(currentEntry->usedBytes), buffer + offset, sizeof(uint32_t)); //usedBytes
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
 		char *tmpPath = strdup(buffer + offset);
 		int tmpPathLen = strlen(tmpPath);
 		currentEntry->tempPath = malloc(tmpPathLen + 1);
+
 		memcpy(currentEntry->tempPath, tmpPath, tmpPathLen + 1); //tmpPath
 		entriesOffset += tmpPathLen + 1;
 		offset += tmpPathLen + 1;
+
+		free(tmpNodeID);
 		free(tmpPath);
 		free(tmpConnectionString);
+	}
+	response->entries = entries;
+	return response;
+}
+
+// MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST
+void *deserializeMasterContinueWithLocalReductionRequest(char *buffer) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithLocalReductionRequest *response = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequest));
+	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
+	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
+
+	int entriesOffset = 0;
+	ipc_struct_master_continueWithLocalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * response->entriesCount);
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = entries + i;
+		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		char *tmpWorkerIP = strdup(buffer + offset);
+		int tpmWorkerIPLength = strlen(tmpWorkerIP);
+		currentEntry->workerIP = malloc(tpmWorkerIPLength + 1);
+		memcpy(currentEntry->workerIP, tmpWorkerIP, tpmWorkerIPLength + 1); //workerIP
+		entriesOffset += tpmWorkerIPLength + 1;
+		offset += tpmWorkerIPLength + 1;
+		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		char *tmpTransformPath = strdup(buffer + offset);
+		int tmpTransformPathLen = strlen(tmpTransformPath);
+		currentEntry->transformTempPath = malloc(tmpTransformPathLen + 1);
+		memcpy(currentEntry->transformTempPath, tmpTransformPath, tmpTransformPathLen + 1); //tmpTransformPath
+		entriesOffset += tmpTransformPathLen + 1;
+		offset += tmpTransformPathLen + 1;
+		char *tmpLocalReducePath = strdup(buffer + offset);
+		int tmpLocalReducePathLen = strlen(tmpLocalReducePath);
+		currentEntry->transformTempPath = malloc(tmpLocalReducePathLen + 1);
+		memcpy(currentEntry->transformTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
+		entriesOffset += tmpLocalReducePathLen + 1;
+		offset += tmpLocalReducePathLen + 1;
+		free(tmpTransformPath);
+		free(tmpLocalReducePath);
+		free(tmpWorkerIP);
 	}
 	response->entries = entries;
 	return response;
@@ -268,8 +322,10 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
-		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->nodeID, strlen(currentEntry->nodeID)); //nodeID
+		offset += strlen(currentEntry->nodeID);
+		buffer[offset] = '\0';
+		offset += 1;
 		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
 		offset += strlen(currentEntry->workerIP);
 		buffer[offset] = '\0';
@@ -289,12 +345,78 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 	return buffer;
 }
 
+// MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST
+
+uint32_t getMasterContinueWithLocalReductionRequestEntrySize(ipc_struct_master_continueWithLocalReductionRequestEntry *entry) {
+	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + sizeof(uint32_t) + strlen(entry->transformTempPath) + 1 + strlen(entry->localReduceTempPath) + 1;
+}
+
+uint32_t getMasterContinueWithLocalReductionRequestEntriesSize(ipc_struct_master_continueWithLocalReductionRequest *request) {
+	int i;
+	uint32_t result = 0;
+
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
+		result += getMasterContinueWithLocalReductionRequestEntrySize(currentEntry);
+	}
+
+	return result;
+}
+
+uint32_t getMasterContinueWithLocalReductionRequestSize(ipc_struct_master_continueWithLocalReductionRequest *request) {
+	uint32_t result = 0;
+
+	result += sizeof(uint32_t) * 2; //entriesCount + entriesSize
+	result += getMasterContinueWithLocalReductionRequestEntriesSize(request);
+
+	return result;
+}
+
+char *serializeMasterContinueWithLocalReductionRequest(void *data, int *size) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithLocalReductionRequest *request = data;
+	uint32_t entriesSize = getMasterContinueWithLocalReductionRequestEntriesSize(request);
+	char *buffer;
+
+	buffer = malloc(*size = getMasterContinueWithLocalReductionRequestSize(request));
+	memcpy(buffer + offset, &(request->entriesCount), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(buffer + offset, &entriesSize, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	request->entriesSize = entriesSize;
+
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
+		memcpy(buffer + offset, currentEntry->nodeID, strlen(currentEntry->nodeID)); //nodeID
+		offset += strlen(currentEntry->nodeID);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
+		offset += strlen(currentEntry->workerIP);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, &(currentEntry->workerPort), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->transformTempPath, strlen(currentEntry->transformTempPath));
+		offset += strlen(currentEntry->transformTempPath);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, currentEntry->localReduceTempPath, strlen(currentEntry->localReduceTempPath));
+		offset += strlen(currentEntry->localReduceTempPath);
+		buffer[offset] = '\0';
+		offset += 1;
+	}
+
+	return buffer;
+}
+
 void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO_REQUEST] = serializeFSGetFileInfoRequest;
 	serializationArray[FS_GET_FILE_INFO_RESPONSE] = serializeFSGetFileInfoResponse;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = serializeYAMAStartTransformationRequest;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
+	serializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = serializeMasterContinueWithLocalReductionRequest;
 }
 
 void initializeDeserialization () {
@@ -303,6 +425,7 @@ void initializeDeserialization () {
 	deserializationArray[FS_GET_FILE_INFO_RESPONSE] = deserializeFSGetFileInfoResponse;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = deserializeYAMAStartTransformationRequest;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
+	deserializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = deserializeMasterContinueWithLocalReductionRequest;
 }
 
 void serialization_initialize() {

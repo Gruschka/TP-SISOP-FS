@@ -19,7 +19,7 @@ typedef enum yama_job_status {
 typedef struct yama_state_table_entry {
 	uint32_t jobID;
 	uint32_t masterID;
-	uint32_t nodeID;
+	char *nodeID;
 	uint32_t blockNumber;
 	yama_job_stage stage;
 	char *tempPath;
