@@ -268,8 +268,6 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 	return EXIT_SUCCESS;
 }
 int fs_rename(char *filePath, char *nombreFinal) {
-	//todo: testear a fondo
-	//todo: validar mensajes (funciona y tira operation failed)
 	printf("Renaming %s as %s\n", filePath, nombreFinal);
 	t_directory *toRename;
 
@@ -314,10 +312,10 @@ int fs_rename(char *filePath, char *nombreFinal) {
 		free(newName);
 		free(parentPath);
 
-		return EXIT_FAILURE;
+		return EXIT_SUCCESS;
 	}
 
-	return EXIT_FAILURE;
+	return EXIT_SUCCESS;
 }
 int fs_mv(char *origFilePath, char *destFilePath) {
 	printf("moving %s to %s\n", origFilePath, destFilePath);
@@ -495,6 +493,8 @@ int fs_md5(char *filePath) {
 
 }
 int fs_ls(char *directoryPath) {
+
+	if(directoryPath == NULL) return EXIT_FAILURE;
 	printf("Showing directory %s\n", directoryPath);
 	int iterator = 0;
 	if (!strcmp(directoryPath, "-fs")) {
