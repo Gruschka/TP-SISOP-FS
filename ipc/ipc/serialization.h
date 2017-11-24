@@ -66,7 +66,7 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_start_transform_reduce_request;
 
 typedef struct {
-	uint32_t nodeID;
+	char *nodeID;
 	char *workerIP;
 	uint32_t workerPort;
 	uint32_t blockID;

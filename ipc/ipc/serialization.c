@@ -92,30 +92,39 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 	ipc_struct_start_transform_reduce_response_entry *entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = entries + i;
-		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
-		entriesOffset += sizeof(uint32_t);
-		offset += sizeof(uint32_t);
+		char *tmpNodeID = strdup(buffer + offset);
+		int tmpNodeIDStringLen = strlen(tmpNodeID);
+		memcpy(currentEntry->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
+		entriesOffset += tmpNodeIDStringLen + 1;
+		offset += tmpNodeIDStringLen + 1;
+
 		char *tmpConnectionString = strdup(buffer + offset);
 		int tmpConnectionStringLen = strlen(tmpConnectionString);
 		currentEntry->workerIP = malloc(tmpConnectionStringLen + 1);
 		memcpy(currentEntry->workerIP, tmpConnectionString, tmpConnectionStringLen + 1); //workerIP
 		entriesOffset += tmpConnectionStringLen + 1;
 		offset += tmpConnectionStringLen + 1;
+
 		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		memcpy(&(currentEntry->blockID), buffer + offset, sizeof(uint32_t)); //blockID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		memcpy(&(currentEntry->usedBytes), buffer + offset, sizeof(uint32_t)); //usedBytes
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
 		char *tmpPath = strdup(buffer + offset);
 		int tmpPathLen = strlen(tmpPath);
 		currentEntry->tempPath = malloc(tmpPathLen + 1);
+
 		memcpy(currentEntry->tempPath, tmpPath, tmpPathLen + 1); //tmpPath
 		entriesOffset += tmpPathLen + 1;
 		offset += tmpPathLen + 1;
+
+		free(tmpNodeID);
 		free(tmpPath);
 		free(tmpConnectionString);
 	}
@@ -268,8 +277,10 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
-		memcpy(buffer + offset, &(currentEntry->nodeID), sizeof(uint32_t));
-		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->nodeID, strlen(currentEntry->nodeID)); //nodeID
+		offset += strlen(currentEntry->nodeID);
+		buffer[offset] = '\0';
+		offset += 1;
 		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
 		offset += strlen(currentEntry->workerIP);
 		buffer[offset] = '\0';
