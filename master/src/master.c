@@ -37,7 +37,7 @@
 // 6. TODO: comunicar a YAMA el resultado de cada etapa
 //
 // Etapa de reducción local
-// TODO: esperar indicación de YAMA con el nombre de los archivos
+// Esperar indicación de YAMA con el nombre de los archivos
 // temporales por cada nodo sobre el cual se deba aplicar reducción
 // y el nombre del archivo temporal resultado de la reducción.
 // Por cada nodo:
@@ -126,6 +126,10 @@ int main(int argc, char **argv) {
 
 	// Aguardo de YAMA las instrucciones para la reducción local
 	ipc_struct_master_continueWithLocalReductionRequest *yamaLocalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST);
+
+	// Me conecto con los workers indicados y les envío
+	// la información necesaria para el reduce local
+	master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
 
 	while (1) {
 
