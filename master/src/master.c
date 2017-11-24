@@ -41,12 +41,12 @@
 // temporales por cada nodo sobre el cual se deba aplicar reducción
 // y el nombre del archivo temporal resultado de la reducción.
 // Por cada nodo:
-// 1. TODO: crear un hilo
-// 2. TOOD: conectarse al worker
-// 3. TODO: enviarle el programa de reducción, la lista de archivos
+// 1. crear un hilo
+// 2. conectarse al worker
+// 3. enviarle el programa de reducción, la lista de archivos
 //    temporales del nodo y el nombre del temporal resultante.
-// 4. TODO: esperar confirmación del worker y notificar resultado
-//    a YAMA.
+// 4. esperar confirmación del worker
+// 5. TODO: notificar resultado a YAMA.
 //
 // Etapa de reducción global
 // TODO: recibir de YAMA la IP y puerto del worker "encargado",
