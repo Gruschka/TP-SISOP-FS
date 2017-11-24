@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/socket.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -24,38 +25,77 @@
 //    guardar el resultado.
 // 5. TODO: esperar confirmación de cada etapa y comunicar a YAMA el resultado
 
-void *connectToWorkerAndMakeRequest(master_TransformRequest *request) {
-	int sockfd = ipc_createAndConnect(request->port, request->ip);
+typedef struct WorkerRequest {
+	char *ip;
+	int port;
 	ipc_struct_worker_start_transform_request workerRequest;
-	workerRequest.scriptContentLength = strlen(request->transformScript);
-	workerRequest.scriptContent = strdup(request->transformScript);
-	workerRequest.block = request->block;
-	workerRequest.usedBytes = request->usedBytes;
-	workerRequest.tempFilePathLength = strlen(request->tempFilePath);
-	workerRequest.tempFilePath = strdup(request->tempFilePath);
+} WorkerRequest;
+
+void *connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
+	int sockfd = ipc_createAndConnect(request->port, request->ip);
 
 	uint32_t operation = WORKER_START_TRANSFORM_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
 
-	send(sockfd, &(workerRequest.scriptContentLength), sizeof(uint32_t), 0);
-	send(sockfd, workerRequest.scriptContent, (workerRequest.scriptContentLength + 1) * sizeof(char), 0);
-	send(sockfd, &(workerRequest.block), sizeof(uint32_t), 0);
-	send(sockfd, &(workerRequest.usedBytes), sizeof(uint32_t), 0);
-	send(sockfd, &(workerRequest.tempFilePathLength), sizeof(uint32_t), 0);
-	send(sockfd, workerRequest.tempFilePath, (workerRequest.tempFilePathLength + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
+	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.block), sizeof(uint32_t), 0);
+	send(sockfd, &(request->workerRequest.usedBytes), sizeof(uint32_t), 0);
+	send(sockfd, &(request->workerRequest.tempFilePathLength), sizeof(uint32_t), 0);
+	send(sockfd, request->workerRequest.tempFilePath, (request->workerRequest.tempFilePathLength + 1) * sizeof(char), 0);
+
+	// Esperamos respuesta del worker
+	uint32_t incomingOperation = 666;
+	recv(sockfd, &incomingOperation, sizeof(uint32_t), 0);
+
+	uint32_t transformSucceeded = 0;
+
+	if (incomingOperation == WORKER_START_TRANSFORM_RESPONSE) {
+		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
+	}
+
+	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
+
+	free(request->workerRequest.scriptContent);
+	free(request->workerRequest.tempFilePath);
+	free(request->ip);
+	free(request);
 
 	return NULL;
 }
 
-void master_transform_start(master_TransformRequest *requests) {
-	master_TransformRequest *request = requests;
-//	while (request != '\0') {
+void master_transform_start(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript) {
+	int i = 0;
+	while (i < yamaResponse->entriesCount) {
+		ipc_struct_start_transform_reduce_response_entry *entry = yamaResponse->entries + i;
+
+		ipc_struct_worker_start_transform_request workerRequest;
+		workerRequest.scriptContentLength = strlen(transformScript);
+		workerRequest.scriptContent = strdup(transformScript);
+		workerRequest.block = entry->blockID;
+		workerRequest.usedBytes = entry->usedBytes;
+		workerRequest.tempFilePathLength = strlen(entry->tempPath);
+		workerRequest.tempFilePath = strdup(entry->tempPath);
+
+		WorkerRequest *request = malloc(sizeof(WorkerRequest));
+		request->ip = strdup(entry->workerIP);
+		request->port = entry->workerPort;
+		request->workerRequest = workerRequest;
+
 		// Creamos un hilo por cada worker
 		pthread_t thread;
 		if (pthread_create(&thread, NULL, connectToWorkerAndMakeRequest, request)) {
 			//FIXME: (Fede) acá hay error
 		}
 
-//		request += 1;
-//	}
+		free(entry->tempPath);
+		free(entry->workerIP);
+
+		i++;
+	}
+
+	free(yamaResponse->entries);
+	free(yamaResponse);
+	free(transformScript);
 }

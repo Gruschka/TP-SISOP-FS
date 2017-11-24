@@ -8,35 +8,8 @@
 #ifndef TRANSFORM_H_
 #define TRANSFORM_H_
 
-#include <stdint.h>
+#include <ipc/serialization.h>
 
-//typedef struct master_ConnectionAddress {
-//	char *ip;
-//	uint32_t port;
-//} master_ConnectionAddress;
-//
-//typedef struct master_TransformRequest {
-//	uint32_t block;
-//	uint32_t usedBytes;
-//	char *tempFilePath;
-//} master_TransformRequest;
-//
-//typedef struct master_WorkerTransformRequests {
-//	master_ConnectionAddress workerAddress;
-//	master_TransformRequest *requests;
-//} master_WorkerTransformRequests;
-//
-//void master_transform_start(master_WorkerTransformRequests *workersRequests);
-
-typedef struct master_TransformRequest {
-	char *ip;
-	uint32_t port;
-	char *transformScript;
-	uint32_t block;
-	uint32_t usedBytes;
-	char *tempFilePath;
-} master_TransformRequest;
-
-void master_transform_start(master_TransformRequest *requests);
+void master_transform_start(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript);
 
 #endif /* TRANSFORM_H_ */
