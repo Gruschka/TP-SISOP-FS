@@ -157,6 +157,7 @@ int fs_wipeDirectoryTable();
 int fs_directoryStartsWithSlash(char *directory);
 t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy);
 void *fs_readFile(char *filePath);
+int fs_getFileSize(char *filePath);
 
 //Console commands
 int fs_format();

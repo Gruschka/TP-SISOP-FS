@@ -151,7 +151,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpto")) {
 		log_debug(logger,"Console operation: [%s]", operation);
-		opResult = fs_cpfrom(parameter_list[1], parameter_list[2], parameter_list[3]);
+		opResult = fs_cpto(parameter_list[1], parameter_list[2]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			log_error(logger,"fs_console_validateOp:cpto operation failed");
 

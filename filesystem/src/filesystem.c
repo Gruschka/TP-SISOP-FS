@@ -520,10 +520,42 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 	return EXIT_SUCCESS;
 
 }
-int fs_cpto(char *origFilePath, char *yama_directory) {
-	printf("Copying %s to yama directory %s\n", origFilePath, yama_directory);
+int fs_cpto(char *yamaFilePath,char *destDirectory) {
+	printf("Copying %s to directory %s\n", yamaFilePath, destDirectory);
 
-	return 0;
+	//check if file exists
+	char *physicalFilePath = fs_isAFile(yamaFilePath);
+	if(physicalFilePath == NULL){
+		log_error(logger,"yama file path doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check if dest dir exists
+	DIR* dir = opendir(destDirectory);
+	if (!dir)
+	{
+		log_error(logger,"destination directory doesnt exists");
+		close(dir);
+		return EXIT_FAILURE;
+	}
+	close(dir);
+
+	//traigo el contenido
+	char *fileContent = fs_readFile(yamaFilePath);
+
+
+	//creo el archivo destino, si existe lo piso
+	char *fileName = string_from_format("%s/%s",destDirectory,basename(yamaFilePath));
+	FILE *newFile = fopen(fileName,"w+");
+	int fileSize = fs_getFileSize(physicalFilePath);
+
+	fwrite(fileContent,fileSize,1,newFile);
+	fclose(newFile);
+	free(physicalFilePath);
+	free(fileContent);
+	free(fileName);
+
+	return EXIT_SUCCESS;
 
 }
 int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy) {
@@ -534,6 +566,7 @@ int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy) 
 }
 int fs_md5(char *filePath) {
 	printf("Showing file %s\n", filePath);
+
 	return 0;
 
 }
@@ -952,6 +985,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 		//send operation
 		send(new_socket, serializedOperation, serializedOperationSize, 0);
+		free(serializedOperation);
 
 
 		void *result;
@@ -1781,6 +1815,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);
 	fclose(metadataFile);
+	list_destroy(packageList);
 	free(filePathWithName);
 	free(filePathWithNameAndNewline);
 	return EXIT_SUCCESS;
@@ -2696,4 +2731,13 @@ void *fs_readFile(char *filePath){
 	}
 	//log_info(logger,"file: %s",result);
 	return result;
+}
+int fs_getFileSize(char *filePath){
+	t_config *fileMetadata = config_create(filePath);
+	char *stringSize = config_get_string_value(fileMetadata,"TAMANIO");
+	int fileSize = atoi(stringSize);
+	config_destroy(fileMetadata);
+	free(stringSize);
+
+	return fileSize;
 }
