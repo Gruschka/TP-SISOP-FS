@@ -899,6 +899,7 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 
 }
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
+
 	sem_t *mutex = malloc(sizeof(sem_t));
 	sem_t *results = malloc(sizeof(sem_t));
 	int valread, cant;
@@ -1035,6 +1036,68 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 
 	}
 }
+
+void fs_waitForWorkers(){
+
+	int server_fd, new_socket, valread;
+	struct sockaddr_in address;
+	int opt = 1;
+	int addrlen = sizeof(address);
+	char buffer[1024] = { 0 };
+	char *hello = "Hello from server";
+
+	// Creating socket file descriptor
+		if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+			perror("socket failed");
+			exit(-1);
+		}
+
+		address.sin_family = AF_INET;
+		address.sin_addr.s_addr = INADDR_ANY;
+		address.sin_port = htons(8081);
+
+	// Forcefully attaching socket to the port 8080
+		if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+			perror("bind failed");
+			exit(-1);
+		}
+		if (listen(server_fd, 3) < 0) {
+			perror("listen");
+			exit(-1);
+		}
+		if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
+				(socklen_t*) &addrlen)) < 0) {
+			perror("accept");
+			exit(-1);
+		}
+
+		while (1) {
+			printf("Hello message sent\n");
+
+			ipc_struct_worker_file_to_yama *sendFile = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_YAMA);
+			sleep(5);
+		}
+
+
+}
+
+void fs_workerConnectionThread(){
+
+	//Thread ID
+		pthread_t threadId;
+
+	//Create thread attributes
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+
+	//Set to detached
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	//Create thread
+		pthread_create(&threadId, &attr, fs_waitForWorkers, NULL);
+
+}
+
 
 /************************************* FILE SYSTEM FUNCTIONS *************************************/
 //Functions to mount FS structures
@@ -2631,7 +2694,6 @@ int fs_wipeAllConnectedDataNodes(){
 		return EXIT_SUCCESS;
 
 }
-
 int fs_wipeDataNode(t_dataNode *aDataNode){
 
 
@@ -2675,7 +2737,6 @@ int fs_wipeDataNode(t_dataNode *aDataNode){
 	return EXIT_SUCCESS;
 
 }
-
 int fs_wipeDirectoryTable(){
 
 	log_debug(logger,"fs_wipeDirectoryTable: Wiping directory table");
@@ -2692,7 +2753,6 @@ int fs_wipeDirectoryTable(){
 
 	return EXIT_SUCCESS;
 }
-
 int fs_directoryStartsWithSlash(char *directory){
 
 	if(directory[0] == '/'){
@@ -2703,7 +2763,6 @@ int fs_directoryStartsWithSlash(char *directory){
 	return FALSE;
 
 }
-
 t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy){
 	if(first == NULL && copy != NULL){
 		return copy;
@@ -2718,7 +2777,6 @@ t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy){
 	}
 	return (queue_size(first->operationsQueue) > queue_size(copy->operationsQueue)) ? copy : first;
 }
-
 void *fs_readFile(char *filePath){
 	char *physicalPath = fs_isAFile(filePath);
 
@@ -2791,7 +2849,6 @@ void *fs_readFile(char *filePath){
 	//log_info(logger,"file: %s",result);
 	return result;
 }
-
 int fs_createBitmapsOfAllConnectedNodes(){
 
 	int listSize = list_size(connectedNodes);
@@ -2819,7 +2876,6 @@ int fs_createBitmapsOfAllConnectedNodes(){
 
 			return EXIT_SUCCESS;
 }
-
 int fs_getFileSize(char *filePath){
 	t_config *fileMetadata = config_create(filePath);
 	char *stringSize = config_get_string_value(fileMetadata,"TAMANIO");
@@ -2828,7 +2884,6 @@ int fs_getFileSize(char *filePath){
 
 	return fileSize;
 }
-
 int fs_destroyPackageList(t_list **packageList){
 	int iterator = 0;
 	int listSize = list_size(*packageList);
@@ -2849,7 +2904,6 @@ int fs_destroyPackageList(t_list **packageList){
 	return EXIT_SUCCESS;
 
 }
-
 int fs_downloadFile(char *yamaFilePath, char *destDirectory){
 	//check if file exists
 	char *physicalFilePath = fs_isAFile(yamaFilePath);
@@ -2884,7 +2938,6 @@ int fs_downloadFile(char *yamaFilePath, char *destDirectory){
 	free(fileName);
 	return EXIT_SUCCESS;
 }
-
 void *fs_downloadBlock(t_dataNode *target, int blockNumber){
 	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
 	operation->blockNumber = blockNumber;
@@ -2899,7 +2952,6 @@ void *fs_downloadBlock(t_dataNode *target, int blockNumber){
 
 	return result;
 }
-
 int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer){
 	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
 	operation->blockNumber = blockNumber;
@@ -2915,7 +2967,6 @@ int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer){
 	return EXIT_SUCCESS;
 
 }
-
 int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple){
 	int copies=0;
 

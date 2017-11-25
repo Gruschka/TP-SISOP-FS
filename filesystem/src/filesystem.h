@@ -60,8 +60,8 @@ typedef struct dataNode {
 	sem_t *resultSemaphore;
 	t_queue *operationsQueue;
 	t_queue *resultsQueue;
-
 } t_dataNode;
+
 typedef struct blockPackage {
 
 	int blockNumber;
@@ -199,4 +199,6 @@ int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
+void fs_workerConnectionThread();
+
 #endif /* FILESYSTEM_H_ */
