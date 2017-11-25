@@ -529,9 +529,60 @@ int fs_cpto(char *yamaFilePath,char *destDirectory) {
 	return EXIT_SUCCESS;
 
 }
-int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy) {
-	printf("Copying block %d from %s to node %d\n", blockNumberToCopy,
-			origFilePath, nodeNumberToCopy);
+int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId) {
+	printf("Copying block %d from %s to node %s\n", blockNumberToCopy,
+			origFilePath, nodeId);
+
+	char *physicalPath = fs_isAFile(origFilePath);
+	if(physicalPath == NULL){
+		log_error(logger,"file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+	int copies = fs_getAvailableCopiesFromTuple(&blockArray[blockNumberToCopy]);
+	if(copies == 2){
+		log_error(logger,"cant copy block, both copies already present");
+		return EXIT_FAILURE;
+	}
+
+
+	t_dataNode *downloadTarget;
+	int targetBlockNumber;
+	char *metadataEntry;
+	if(blockArray[blockNumberToCopy].firstCopyNodeID != NULL){
+		downloadTarget = fs_getNodeFromNodeName(blockArray[blockNumberToCopy].firstCopyNodeID);
+		targetBlockNumber = blockArray[blockNumberToCopy].firstCopyBlockID;
+		metadataEntry = string_from_format("BLOQUE%dCOPIA%d",blockNumberToCopy,1);
+	}else{
+		if(blockArray[blockNumberToCopy].secondCopyNodeID != NULL){
+			downloadTarget = fs_getNodeFromNodeName(blockArray[blockNumberToCopy].secondCopyNodeID);
+			targetBlockNumber = blockArray[blockNumberToCopy].secondCopyBlockID;
+			metadataEntry = string_from_format("BLOQUE%dCOPIA%d",blockNumberToCopy,0);
+		}else{
+			log_error(logger,"node not found");
+			return EXIT_FAILURE;
+		}
+	}
+
+	void *buffer = fs_downloadBlock(downloadTarget,targetBlockNumber);
+
+	t_dataNode *uploadTarget = fs_getNodeFromNodeName(nodeId);
+	int targetUploadBlockNumber = fs_getFirstFreeBlockFromNode(uploadTarget);
+
+	int result = fs_uploadBlock(uploadTarget,targetUploadBlockNumber,buffer);
+
+	//update metadata
+	t_config *fileMetadata = config_create(physicalPath);
+	char *value = string_from_format("[%s, %d]",uploadTarget->name,targetUploadBlockNumber);
+	config_set_value(fileMetadata,metadataEntry,value);
+	config_save(fileMetadata);
+	config_destroy(fileMetadata);
+	free(value);
+	free(metadataEntry);
+
+
+
 	return 0;
 
 }
@@ -2834,3 +2885,49 @@ int fs_downloadFile(char *yamaFilePath, char *destDirectory){
 	free(fileName);
 	return EXIT_SUCCESS;
 }
+
+void *fs_downloadBlock(t_dataNode *target, int blockNumber){
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	operation->blockNumber = blockNumber;
+	operation->operationId = 0;
+
+	queue_push(target->operationsQueue,operation);
+
+	sem_post(target->threadSemaphore);
+
+	sem_wait(target->resultSemaphore);
+	void *result = queue_pop(target->resultsQueue);
+
+	return result;
+}
+
+int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer){
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	operation->blockNumber = blockNumber;
+	operation->operationId = 1;
+	operation->buffer = malloc(BLOCK_SIZE);
+	memset(operation->buffer,0,BLOCK_SIZE);
+	memcpy(operation->buffer,buffer,BLOCK_SIZE);
+
+	queue_push(target->operationsQueue,operation);
+
+	sem_post(target->threadSemaphore);
+
+	return EXIT_SUCCESS;
+
+}
+
+int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple){
+	int copies=0;
+
+	if(tuple->firstCopyNodeID != NULL){
+		copies++;
+	}
+
+	if(tuple->secondCopyNodeID != NULL){
+		copies++;
+	}
+
+	return copies;
+}
+

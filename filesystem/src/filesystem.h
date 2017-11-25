@@ -171,6 +171,9 @@ int fs_createBitmapsOfAllConnectedNodes();
 int fs_getFileSize(char *filePath);
 int fs_destroyPackageList(t_list **packageList);
 int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
+void *fs_downloadBlock(t_dataNode *target, int blockNumber);
+int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
+int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
 
 
 //Console commands
@@ -184,7 +187,7 @@ int fs_cat(char *filePath);
 int fs_mkdir(char *filePath);
 int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType);
 int fs_cpto(char *origFilePath, char *yama_directory);
-int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
+int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
