@@ -6,8 +6,6 @@
  *      Description: An exploited Worker
  */
 
-// TODO: Recibir tabla de Workers Global Reduction desde Master
-// TODO: Recibir tabla de Archivos en Local Reduction desde Master
 // TODO: Testear worker con master
 // TODO: Probar algoritmo de apareo global con otros workers para ver si anda bien los sends y recv
 
@@ -402,12 +400,11 @@ void connectionHandler(int client_sock){
 					free(workerToFree);
 				}
 				list_destroy(workerList);
-
+				//Enviar archivo al Filesystem
 				uint32_t fileFinalNameLength = 0;
 				recv(client_sock, &fileFinalNameLength, sizeof(uint32_t), 0);
 				char * fileFinalName = malloc(fileFinalNameLength +1);
 				recv(client_sock, fileFinalName, fileFinalNameLength, 0);
-				//TODO conectarme al FS y enviarle el archivo, en caso de que falle la escritura avisarle a Master
 				sockFs = connectToFileSystem();
 				int fileResultSize = finalFileSize(fileFinalName);
 				if(fileResultSize == -1){
@@ -416,6 +413,7 @@ void connectionHandler(int client_sock){
 					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
 					break;
 				}
+
 				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
 				request.resultPath[request.resultPathLen] = '\0';
 				FILE * finalFile = fopen(request.resultPath, "r");
