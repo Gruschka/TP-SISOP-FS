@@ -64,10 +64,10 @@
 // Almacenado final
 // 1. Recibir de YAMA la IP y puerto del worker "encargado",
 // y el nombre del archivo resultado de la reducción global.
-// 2. TODO: conectarse al worker y pedirle que le envíe al FS
+// 2. Conectarse al worker y pedirle que le envíe al FS
 // el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
-// 3. TODO: esperar confirmación
+// 3. Esperar confirmación
 // 4. TODO: notificar a YAMA.
 //
 // TODO: replanificación.
