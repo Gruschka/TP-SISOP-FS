@@ -155,7 +155,7 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		workerInfo->id = strdup(entry->firstCopyNodeID);
 		workerInfo->ip = strdup(entry->firstCopyNodeIP);
 		workerInfo->port = entry->firstCopyNodePort;
-//		dictionary_put(workersDict, entry->firstCopyNodeID, )
+		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
 	}
 	return response;
 }
@@ -171,8 +171,12 @@ ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *nod
 	entry->blockSize = 50;
 	entry->firstCopyBlockID = block1;
 	entry->secondCopyBlockID = block2;
-	entry->firstCopyNodeID = node1;
-	entry->secondCopyNodeID = node2;
+	entry->firstCopyNodeID = strdup(node1);
+	entry->secondCopyNodeID = strdup(node2);
+	entry->firstCopyNodeIP = "127.0.0.1";
+	entry->secondCopyNodeIP = "127.0.0.2";
+	entry->firstCopyNodePort = 5001;
+	entry->secondCopyNodePort = 5002;
 	return entry;
 }
 
@@ -215,7 +219,7 @@ void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_addWorker(workerD);
 	scheduling_addWorker(workerE);
 	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
-	printf("Execution plan: %d", executionPlan->entriesCount);
+	log_debug(logger, "Execution plan: %d", executionPlan->entriesCount);
 }
 
 void test() {
