@@ -43,7 +43,7 @@ pthread_t serverThread;
 //		ipc_struct_fs_get_file_info_response_entry *inputEntry = input->entries + i;
 //		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
 //
-//		responseEntry->nodeID = strdup(inputEntry->firstCopyNodeID)
+//		responseEntry->nodeID = strdup(inputEntry->firstCopyNode)
 //	}
 //}
 
@@ -151,6 +151,10 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_fs_get_file_info_response_entry *entry = response->entries + i;
+		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
+		workerInfo->id = strdup(entry->firstCopyNodeID);
+		workerInfo->ip = strdup(entry->firstCopyNodeIP);
+		workerInfo->port = entry->firstCopyNodePort;
 //		dictionary_put(workersDict, entry->firstCopyNodeID, )
 	}
 	return response;
@@ -248,13 +252,9 @@ void *server_mainThread() {
 	int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
 	log_debug(logger, "New socket accepted. fd: %d", newsockfd);
 	while (true) {
-		ipc_struct_header header;
+		int operation = ipc_getNextOperationId(newsockfd);
 
-		if (recv(sockfd, &header, sizeof(ipc_struct_header), MSG_PEEK) <= 0) {
-			exit(1);
-		}
-
-		switch (header.type) {
+		switch (operation) {
 			case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
 				ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
 				log_debug(logger, "request: path: %s", request->filePath);
