@@ -199,9 +199,9 @@ void connectionHandler(int client_sock){
 				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
 //				int templateSize = snprintf(NULL, 0, template, scriptPath);
 
-				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
 //				sprintf(buffer, template, scriptPath);
 				buffer[templateSize] = '\0';
 				int checkCode = 0;
@@ -278,7 +278,7 @@ void connectionHandler(int client_sock){
 				char *template = "cat %s | %s > %s";
 				int templateSize = snprintf(NULL, 0, template, request.reduceTempPath, scriptPath, request.reduceTempPath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, request.reduceTempPath, request.scriptContent, request.reduceTempPath);
+				sprintf(buffer, template, request.reduceTempPath, scriptPath, request.reduceTempPath);
 				buffer[templateSize] = '\0';
 				int checkCode = system(buffer);
 				ipc_struct_worker_start_local_reduce_response reduction_response;
