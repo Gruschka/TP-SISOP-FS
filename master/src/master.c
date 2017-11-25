@@ -133,11 +133,11 @@ int main(int argc, char **argv) {
 	master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
 
 	// Aguardo de YAMA las instrucciones para la reducción global
+	ipc_struct_master_continueWithGlobalReductionRequest *yamaGlobalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST);
 
-
-	while (1) {
-
-	}
+	// Me conecto con el worker encargado y le envío
+	// información necesaria para el reduce global
+	master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, master_utils_readFile(reduceScriptPath));
 
 	return EXIT_SUCCESS;
 }

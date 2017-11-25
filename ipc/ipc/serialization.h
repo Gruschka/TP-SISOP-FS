@@ -117,6 +117,29 @@ typedef struct {
 	uint32_t succeeded;
 }__attribute__((packed)) ipc_struct_worker_start_local_reduce_response;
 
+typedef struct ipc_struct_worker_start_global_reduce_WorkerEntry {
+	uint32_t nodeIDLen;
+	char *nodeID;
+	uint32_t workerIPLen;
+	char *workerIP;
+	uint32_t workerPort;
+	uint32_t tempPathLen;
+	char *tempPath;
+} ipc_struct_worker_start_global_reduce_WorkerEntry;
+
+typedef struct {
+	uint32_t scriptContentLength;
+	char *scriptContent;
+	uint32_t workersEntriesCount;
+	ipc_struct_worker_start_global_reduce_WorkerEntry *workersEntries;
+	uint32_t resultPathLen;
+	char *resultPath;
+}__attribute__((packed)) ipc_struct_worker_start_global_reduce_request;
+
+typedef struct {
+	uint32_t succeeded;
+}__attribute__((packed)) ipc_struct_worker_start_global_reduce_response;
+
 typedef struct {
 	char *nodeID;
 	char *workerIP;
