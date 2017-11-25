@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 13
+#define OPERATIONS_COUNT 15
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
@@ -24,6 +24,8 @@ typedef enum ipc_operation {
 	WORKER_START_LOCAL_REDUCTION_RESPONSE,
 	WORKER_START_GLOBAL_REDUCTION_REQUEST,
 	WORKER_START_GLOBAL_REDUCTION_RESPONSE,
+	WORKER_START_FINAL_STORAGE_REQUEST,
+	WORKER_START_FINAL_STORAGE_RESPONSE,
 	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
@@ -140,6 +142,15 @@ typedef struct {
 typedef struct {
 	uint32_t succeeded;
 }__attribute__((packed)) ipc_struct_worker_start_global_reduce_response;
+
+typedef struct {
+	uint32_t resultPathLen;
+	char *resultPath;
+}__attribute__((packed)) ipc_struct_worker_start_final_storage_request;
+
+typedef struct {
+	uint32_t succeeded;
+}__attribute__((packed)) ipc_struct_worker_start_final_storage_response;
 
 typedef struct {
 	char *nodeID;

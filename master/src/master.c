@@ -17,6 +17,7 @@
 
 #include "transform.h"
 #include "local_reduce.h"
+#include "final_storage.h"
 #include "utils.h"
 
 // Setup
@@ -61,12 +62,13 @@
 // 4. TODO: notificar resultado a YAMA.
 //
 // Almacenado final
-// TODO: recibir de YAMA la IP y puerto del worker "encargado",
+// 1. Recibir de YAMA la IP y puerto del worker "encargado",
 // y el nombre del archivo resultado de la reducción global.
-// TODO: conectarse al worker y pedirle que le envíe al FS
+// 2. TODO: conectarse al worker y pedirle que le envíe al FS
 // el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
-// TODO: esperar confirmación y notificar a YAMA.
+// 3. TODO: esperar confirmación
+// 4. TODO: notificar a YAMA.
 //
 // TODO: replanificación.
 // TODO: métricas
