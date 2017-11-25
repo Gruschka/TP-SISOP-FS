@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 12
+#define OPERATIONS_COUNT 13
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
@@ -24,7 +24,8 @@ typedef enum ipc_operation {
 	WORKER_START_LOCAL_REDUCTION_RESPONSE,
 	WORKER_START_GLOBAL_REDUCTION_REQUEST,
 	WORKER_START_GLOBAL_REDUCTION_RESPONSE,
-	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST
+	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST,
+	MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST
 } ipc_operation;
 
 typedef void *(*DeserializationFunction)(char *buffer);
@@ -129,6 +130,21 @@ typedef struct {
 	uint32_t entriesSize;
 	ipc_struct_master_continueWithLocalReductionRequestEntry *entries;
 }__attribute__((packed)) ipc_struct_master_continueWithLocalReductionRequest;
+
+typedef struct {
+	char *nodeID;
+	char *workerIP;
+	uint32_t workerPort;
+	char *localReduceTempPath;
+	char *globalReduceTempPath;
+	uint32_t isWorkerInCharge;
+}__attribute__((packed)) ipc_struct_master_continueWithGlobalReductionRequestEntry;
+
+typedef struct {
+	uint32_t entriesCount;
+	uint32_t entriesSize;
+	ipc_struct_master_continueWithGlobalReductionRequestEntry *entries;
+}__attribute__((packed)) ipc_struct_master_continueWithGlobalReductionRequest;
 
 void serialization_initialize();
 

@@ -64,7 +64,7 @@
 // TODO: recibir de YAMA la IP y puerto del worker "encargado",
 // y el nombre del archivo resultado de la reducción global.
 // TODO: conectarse al worker y pedirle que le envíe al FS
-// TODO: el archivo resultado de la reducción global
+// el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
 // TODO: esperar confirmación y notificar a YAMA.
 //
@@ -131,6 +131,9 @@ int main(int argc, char **argv) {
 	// Me conecto con los workers indicados y les envío
 	// la información necesaria para el reduce local
 	master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
+
+	// Aguardo de YAMA las instrucciones para la reducción global
+
 
 	while (1) {
 

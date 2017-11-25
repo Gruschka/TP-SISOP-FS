@@ -188,11 +188,59 @@ void *deserializeMasterContinueWithLocalReductionRequest(char *buffer) {
 		offset += tmpTransformPathLen + 1;
 		char *tmpLocalReducePath = strdup(buffer + offset);
 		int tmpLocalReducePathLen = strlen(tmpLocalReducePath);
-		currentEntry->transformTempPath = malloc(tmpLocalReducePathLen + 1);
-		memcpy(currentEntry->transformTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
+		currentEntry->localReduceTempPath = malloc(tmpLocalReducePathLen + 1);
+		memcpy(currentEntry->localReduceTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
 		entriesOffset += tmpLocalReducePathLen + 1;
 		offset += tmpLocalReducePathLen + 1;
 		free(tmpTransformPath);
+		free(tmpLocalReducePath);
+		free(tmpWorkerIP);
+	}
+	response->entries = entries;
+	return response;
+}
+
+// MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST
+void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithGlobalReductionRequest *response = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest));
+	memcpy(&(response->entriesCount), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
+	memcpy(&(response->entriesSize), buffer + offset, sizeof(uint32_t)); sizeof(uint32_t);
+	offset += sizeof(uint32_t);
+
+	int entriesOffset = 0;
+	ipc_struct_master_continueWithGlobalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest) * response->entriesCount);
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = entries + i;
+		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		char *tmpWorkerIP = strdup(buffer + offset);
+		int tpmWorkerIPLength = strlen(tmpWorkerIP);
+		currentEntry->workerIP = malloc(tpmWorkerIPLength + 1);
+		memcpy(currentEntry->workerIP, tmpWorkerIP, tpmWorkerIPLength + 1); //workerIP
+		entriesOffset += tpmWorkerIPLength + 1;
+		offset += tpmWorkerIPLength + 1;
+		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		char *tmpLocalReducePath = strdup(buffer + offset);
+		int tmpLocalReducePathLen = strlen(tmpLocalReducePath);
+		currentEntry->localReduceTempPath = malloc(tmpLocalReducePathLen + 1);
+		memcpy(currentEntry->localReduceTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
+		entriesOffset += tmpLocalReducePathLen + 1;
+		offset += tmpLocalReducePathLen + 1;
+		char *tmpGlobalReducePath = strdup(buffer + offset);
+		int tmpGlobalReducePathLen = strlen(tmpGlobalReducePath);
+		currentEntry->globalReduceTempPath = malloc(tmpGlobalReducePathLen + 1);
+		memcpy(currentEntry->globalReduceTempPath, tmpGlobalReducePath, tmpGlobalReducePathLen + 1); //tmpTransformPath
+		entriesOffset += tmpGlobalReducePathLen + 1;
+		offset += tmpGlobalReducePathLen + 1;
+		memcpy(&(currentEntry->isWorkerInCharge), buffer + offset, sizeof(uint32_t)); //workerPort
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+		free(tmpGlobalReducePath);
 		free(tmpLocalReducePath);
 		free(tmpWorkerIP);
 	}
@@ -449,6 +497,73 @@ char *serializeMasterContinueWithLocalReductionRequest(void *data, int *size) {
 	return buffer;
 }
 
+// MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST
+
+uint32_t getMasterContinueWithGlobalReductionRequestEntrySize(ipc_struct_master_continueWithGlobalReductionRequestEntry *entry) {
+	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + sizeof(uint32_t) + strlen(entry->localReduceTempPath) + 1 + strlen(entry->globalReduceTempPath) + 1 + sizeof(uint32_t);
+}
+
+uint32_t getMasterContinueWithGlobalReductionRequestEntriesSize(ipc_struct_master_continueWithGlobalReductionRequest *request) {
+	int i;
+	uint32_t result = 0;
+
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
+		result += getMasterContinueWithGlobalReductionRequestEntrySize(currentEntry);
+	}
+
+	return result;
+}
+
+uint32_t getMasterContinueWithGlobalReductionRequestSize(ipc_struct_master_continueWithGlobalReductionRequest *request) {
+	uint32_t result = 0;
+
+	result += sizeof(uint32_t) * 2; //entriesCount + entriesSize
+	result += getMasterContinueWithGlobalReductionRequestEntriesSize(request);
+
+	return result;
+}
+
+char *serializeMasterContinueWithGlobalReductionRequest(void *data, int *size) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithGlobalReductionRequest *request = data;
+	uint32_t entriesSize = getMasterContinueWithGlobalReductionRequestEntriesSize(request);
+	char *buffer;
+
+	buffer = malloc(*size = getMasterContinueWithGlobalReductionRequestSize(request));
+	memcpy(buffer + offset, &(request->entriesCount), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(buffer + offset, &entriesSize, sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	request->entriesSize = entriesSize;
+
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
+		memcpy(buffer + offset, currentEntry->nodeID, strlen(currentEntry->nodeID)); //nodeID
+		offset += strlen(currentEntry->nodeID);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, currentEntry->workerIP, strlen(currentEntry->workerIP)); //workerIP
+		offset += strlen(currentEntry->workerIP);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, &(currentEntry->workerPort), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+		memcpy(buffer + offset, currentEntry->localReduceTempPath, strlen(currentEntry->localReduceTempPath));
+		offset += strlen(currentEntry->localReduceTempPath);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, currentEntry->globalReduceTempPath, strlen(currentEntry->globalReduceTempPath));
+		offset += strlen(currentEntry->globalReduceTempPath);
+		buffer[offset] = '\0';
+		offset += 1;
+		memcpy(buffer + offset, &(currentEntry->isWorkerInCharge), sizeof(uint32_t));
+		offset += sizeof(uint32_t);
+	}
+
+	return buffer;
+}
+
 void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO_REQUEST] = serializeFSGetFileInfoRequest;
@@ -456,6 +571,7 @@ void initializeSerialization() {
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = serializeYAMAStartTransformationRequest;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
 	serializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = serializeMasterContinueWithLocalReductionRequest;
+	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
 }
 
 void initializeDeserialization () {
@@ -465,6 +581,7 @@ void initializeDeserialization () {
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = deserializeYAMAStartTransformationRequest;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
 	deserializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = deserializeMasterContinueWithLocalReductionRequest;
+	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
 }
 
 void serialization_initialize() {
