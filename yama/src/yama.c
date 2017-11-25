@@ -33,6 +33,48 @@ node *lastAssignedNode;
 pthread_t serverThread;
 uint32_t lastJobID = 1;
 
+int stringsAreEqual(char *str1, char *str2);
+
+int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID &&
+				currentEntry->stage == stage &&
+				stringsAreEqual(currentEntry->nodeID, nodeID) &&
+				currentEntry->status != FINISHED_OK) // si hay algun archivo de ese job q no termino, doy false
+			return 0;
+	}
+
+	return 1;
+}
+
+uint32_t getJobIDForTempPath(char *tempPath) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (stringsAreEqual(tempPath, currentEntry->tempPath)) {
+			return currentEntry->jobID;
+		}
+	}
+
+	return -1;
+}
+
+yama_state_table_entry *getEntry(char *nodeID, char *tempPath) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (stringsAreEqual(currentEntry->nodeID, nodeID) && stringsAreEqual(currentEntry->tempPath, tempPath)) {
+			return currentEntry;
+		}
+	}
+
+	return NULL;
+}
 
 char *tempFileName() {
 	static char template[] = "/tmp/XXXXXX";
@@ -296,20 +338,37 @@ void *server_mainThread() {
 			}
 			case YAMA_NOTIFY_TRANSFORM_FINISH: {
 				ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_TRANSFORM_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
+
+				//succeeded me lo paso por los huevos
+
+				// lo marco como finalizado
+				yama_state_table_entry *entry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+				entry->status = FINISHED_OK;
+
+				uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
+
+				// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
+				if (jobIsFinished(jobID, entry->nodeID, TRANSFORMATION)) {
+
+				}
 
 				break;
 			}
 			case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
 				ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
 				break;
 			}
 			case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
 				ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", globalReductionFinish->nodeID, globalReductionFinish->tempPath, globalReductionFinish->succeeded);
 
 				break;
 			}
 			case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
 				ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
 
 				break;
 			}
