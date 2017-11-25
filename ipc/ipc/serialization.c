@@ -250,7 +250,7 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 
 // MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
 void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
-	int offset = 0, i;
+	int offset = 0;
 	ipc_struct_master_continueWithFinalStorageRequest *response = malloc(sizeof(ipc_struct_master_continueWithFinalStorageRequest));
 	memcpy(&(response->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
 	offset += sizeof(uint32_t);
@@ -263,12 +263,35 @@ void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
 	offset += sizeof(uint32_t);
 	char *tmpResultPath = strdup(buffer + offset);
 	int tmpResultPathLen = strlen(tmpResultPath);
-	response->resultPath = malloc(tmpResultPathLen + 1);
-	memcpy(response->resultPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
+	response->globalReductionTempPath = malloc(tmpResultPathLen + 1);
+	memcpy(response->globalReductionTempPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
 	offset += tmpResultPathLen + 1;
 	free(tmpResultPath);
 	free(tmpWorkerIP);
 	return response;
+}
+
+void *deserializeYamaNotifyStageFinish(char *buffer) {
+	int offset = 0, tmpLength;
+	char *tmp;
+	ipc_struct_yama_notify_stage_finish *stageFinish = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+
+	tmp = strdup(buffer + offset);
+	tmpLength = strlen(tmp);
+	stageFinish->nodeID = malloc(tmpLength + 1);
+	memcpy(stageFinish->nodeID, tmp, tmpLength + 1); //nodeID
+	offset += tmpLength + 1;
+
+	tmp = strdup(buffer + offset);
+	tmpLength = strlen(tmp);
+	stageFinish->tempPath = malloc(tmpLength + 1);
+	memcpy(stageFinish->tempPath, tmp, tmpLength + 1); //tempPath
+	offset += tmpLength + 1;
+
+	memcpy(&(stageFinish->succeeded), buffer + offset, sizeof(char)); //succeeded
+
+	free(tmp);
+	return stageFinish;
 }
 
 // Serialization functions
@@ -590,7 +613,7 @@ char *serializeMasterContinueWithGlobalReductionRequest(void *data, int *size) {
 // MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
 
 uint32_t getMasterContinueWithFinalStorageRequestSize(ipc_struct_master_continueWithFinalStorageRequest *request) {
-	return strlen(request->nodeID) + 1 + strlen(request->workerIP) + 1 + sizeof(uint32_t) + strlen(request->resultPath) + 1;
+	return strlen(request->nodeID) + 1 + strlen(request->workerIP) + 1 + sizeof(uint32_t) + strlen(request->globalReductionTempPath) + 1;
 }
 
 char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
@@ -610,10 +633,33 @@ char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
 	offset += 1;
 	memcpy(buffer + offset, &(request->workerPort), sizeof(uint32_t));
 	offset += sizeof(uint32_t);
-	memcpy(buffer + offset, request->resultPath, strlen(request->resultPath));
-	offset += strlen(request->resultPath);
+	memcpy(buffer + offset, request->globalReductionTempPath, strlen(request->globalReductionTempPath));
+	offset += strlen(request->globalReductionTempPath);
 	buffer[offset] = '\0';
 	offset += 1;
+
+	return buffer;
+}
+
+
+
+char *serializeYamaNotifyStageFinish(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_yama_notify_stage_finish *stageFinish = data;
+	char *buffer;
+
+	buffer = malloc(*size = strlen(stageFinish->nodeID) + strlen(stageFinish->tempPath) + 2 + sizeof(char));
+	memcpy(buffer + offset, stageFinish->nodeID, strlen(stageFinish->nodeID)); //nodeID
+	offset += strlen(stageFinish->nodeID);
+	buffer[offset] = '\0';
+	offset += 1;
+	memcpy(buffer + offset, stageFinish->tempPath, strlen(stageFinish->tempPath)); //tempPath
+	offset += strlen(stageFinish->tempPath);
+	buffer[offset] = '\0';
+	offset += 1;
+
+	memcpy(buffer + offset, &(stageFinish->succeeded), sizeof(char)); //succeeded
+	offset += sizeof(char);
 
 	return buffer;
 }
@@ -624,6 +670,10 @@ void initializeSerialization() {
 	serializationArray[FS_GET_FILE_INFO_RESPONSE] = serializeFSGetFileInfoResponse;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = serializeYAMAStartTransformationRequest;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
+	serializationArray[YAMA_NOTIFY_FINAL_STORAGE_FINISH] = serializeYamaNotifyStageFinish;
+	serializationArray[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] = serializeYamaNotifyStageFinish;
+	serializationArray[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] = serializeYamaNotifyStageFinish;
+	serializationArray[YAMA_NOTIFY_TRANSFORM_FINISH] = serializeYamaNotifyStageFinish;
 	serializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = serializeMasterContinueWithLocalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = serializeMasterContinueWithFinalStorageRequest;
@@ -635,6 +685,10 @@ void initializeDeserialization () {
 	deserializationArray[FS_GET_FILE_INFO_RESPONSE] = deserializeFSGetFileInfoResponse;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = deserializeYAMAStartTransformationRequest;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
+	deserializationArray[YAMA_NOTIFY_FINAL_STORAGE_FINISH] = deserializeYamaNotifyStageFinish;
+	deserializationArray[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] = deserializeYamaNotifyStageFinish;
+	deserializationArray[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] = deserializeYamaNotifyStageFinish;
+	deserializationArray[YAMA_NOTIFY_TRANSFORM_FINISH] = deserializeYamaNotifyStageFinish;
 	deserializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = deserializeMasterContinueWithLocalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = deserializeMasterContinueWithFinalStorageRequest;

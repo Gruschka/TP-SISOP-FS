@@ -140,6 +140,10 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	write(sockfd, &tmp, sizeof(tmp));
 
+	int sendPortno = dataNode.config.workerPortno;
+	tmp = htonl((uint32_t) sendPortno);
+	write(sockfd, &tmp, sizeof(tmp));
+
 
 
 	//wait for request from fs

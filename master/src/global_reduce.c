@@ -6,6 +6,7 @@
  */
 
 #include "global_reduce.h"
+#include "yama_socket.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,7 @@
 // workers con sus puertos e IPs, y los nombres de los temporales
 // de reducción local.
 // 3. Esperar confirmación del worker encargado
-// 4. TODO: notificar resultado a YAMA.
+// 4. Notificar resultado a YAMA.
 
 void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlobalReductionRequest *yamaRequest, char *globalReduceScript) {
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *workerInChargeEntry = NULL;
@@ -60,6 +61,10 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 		int localReduceTempPathLen = strlen(entry->localReduceTempPath);
 		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), 0);
 		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, 0);
+		free(entry->nodeID);
+		free(entry->workerIP);
+		free(entry->localReduceTempPath);
+		free(entry->globalReduceTempPath);
 	}
 
 	int globalReduceTempPathLen = strlen(workerInChargeEntry->globalReduceTempPath);
@@ -70,11 +75,19 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	uint32_t incomingOperation = 666;
 	recv(sockfd, &incomingOperation, sizeof(uint32_t), 0);
 
-	uint32_t transformSucceeded = 0;
+	uint32_t reduceSucceeded = 0;
 
 	if (incomingOperation == WORKER_START_GLOBAL_REDUCTION_RESPONSE) {
-		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
+		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
-	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
+	ipc_struct_yama_notify_stage_finish notification;
+	notification.nodeID = strdup(workerInChargeEntry->nodeID);
+	notification.tempPath = strdup(workerInChargeEntry->globalReduceTempPath);
+	notification.succeeded = reduceSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, &notification);
+
+	free(yamaRequest->entries);
+	free(yamaRequest);
+	free(globalReduceScript);
 }

@@ -591,7 +591,7 @@ int fs_md5(char *filePath) {
 
 	int result = fs_downloadFile(filePath,myFS.filesDirectoryPath);
 
-	char *command = string_from_format("md5sum %s/%s",myFS.filesDirectoryPath,basename(filePath));
+	char *command = string_from_format("md5sum %s/%s |cut -d \" \" -f 1",myFS.filesDirectoryPath,basename(filePath));
 	system(command);
 
 	free(command);
@@ -718,7 +718,6 @@ void fs_waitForDataNodes() {
 
 		t_nodeConnection *connection = malloc(sizeof(t_nodeConnection));
 		connection->ipAddress = string_from_format("%s",inet_ntoa(address.sin_addr));
-		connection->port =  (int) ntohs(address.sin_port);
 		connection->socketfd = new_dataNode_socket;
 		log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
 		pthread_t newDataNodeThread;
@@ -962,8 +961,10 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	read(new_socket, &cant, sizeof(int));
 	cant = ntohl(cant);
 	newDataNode->amountOfBlocks = cant;
-	printf("Amount of blocks:%d\n", newDataNode->amountOfBlocks);
+	log_debug(logger,"Amount of blocks:%d\n", newDataNode->amountOfBlocks);
 
+	read(new_socket, &cant, sizeof(int));
+	cant = ntohl(cant);
 
 	fs_openOrCreateBitmap(myFS, newDataNode);
 
@@ -971,10 +972,8 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	newDataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(newDataNode);
 	newDataNode->occupiedBlocks = newDataNode->amountOfBlocks - newDataNode->freeBlocks;
 	newDataNode->IP = string_from_format("%s",connection->ipAddress);
-	newDataNode->portno = connection->port;
-	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode->name, newDataNode->amountOfBlocks, newDataNode->freeBlocks, newDataNode->occupiedBlocks);
-
-
+	newDataNode->workerPortno = cant;
+	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d], IP: [%s], workerPortno: [%d]", newDataNode->name, newDataNode->amountOfBlocks, newDataNode->freeBlocks, newDataNode->occupiedBlocks, newDataNode->IP, newDataNode->workerPortno);
 
 	int nodeTableUpdate = fs_updateNodeTable(*newDataNode);
 
@@ -2167,13 +2166,13 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
 				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyNodeIP = string_from_format("%s", aux->IP);
-				currentTuple->firstCopyNodePort = aux->portno;
+				currentTuple->firstCopyNodePort = aux->workerPortno;
 			}else{// es el copia
 				currentTuple->secondCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
 				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyNodeIP = string_from_format("%s", aux->IP);
-				currentTuple->secondCopyNodePort = aux->portno;
+				currentTuple->secondCopyNodePort = aux->workerPortno;
 			}
 
 			copy = 1;
