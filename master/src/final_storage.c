@@ -6,6 +6,7 @@
  */
 
 #include "final_storage.h"
+#include "yama_socket.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,7 +24,7 @@
 // el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
 // 3. Esperar confirmación
-// 4. TODO: notificar a YAMA.
+// 4. Notificar a YAMA.
 
 void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest, char *resultPath) {
 	int sockfd = ipc_createAndConnect(yamaRequest->workerPort, yamaRequest->workerIP);
@@ -43,11 +44,17 @@ void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFina
 	uint32_t incomingOperation = 666;
 	recv(sockfd, &incomingOperation, sizeof(uint32_t), 0);
 
-	uint32_t transformSucceeded = 0;
+	uint32_t storageSucceeded = 0;
 
 	if (incomingOperation == WORKER_START_FINAL_STORAGE_RESPONSE) {
-		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
+		recv(sockfd, &storageSucceeded, sizeof(uint32_t), 0);
 	}
 
-	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
+	ipc_struct_yama_notify_stage_finish notification;
+	notification.nodeID = strdup(yamaRequest->nodeID);
+	notification.tempPath = strdup(yamaRequest->globalReductionTempPath);
+	notification.succeeded = storageSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_FINAL_STORAGE_FINISH, &notification);
+
+	//FIXME: (Fede) hacer frees
 }
