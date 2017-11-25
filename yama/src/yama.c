@@ -295,15 +295,22 @@ void *server_mainThread() {
 				break;
 			}
 			case YAMA_NOTIFY_TRANSFORM_FINISH: {
+				ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_TRANSFORM_FINISH);
+
 				break;
 			}
 			case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
+				ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
 				break;
 			}
 			case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
+				ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
+
 				break;
 			}
 			case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
+				ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
+
 				break;
 			}
 
