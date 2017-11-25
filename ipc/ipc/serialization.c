@@ -342,9 +342,11 @@ char *serializeFSGetFileInfoRequest(void *data, int *size) {
 
 // FS_GET_FILE_INFO_RESPONSE
 uint32_t getFSGetFileInfoResponseEntrySize(ipc_struct_fs_get_file_info_response_entry *entry) {
-	return (sizeof(uint32_t) * 3) +
+	return (sizeof(uint32_t) * 5) +
 			strlen(entry->firstCopyNodeID) + 1 +
-			strlen(entry->secondCopyNodeID) + 1;
+			strlen(entry->firstCopyNodeIP) + 1 +
+			strlen(entry->secondCopyNodeID) + 1 +
+			strlen(entry->secondCopyNodeIP) + 1;
 }
 
 uint32_t getFSGetFileInfoResponseEntriesSize(ipc_struct_fs_get_file_info_response *response) {
