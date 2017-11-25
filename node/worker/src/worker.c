@@ -36,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -306,21 +307,24 @@ void connectionHandler(int client_sock){
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
 				log_debug(logger, "Global Reduction Stage");
-				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 				t_list * workerList;
 				int workerListSize, i = 0;
 				uint32_t sockFs;
 				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 
-				list_add(workerList, workerToRequest);
+
 
 				//Conexion a los workers
 				workerListSize = list_size(workerList);
 				for(i=0; i < workerListSize; i++){
+					fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 					workerToRequest = list_get(workerList, i);
 					workerToRequest->sockfd = connectToWorker(workerToRequest);
+					list_add(workerList, workerToRequest);
 					send(workerToRequest->sockfd, &(workerToRequest->filePathLength), sizeof(int),0);
+					workerToRequest->filePath = malloc(workerToRequest->filePathLength + 1);
 					send(workerToRequest->sockfd, workerToRequest->filePath, workerToRequest->filePathLength,0);
+
 				}
 
 				uint32_t scriptLength;
@@ -350,8 +354,8 @@ void connectionHandler(int client_sock){
 				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
 
-				char *temporalName = malloc(temporalNameLength);
-				recv(client_sock, temporalName, temporalNameLength, 0);
+				char *temporalName = malloc(temporalNameLength + 1);
+				recv(client_sock, temporalName, (temporalNameLength + 1), 0);
 
 				pairingGlobalFiles(workerList, temporalName);
 
@@ -368,18 +372,44 @@ void connectionHandler(int client_sock){
 				else{
 					reduction_response.succeeded = 1;
 				}
-				//TODO conectarme al FS y enviarle el archivo, en caso de que falle la escritura avisarle a Master
-				sockFs = connectToFileSystem();
 
-				free(workerToRequest);
-				free(buffer);
-				free(script);
-				free(temporalName);
+
+
 
 
 				uint32_t response_operation = WORKER_START_GLOBAL_REDUCTION_RESPONSE;
 				send(client_sock, &response_operation, sizeof(int), 0);
 				send(client_sock, &(reduction_response), sizeof(uint32_t), 0);
+				for (i = 0; i < workerListSize; i++){
+					fileGlobalNode * workerToFree;
+					workerToFree = list_get(workerList, i);
+					free(workerToFree->filePath);
+					free(workerToFree);
+				}
+				list_destroy(workerList);
+
+				uint32_t fileFinalNameLength = 0;
+				recv(client_sock, &fileFinalNameLength, sizeof(uint32_t), 0);
+				char * fileFinalName = malloc(fileFinalNameLength +1);
+				recv(client_sock, fileFinalName, fileFinalNameLength, 0);
+				//TODO conectarme al FS y enviarle el archivo, en caso de que falle la escritura avisarle a Master
+				sockFs = connectToFileSystem();
+				uint32_t fileResultSize = finalFileSize(fileFinalName);
+				if(fileResultSize == -1){
+					perror("File not found");
+					reduction_response.succeeded = 0;
+					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
+				}
+				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
+				temporalName[temporalNameLength] = '\0';
+				FILE * finalFile = fopen(temporalName, "r");
+				int finalFileFd = fileno(finalFile);
+				sendfile(sockFs, finalFileFd, NULL, fileResultSize);
+				free(fileFinalName);
+				fclose(finalFile);
+				free(buffer);
+				free(script);
+				free(temporalName);
 				break;
 			}
 			case SLAVE_WORKER:{
@@ -626,4 +656,11 @@ int connectToFileSystem(){
 	return sockfd;
 }
 
+int finalFileSize(const char *filePath) {
+    struct stat st;
 
+    if (stat(filePath, &st) == 0)
+        return st.st_size;
+
+    return -1;
+}

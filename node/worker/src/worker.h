@@ -38,5 +38,6 @@ void pairingFiles();
 void *createServer();
 int connectToWorker(fileGlobalNode * worker);
 int connectToFileSystem();
+int finalFileSize(char * filePath);
 
 #endif /* WORKER_H_ */
