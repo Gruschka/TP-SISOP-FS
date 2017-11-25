@@ -47,7 +47,6 @@
 
 t_log *logger;
 worker_configuration configuration;
-t_list * fileList;
 t_list * pruebasApareo;
 
 
@@ -194,7 +193,7 @@ void connectionHandler(int client_sock){
 				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
 				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
 				request.tempFilePath = malloc(request.tempFilePathLength + 1);
-				recv(client_sock, request.tempFilePath, request.tempFilePathLength * sizeof(char), 0);
+				recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
 
 //				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
 				char *template = "echo \"hello world\" | %s";
@@ -218,13 +217,12 @@ void connectionHandler(int client_sock){
 					transform_response.succeeded = 1;
 				}
 
-				fileNode *file = malloc (sizeof(fileNode));
-				file->filePath = malloc(request.tempFilePathLength);
-				memcpy(file->filePath, request.tempFilePath, request.tempFilePathLength);
-				list_add(fileList, file);
+//				fileNode *file = malloc (sizeof(fileNode));
+//				file->filePath = malloc(request.tempFilePathLength);
+//				memcpy(file->filePath, request.tempFilePath, request.tempFilePathLength);
 
 				free(buffer);
-				free(file);
+//				free(file);
 				free(request.scriptContent);
 				free(request.tempFilePath);
 				uint32_t response_operation = WORKER_START_TRANSFORM_RESPONSE;
@@ -234,16 +232,13 @@ void connectionHandler(int client_sock){
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
 				log_debug(logger, "Local Reduction Stage");
-				t_list * filesList;
-				fileNode * fileToReduce = malloc(sizeof(fileNode));
-				//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
-				list_add(fileList, fileToReduce);
+
 
 				ipc_struct_worker_start_local_reduce_request request;
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 
-				request.scriptContent = malloc(request.scriptContentLength);
-				recv(client_sock, request.scriptContent, sizeof(request.scriptContentLength), 0);
+				request.scriptContent = malloc(request.scriptContentLength + 1);
+				recv(client_sock, request.scriptContent, (request.scriptContentLength + 1), 0);
 
 				char chmode[] = "0777";
 			    int chmodNumber;
@@ -262,18 +257,28 @@ void connectionHandler(int client_sock){
 					perror("Permissions couldn't be given");
 					break;
 				}
+				int i =0;//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
+				t_list * fileList;
+				for(i = 0; i < request.transformTempEntriesCount; i++ ){
+					fileNode * fileToReduce = malloc(sizeof(fileNode));
+					recv(client_sock, &(fileToReduce->filePathLength), sizeof(uint32_t), 0);
+					fileToReduce->filePath = malloc(fileToReduce->filePathLength +1);
+					recv(client_sock, fileToReduce->filePath, (fileToReduce->filePathLength + 1), 0);
+					list_add(fileList, fileToReduce);
+				}
 
-				recv(client_sock, &(request.reduceTempFilePathLength), sizeof(uint32_t), 0);
+				recv(client_sock, &(request.reduceTempPathLen), sizeof(uint32_t), 0);
 
-				request.reduceTempFilePath = malloc(request.reduceTempFilePathLength);
-				recv(client_sock, request.reduceTempFilePath, request.reduceTempFilePathLength, 0);
-
-				pairingFiles(filesList, request.reduceTempFilePath);
+				request.reduceTempPath = malloc(request.reduceTempPathLen +1);
+				recv(client_sock, request.reduceTempPath, (request.reduceTempPathLen +1), 0);
+				char * reduceTempFilePath = malloc(request.reduceTempPathLen +1);
+				reduceTempFilePath[request.reduceTempPathLen] = '\0';
+				pairingFiles(fileList, reduceTempFilePath);
 
 				char *template = "cat %s | %s > %s";
-				int templateSize = snprintf(NULL, 0, template, request.transformTempFilePath, request.scriptContent, request.transformTempFilePath);
+				int templateSize = snprintf(NULL, 0, template, request.reduceTempPath, request.scriptContent, request.reduceTempPath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, request.reduceTempFilePath, request.scriptContent, request.reduceTempFilePath);
+				sprintf(buffer, template, request.reduceTempPath, request.scriptContent, request.reduceTempPath);
 				buffer[templateSize] = '\0';
 				int checkCode = system(buffer);
 				ipc_struct_worker_start_local_reduce_response reduction_response;
@@ -285,11 +290,18 @@ void connectionHandler(int client_sock){
 				}
 				free(buffer);
 				free(request.scriptContent);
-				free(request.reduceTempFilePath);
-				free(fileToReduce);
+				free(request.reduceTempPath);
+				for (i=0; i < request.transformTempEntriesCount; i++){
+					fileNode * fileToReduce;
+					fileToReduce = list_get(fileList, i);
+					free(fileToReduce->filePath);
+					free(fileToReduce);
+				}
+				list_destroy(fileList);
 				uint32_t response_operation = WORKER_START_LOCAL_REDUCTION_RESPONSE;
 				send(client_sock, &response_operation, sizeof(uint32_t), 0);
 				send(client_sock, &(reduction_response.succeeded), sizeof(int), 0);
+				free(reduceTempFilePath);
 				break;
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
@@ -316,6 +328,24 @@ void connectionHandler(int client_sock){
 
 				char *script = malloc(scriptLength);
 				recv(client_sock, script, sizeof(scriptLength), 0);
+
+				char chmode[] = "0777";
+			    int chmodNumber;
+			    chmodNumber = strtol(chmode, 0, 8);
+				char * scriptPathFormat = "/home/utnso/GlobalReductionScript%d";
+				char *scriptPath = malloc(100);
+				sprintf(scriptPath, scriptPathFormat, client_sock);
+				FILE *scriptFile = fopen(scriptPath, "w");
+				if (scriptFile == NULL) {
+					exit(-1); //fixme: ola q ace
+				}
+				fprintf(scriptFile, strdup(request.scriptContent), "");
+//				fwrite(request.scriptContent, sizeof(char), request.scriptContentLength, scriptFile);
+				fclose(scriptFile);
+				if (chmod(scriptPath, chmodNumber)){
+					perror("Permissions couldn't be given");
+					break;
+				}
 
 				uint32_t temporalNameLength;
 				recv(client_sock, &temporalNameLength, sizeof(uint32_t), 0);
