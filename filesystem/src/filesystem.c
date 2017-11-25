@@ -404,7 +404,7 @@ int fs_cat(char *filePath) {
 
 	char *fileContent = fs_readFile(filePath);
 
-	log_info(logger,"fileContent: %s",filePath);
+	log_info(logger,"fileContent: %s",fileContent);
 
 	return EXIT_SUCCESS;
 
@@ -665,8 +665,10 @@ void fs_waitForDataNodes() {
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
 
-		t_nodeConnection connection;
-		connection.ipAddress = inet_ntoa(address.sin_addr);
+		t_nodeConnection *connection = malloc(sizeof(t_nodeConnection));
+		connection->ipAddress = string_from_format("%s",inet_ntoa(address.sin_addr));
+		connection->port =  (int) ntohs(address.sin_port);
+		connection->socketfd = new_dataNode_socket;
 		log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
 		pthread_t newDataNodeThread;
 
@@ -674,7 +676,7 @@ void fs_waitForDataNodes() {
 		int new_sock = new_dataNode_socket;
 
 		if (pthread_create(&newDataNodeThread, NULL,
-				fs_dataNodeConnectionHandler, (void*) new_dataNode_socket)
+				fs_dataNodeConnectionHandler, connection)
 				< 0) {
 			log_error(logger,"fs_waitForDataNodes: Error creating thread after new connection!");
 		}
@@ -846,13 +848,13 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 			aDataNode->occupiedBlocks);
 
 }
-void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
+void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	sem_t *mutex = malloc(sizeof(sem_t));
 	sem_t *results = malloc(sizeof(sem_t));
 	int valread, cant;
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS";
-	int new_socket = (int *) dataNodeSocket;
+	int new_socket = connection->socketfd;
 
 	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
 
@@ -917,7 +919,8 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	myFS.totalAmountOfBlocks += newDataNode->amountOfBlocks;
 	newDataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(newDataNode);
 	newDataNode->occupiedBlocks = newDataNode->amountOfBlocks - newDataNode->freeBlocks;
-
+	newDataNode->IP = string_from_format("%s",connection->ipAddress);
+	newDataNode->portno = connection->port;
 	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode->name, newDataNode->amountOfBlocks, newDataNode->freeBlocks, newDataNode->occupiedBlocks);
 
 
@@ -2111,9 +2114,15 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 			if(j == 0){ //es el primer bloque
 				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyNodeIP = string_from_format("%s", aux->IP);
+				currentTuple->firstCopyNodePort = aux->portno;
 			}else{// es el copia
 				currentTuple->secondCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyNodeIP = string_from_format("%s", aux->IP);
+				currentTuple->secondCopyNodePort = aux->portno;
 			}
 
 			copy = 1;
@@ -2424,6 +2433,8 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 		log_info(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
 		free(tuple[i].firstCopyNodeID);
 		free(tuple[i].secondCopyNodeID);
+		free(tuple[i].firstCopyNodeIP);
+		free(tuple[i].secondCopyNodeIP);
 	}
 
 	free(tuple);
