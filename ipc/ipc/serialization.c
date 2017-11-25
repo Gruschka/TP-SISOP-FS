@@ -26,6 +26,26 @@ void *deserializeFSGetFileInfoRequest(char *buffer) {
 	return request;
 }
 
+void *deserializeSendFileToYama(char *buffer) {
+	char *tmp; int tmpLen;
+	ipc_struct_worker_file_to_yama *sendFile = malloc(sizeof(ipc_struct_worker_file_to_yama));
+	int offset = 0;
+
+	tmp = strdup(buffer + offset);
+	tmpLen = strlen(tmp);
+	sendFile->pathName = malloc(tmpLen + 1);
+	memcpy(sendFile->pathName, tmp, tmpLen + 1); //pathName
+	offset += tmpLen + 1;
+
+	tmp = strdup(buffer + offset);
+	tmpLen = strlen(tmp);
+	sendFile->file = malloc(tmpLen + 1);
+	memcpy(sendFile->file, tmp, tmpLen + 1); //pathName
+	offset += tmpLen + 1;
+
+	return sendFile;
+}
+
 // FS_GET_FILE_INFO_RESPONSE
 void *deserializeFSGetFileInfoResponse(char *buffer) {
 	int offset = 0, i;
@@ -322,9 +342,11 @@ char *serializeFSGetFileInfoRequest(void *data, int *size) {
 
 // FS_GET_FILE_INFO_RESPONSE
 uint32_t getFSGetFileInfoResponseEntrySize(ipc_struct_fs_get_file_info_response_entry *entry) {
-	return (sizeof(uint32_t) * 3) +
+	return (sizeof(uint32_t) * 5) +
 			strlen(entry->firstCopyNodeID) + 1 +
-			strlen(entry->secondCopyNodeID) + 1;
+			strlen(entry->firstCopyNodeIP) + 1 +
+			strlen(entry->secondCopyNodeID) + 1 +
+			strlen(entry->secondCopyNodeIP) + 1;
 }
 
 uint32_t getFSGetFileInfoResponseEntriesSize(ipc_struct_fs_get_file_info_response *response) {
@@ -660,6 +682,24 @@ char *serializeYamaNotifyStageFinish(void *data, int *size) {
 
 	memcpy(buffer + offset, &(stageFinish->succeeded), sizeof(char)); //succeeded
 	offset += sizeof(char);
+
+	return buffer;
+}
+
+char *serializeSendFileToYama(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_worker_file_to_yama *sendFile = data;
+	char *buffer;
+
+	buffer = malloc(*size = strlen(sendFile->file) + strlen(sendFile->pathName) + 2);
+	memcpy(buffer + offset, sendFile->pathName, strlen(sendFile->pathName)); //pathName
+	offset += strlen(sendFile->pathName);
+	buffer[offset] = '\0';
+	offset += 1;
+	memcpy(buffer + offset, sendFile->file, strlen(sendFile->file)); //file
+	offset += strlen(sendFile->file);
+	buffer[offset] = '\0';
+	offset += 1;
 
 	return buffer;
 }

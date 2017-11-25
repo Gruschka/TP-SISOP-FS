@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 19
+#define OPERATIONS_COUNT 20
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
@@ -30,6 +30,7 @@ typedef enum ipc_operation {
 	WORKER_START_GLOBAL_REDUCTION_RESPONSE,
 	WORKER_START_FINAL_STORAGE_REQUEST,
 	WORKER_START_FINAL_STORAGE_RESPONSE,
+	WORKER_SEND_FILE_TO_YAMA,
 	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
@@ -201,6 +202,11 @@ typedef struct {
 	uint32_t workerPort;
 	char *globalReductionTempPath;
 }__attribute__((packed)) ipc_struct_master_continueWithFinalStorageRequest;
+
+typedef struct {
+	char *pathName;
+	char *file;
+}__attribute__((packed)) ipc_struct_worker_file_to_yama;
 
 void serialization_initialize();
 

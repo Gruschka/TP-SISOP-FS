@@ -60,8 +60,8 @@ typedef struct dataNode {
 	sem_t *resultSemaphore;
 	t_queue *operationsQueue;
 	t_queue *resultsQueue;
-
 } t_dataNode;
+
 typedef struct blockPackage {
 
 	int blockNumber;
@@ -87,6 +87,7 @@ typedef struct FS {
 	char *bitmapFilePath;
 	char *nodeTablePath;
 	char *directoryTablePath;
+	char *tempFilesPath;
 	int amountOfDirectories;
 	FILE *directoryTableFile;
 	char *FSMetadataFileName;
@@ -172,7 +173,7 @@ int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
 void *fs_downloadBlock(t_dataNode *target, int blockNumber);
 int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
 int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
-
+int fs_createTempFileFromWorker(char *filePath);
 
 //Console commands
 int fs_format();
@@ -199,4 +200,6 @@ int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
+void fs_workerConnectionThread();
+
 #endif /* FILESYSTEM_H_ */
