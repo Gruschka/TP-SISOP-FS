@@ -139,7 +139,7 @@ int main(int argc, char **argv) {
 
 			// Me conecto con el worker encargado y le envío
 			// información necesaria para el almacenado final
-			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest);
+			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest, strdup(outputFilePath));
 		} break;
 		}
 	}

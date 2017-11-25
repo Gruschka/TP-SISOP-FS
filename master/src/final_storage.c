@@ -25,15 +25,19 @@
 // 3. Esperar confirmación
 // 4. TODO: notificar a YAMA.
 
-void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest) {
+void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest, char *resultPath) {
 	int sockfd = ipc_createAndConnect(yamaRequest->workerPort, yamaRequest->workerIP);
 
 	uint32_t operation = WORKER_START_FINAL_STORAGE_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
 
-	int resultPathLen = strlen(yamaRequest->resultPath);
+	int globalReductionTempPathLen = strlen(yamaRequest->globalReductionTempPath);
+	send(sockfd, &globalReductionTempPathLen, sizeof(uint32_t), 0);
+	send(sockfd, yamaRequest->globalReductionTempPath, globalReductionTempPathLen + 1, 0);
+
+	int resultPathLen = strlen(resultPath);
 	send(sockfd, &resultPathLen, sizeof(uint32_t), 0);
-	send(sockfd, yamaRequest->resultPath, resultPathLen + 1, 0);
+	send(sockfd, resultPath, resultPathLen + 1, 0);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;

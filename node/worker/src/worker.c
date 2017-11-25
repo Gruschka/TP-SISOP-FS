@@ -367,19 +367,19 @@ void connectionHandler(int client_sock){
 					send(workerToRequest->sockfd, workerToRequest->filePath, workerToRequest->filePathLength,0);
 
 				}
-				recv(client_sock, &(request.resultPathLen), sizeof(uint32_t), 0);
+				recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
 
-				request.resultPath = malloc(request.resultPathLen + 1);
-				recv(client_sock, request.resultPath, (request.resultPathLen + 1), 0);
-				char * pairingResultName = malloc(request.resultPathLen +1);
-				memcpy(pairingResultName, request.resultPath, request.resultPathLen);
-				pairingResultName[request.resultPathLen] = '\0';
+				request.globalTempPath = malloc(request.globalTempPathLen + 1);
+				recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), 0);
+				char * pairingResultName = malloc(request.globalTempPathLen +1);
+				memcpy(pairingResultName, request.globalTempPath, request.globalTempPathLen);
+				pairingResultName[request.globalTempPathLen] = '\0';
 				pairingGlobalFiles(workerList, pairingResultName);
 
 				char * template = "cat %s | %s > %s";
-				int templateSize = snprintf(NULL, 0, template, request.resultPath, scriptPath, request.resultPath);
+				int templateSize = snprintf(NULL, 0, template, request.globalTempPath, scriptPath, request.globalTempPath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, request.resultPath, scriptPath, request.resultPath);
+				sprintf(buffer, template, request.globalTempPath, scriptPath, request.globalTempPath);
 				buffer[templateSize] = '\0';
 				int checkCode = system(buffer);
 
@@ -417,8 +417,8 @@ void connectionHandler(int client_sock){
 					break;
 				}
 				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
-				request.resultPath[request.resultPathLen] = '\0';
-				FILE * finalFile = fopen(request.resultPath, "r");
+				request.globalTempPath[request.globalTempPathLen] = '\0';
+				FILE * finalFile = fopen(request.globalTempPath, "r");
 				int finalFileFd = fileno(finalFile);
 				int bytesSent = sendfile(sockFs, finalFileFd, NULL, fileResultSize);
 				if (bytesSent == fileResultSize){
@@ -431,7 +431,7 @@ void connectionHandler(int client_sock){
 				fclose(finalFile);
 				free(buffer);
 				free(scriptPath);
-				free(request.resultPath);
+				free(request.globalTempPath);
 				free(pairingResultName);
 				break;
 			}
