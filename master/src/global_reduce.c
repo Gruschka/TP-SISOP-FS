@@ -61,6 +61,10 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 		int localReduceTempPathLen = strlen(entry->localReduceTempPath);
 		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), 0);
 		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, 0);
+		free(entry->nodeID);
+		free(entry->workerIP);
+		free(entry->localReduceTempPath);
+		free(entry->globalReduceTempPath);
 	}
 
 	int globalReduceTempPathLen = strlen(workerInChargeEntry->globalReduceTempPath);
@@ -83,5 +87,7 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	notification.succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, &notification);
 
-	//FIXME: hacer frees
+	free(yamaRequest->entries);
+	free(yamaRequest);
+	free(globalReduceScript);
 }

@@ -130,6 +130,7 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 		free(entry->transformTempPath);
 		free(entry->workerIP);
 		free(entry->nodeID);
+		free(localReduceScript);
 	}
 
 	for (i = 0; i < requestsCount; i++) {
