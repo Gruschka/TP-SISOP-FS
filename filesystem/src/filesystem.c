@@ -1815,7 +1815,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);
 	fclose(metadataFile);
-	list_destroy(packageList);
+	iterator = 0;
+	fs_destroyPackageList(&packageList);
 	free(filePathWithName);
 	free(filePathWithNameAndNewline);
 	return EXIT_SUCCESS;
@@ -2737,7 +2738,28 @@ int fs_getFileSize(char *filePath){
 	char *stringSize = config_get_string_value(fileMetadata,"TAMANIO");
 	int fileSize = atoi(stringSize);
 	config_destroy(fileMetadata);
-	free(stringSize);
 
 	return fileSize;
 }
+
+int fs_destroyPackageList(t_list **packageList){
+	int iterator = 0;
+	int listSize = list_size(*packageList);
+	int lastDestroyed = 0;
+
+	while(iterator < listSize){
+		t_blockPackage *block = list_remove(*packageList,0);
+		if(block->blockNumber != lastDestroyed){
+			free(block->buffer);
+		}
+		lastDestroyed = block->blockNumber;
+		free(block);
+		iterator++;
+	}
+
+	list_destroy(*packageList);
+
+	return EXIT_SUCCESS;
+
+}
+
