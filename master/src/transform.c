@@ -62,6 +62,7 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.tempFilePath);
 	free(request->ip);
+	free(request->nodeID);
 	free(request);
 
 	return NULL;
