@@ -20,6 +20,7 @@ typedef enum {
 typedef struct {
 	char *workerID;
 	uint32_t blockID;
+	uint32_t usedBytes;
 } ExecutionPlanEntry;
 
 typedef struct {

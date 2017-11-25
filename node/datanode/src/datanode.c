@@ -151,22 +151,30 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 		//Codigo para escuchar pedidos del fs aca;lk;lk
 		//leo operation type
-		read(sockfd, &operationType, sizeof(uint32_t));
+		//read(sockfd, &operationType, sizeof(uint32_t));
+		recv(sockfd,&operationType,sizeof(uint32_t),MSG_WAITALL);
 
 		if(operationType){
 			//write
 			//leo size a escribir
-			read(sockfd, &size, sizeof(uint32_t));
+			//read(sockfd, &size, sizeof(uint32_t));
+			//recv(sockfd, &size, sizeof(uint32_t),MSG_WAITALL);
 			//leo block a escribir
-			read(sockfd, &blockNumber, sizeof(uint32_t));
+			//read(sockfd, &blockNumber, sizeof(uint32_t));
+			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
 			//leo buffer
-			operationBuffer = malloc(size);
-			memset(buffer,0,size);
-			read(sockfd, operationBuffer, size);
+			operationBuffer = malloc(BLOCK_SIZE);
+			memset(operationBuffer,0,BLOCK_SIZE);
+			//read(sockfd, operationBuffer, size);
+			recv(sockfd, operationBuffer, BLOCK_SIZE,MSG_WAITALL);
 			dataNode_setBlock(blockNumber,operationBuffer);
 		}else{
+			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
 			void *blockRead = malloc(BLOCK_SIZE);
 			blockRead = dataNode_getBlock(blockNumber);
+			send(sockfd, blockRead, BLOCK_SIZE, 0);
+			free(blockRead);
+
 
 		}
 

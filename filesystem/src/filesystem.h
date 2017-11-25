@@ -49,7 +49,9 @@ typedef struct dataNode {
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
 	sem_t *threadSemaphore;
+	sem_t *resultSemaphore;
 	t_queue *operationsQueue;
+	t_queue *resultsQueue;
 
 } t_dataNode;
 typedef struct blockPackage {
@@ -153,6 +155,13 @@ int fs_updateAllConnectedNodesOnTable();
 int fs_wipeAllConnectedDataNodes();
 int fs_wipeDirectoryTable();
 int fs_directoryStartsWithSlash(char *directory);
+t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy);
+void *fs_readFile(char *filePath);
+int fs_createBitmapsOfAllConnectedNodes();
+int fs_getFileSize(char *filePath);
+int fs_destroyPackageList(t_list **packageList);
+int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
+
 
 //Console commands
 int fs_format();

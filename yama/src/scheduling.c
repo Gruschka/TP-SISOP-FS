@@ -133,6 +133,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				clock = circularlist_get(workersList, offset + moves); moves++;
 				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
 				currentPlanEntry->workerID = (copy == FIRST) ? blockInfo->firstCopyNodeID : blockInfo->secondCopyNodeID;
+				currentPlanEntry->usedBytes = blockInfo->blockSize;
 				assigned = 1;
 			} else { // tiene el bloque pero no tiene disponibilidad
 				clock->availability = scheduling_baseAvailability;
