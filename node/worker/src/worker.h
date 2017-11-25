@@ -25,6 +25,7 @@ typedef struct fileGlobalNode {
 	char * workerIp;
 	int port;
 	uint32_t sockfd;
+	int filePathLength;
 }fileGlobalNode;
 
 void logDebug(char *);

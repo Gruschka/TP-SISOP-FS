@@ -11,6 +11,7 @@
 #include <pthread.h>
 #include <commons/log.h>
 #include <commons/collections/list.h>
+#include <commons/collections/dictionary.h>
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 #include <arpa/inet.h>
@@ -27,8 +28,33 @@ yama_configuration configuration;
 t_log *logger;
 t_list *stateTable;
 t_list *nodesList;
+t_dictionary *workersDict;
 node *lastAssignedNode;
 pthread_t serverThread;
+
+//ipc_struct_start_transform_reduce_response *fsFileInfoToTransformationResponse(ipc_struct_fs_get_file_info_response *input) {
+//	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
+//
+//	response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * input->entriesCount);
+//	response->entriesCount = input->entriesCount;
+//
+//	int i;
+//	for (i = 0; i < response->entriesCount; i++) {
+//		ipc_struct_fs_get_file_info_response_entry *inputEntry = input->entries + i;
+//		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
+//
+//		responseEntry->nodeID = strdup(inputEntry->firstCopyNode)
+//	}
+//}
+
+char *tempFileName() {
+	static char template[] = "/tmp/XXXXXX";
+	char *name = malloc(strlen(template) + 1);
+	strcpy(name, template);
+	mktemp(name);
+
+	return name;
+}
 
 int stringsAreEqual(char *str1, char *str2) {
 	return strcmp(str1, str2) == 0;
@@ -40,28 +66,8 @@ void yst_addEntry(yama_state_table_entry *entry) {
 	pthread_mutex_unlock(&stateTable_mutex);
 }
 
-void nodesList_addNode(char *nodeID) {
-	node *new = malloc(sizeof(node));
-	new->nodeID = strdup(nodeID);
-	new->currentOperationsCount = 0;
-	new->totalOperationsCount = 0;
 
-	list_add(nodesList, new);
-}
-
-node *nodesList_getNode(char *nodeID) {
-	int i;
-
-	for (i = 0; i < list_size(nodesList); i++) {
-		node *current = list_get(nodesList, i);
-
-		if (strcmp(current->nodeID, nodeID) == 0) return current;
-	}
-
-	return NULL;
-}
-
-yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, uint32_t nodeID) {
+yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *nodeID) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currEntry = list_get(stateTable, i);
@@ -94,7 +100,7 @@ void testStateTable() {
 		yst_addEntry(second);
 
 		pthread_mutex_lock(&stateTable_mutex);
-		yama_state_table_entry *found = yst_getEntry(1, 1, 1);
+		yama_state_table_entry *found = yst_getEntry(1, 1, "NodeA");
 		pthread_mutex_unlock(&stateTable_mutex);
 
 		log_debug(logger, "Found path: %s", found->tempPath);
@@ -134,17 +140,30 @@ void testSerialization() {
 	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
 }
 
+ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
+	int fsFd = ipc_createAndConnect(8081, "10.0.1.152");
+	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
+	request->filePath = filePath;
+	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
+	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
+	printf("File %s has %d blocks", response->entriesCount);
+
+	int i;
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_fs_get_file_info_response_entry *entry = response->entries + i;
+		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
+		workerInfo->id = strdup(entry->firstCopyNodeID);
+		workerInfo->ip = strdup(entry->firstCopyNodeIP);
+		workerInfo->port = entry->firstCopyNodePort;
+//		dictionary_put(workersDict, entry->firstCopyNodeID, )
+	}
+	return response;
+}
+
 void testFSConnection() {
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	int fsFd = ipc_createAndConnect(8081, "10.0.1.152");
-	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
-	request->filePath = "/mnt/FS/metadata/archivos/1/ejemplo.txt";
-
-	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
-
-	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
-	printf("File %s has %d blocks", response->entriesCount);
+	requestInfoToFilesystem("/pruebita/re/linda");
 }
 
 ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
@@ -206,6 +225,24 @@ void test() {
 	testScheduling(W_CLOCK);
 }
 
+ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
+	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
+
+	response->entriesCount = executionPlan->entriesCount;
+	response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
+
+	int i;
+	for (i = 0; i < response->entriesCount; i++) {
+		ExecutionPlanEntry *epEntry = executionPlan->entries + i;
+		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
+
+		responseEntry->blockID = epEntry->blockID;
+		responseEntry->usedBytes = epEntry->usedBytes;
+	}
+
+	return response;
+}
+
 void *server_mainThread() {
 	log_debug(logger, "Waiting for masters");
 	int sockfd = ipc_createAndListen(8888, 0);
@@ -215,32 +252,26 @@ void *server_mainThread() {
 	int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
 	log_debug(logger, "New socket accepted. fd: %d", newsockfd);
 	while (true) {
-		ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
+		int operation = ipc_getNextOperationId(newsockfd);
 
-		log_debug(logger, "request: path: %s", request->filePath);
+		switch (operation) {
+			case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
+				ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
+				log_debug(logger, "request: path: %s", request->filePath);
 
-		ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
-		first->blockID = 1;
-		first->workerIP = "127.0.0.1";
-		first->workerPort = 1111;
-		first->nodeID = 1;
-		first->tempPath = "/tmp/tuvieja";
-		first->usedBytes = 100;
+				ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
 
-		ipc_struct_start_transform_reduce_response_entry *second = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
-		second->blockID = 2;
-		second->workerIP = "127.0.0.2";
-		second->workerPort = 2222;
-		second->nodeID = 2;
-		second->tempPath = "/tmp/tuviejo";
-		second->usedBytes = 200;
+				ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
+				ipc_struct_start_transform_reduce_response *response;
+				ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+			}
 
-		ipc_struct_start_transform_reduce_response *testResponse = malloc(sizeof(ipc_struct_start_transform_reduce_response));
-		testResponse->entriesCount = 2;
-		ipc_struct_start_transform_reduce_response_entry entries[2] = { *first, *second } ;
-		testResponse->entries = entries;
+				break;
+			default:
+				break;
+		}
 
-		ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, testResponse);
+
 	}
 	return NULL;
 }
@@ -251,12 +282,13 @@ void initialize() {
 
 	stateTable = list_create();
 	nodesList = list_create();
+	workersDict = dictionary_create();
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
 
 int main(int argc, char** argv) {
-	char *logFilePath = tmpnam(NULL);
+	char *logFilePath = tempFileName();
 	logger = log_create(logFilePath, "YAMA", 1, LOG_LEVEL_DEBUG);
 	log_debug(logger, "Log file: %s", logFilePath);
 	loadConfiguration();

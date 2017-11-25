@@ -158,6 +158,11 @@ int fs_directoryStartsWithSlash(char *directory);
 t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy);
 void *fs_readFile(char *filePath);
 int fs_createBitmapsOfAllConnectedNodes();
+int fs_getFileSize(char *filePath);
+int fs_destroyPackageList(t_list **packageList);
+int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
+
+
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);
