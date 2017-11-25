@@ -45,6 +45,7 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
 	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
 
+	send(sockfd, &(request->workerRequest.transformTempEntriesCount), sizeof(uint32_t), 0);
 	int i;
 	for (i = 0; i < request->workerRequest.transformTempEntriesCount; i++) {
 		ipc_struct_worker_start_local_reduce_TransformTempEntry *entry = request->workerRequest.transformTempEntries + i;

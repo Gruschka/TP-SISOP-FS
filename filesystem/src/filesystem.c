@@ -404,7 +404,7 @@ int fs_cat(char *filePath) {
 
 	char *fileContent = fs_readFile(filePath);
 
-	log_info(logger,"fileContent: %s",filePath);
+	log_info(logger,"fileContent: %s",fileContent);
 
 	return EXIT_SUCCESS;
 
@@ -524,50 +524,77 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 int fs_cpto(char *yamaFilePath,char *destDirectory) {
 	printf("Copying %s to directory %s\n", yamaFilePath, destDirectory);
 
-	//check if file exists
-	char *physicalFilePath = fs_isAFile(yamaFilePath);
-	if(physicalFilePath == NULL){
-		log_error(logger,"yama file path doesnt exist");
-		return EXIT_FAILURE;
-	}
-
-	//check if dest dir exists
-	DIR* dir = opendir(destDirectory);
-	if (!dir)
-	{
-		log_error(logger,"destination directory doesnt exists");
-		close(dir);
-		return EXIT_FAILURE;
-	}
-	close(dir);
-
-	//traigo el contenido
-	char *fileContent = fs_readFile(yamaFilePath);
-
-
-	//creo el archivo destino, si existe lo piso
-	char *fileName = string_from_format("%s/%s",destDirectory,basename(yamaFilePath));
-	FILE *newFile = fopen(fileName,"w+");
-	int fileSize = fs_getFileSize(physicalFilePath);
-
-	fwrite(fileContent,fileSize,1,newFile);
-	fclose(newFile);
-	free(physicalFilePath);
-	free(fileContent);
-	free(fileName);
+	int result = fs_downloadFile(yamaFilePath,destDirectory);
 
 	return EXIT_SUCCESS;
 
 }
-int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy) {
-	printf("Copying block %d from %s to node %d\n", blockNumberToCopy,
-			origFilePath, nodeNumberToCopy);
+int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId) {
+	printf("Copying block %d from %s to node %s\n", blockNumberToCopy,
+			origFilePath, nodeId);
+
+	char *physicalPath = fs_isAFile(origFilePath);
+	if(physicalPath == NULL){
+		log_error(logger,"file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+	int copies = fs_getAvailableCopiesFromTuple(&blockArray[blockNumberToCopy]);
+	if(copies == 2){
+		log_error(logger,"cant copy block, both copies already present");
+		return EXIT_FAILURE;
+	}
+
+
+	t_dataNode *downloadTarget;
+	int targetBlockNumber;
+	char *metadataEntry;
+	if(blockArray[blockNumberToCopy].firstCopyNodeID != NULL){
+		downloadTarget = fs_getNodeFromNodeName(blockArray[blockNumberToCopy].firstCopyNodeID);
+		targetBlockNumber = blockArray[blockNumberToCopy].firstCopyBlockID;
+		metadataEntry = string_from_format("BLOQUE%dCOPIA%d",blockNumberToCopy,1);
+	}else{
+		if(blockArray[blockNumberToCopy].secondCopyNodeID != NULL){
+			downloadTarget = fs_getNodeFromNodeName(blockArray[blockNumberToCopy].secondCopyNodeID);
+			targetBlockNumber = blockArray[blockNumberToCopy].secondCopyBlockID;
+			metadataEntry = string_from_format("BLOQUE%dCOPIA%d",blockNumberToCopy,0);
+		}else{
+			log_error(logger,"node not found");
+			return EXIT_FAILURE;
+		}
+	}
+
+	void *buffer = fs_downloadBlock(downloadTarget,targetBlockNumber);
+
+	t_dataNode *uploadTarget = fs_getNodeFromNodeName(nodeId);
+	int targetUploadBlockNumber = fs_getFirstFreeBlockFromNode(uploadTarget);
+
+	int result = fs_uploadBlock(uploadTarget,targetUploadBlockNumber,buffer);
+
+	//update metadata
+	t_config *fileMetadata = config_create(physicalPath);
+	char *value = string_from_format("[%s, %d]",uploadTarget->name,targetUploadBlockNumber);
+	config_set_value(fileMetadata,metadataEntry,value);
+	config_save(fileMetadata);
+	config_destroy(fileMetadata);
+	free(value);
+	free(metadataEntry);
+
+
+
 	return 0;
 
 }
 int fs_md5(char *filePath) {
 	printf("Showing file %s\n", filePath);
 
+	int result = fs_downloadFile(filePath,myFS.filesDirectoryPath);
+
+	char *command = string_from_format("md5sum %s/%s",myFS.filesDirectoryPath,basename(filePath));
+	system(command);
+
+	free(command);
 	return 0;
 
 }
@@ -619,7 +646,6 @@ int fs_info(char *filePath) {
 
 	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
 	printf("Showing info of file file %s\n", filePath);
-
 
 	int i = 0;
 
@@ -690,6 +716,10 @@ void fs_waitForDataNodes() {
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
 
+		t_nodeConnection *connection = malloc(sizeof(t_nodeConnection));
+		connection->ipAddress = string_from_format("%s",inet_ntoa(address.sin_addr));
+		connection->port =  (int) ntohs(address.sin_port);
+		connection->socketfd = new_dataNode_socket;
 		log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
 		pthread_t newDataNodeThread;
 
@@ -697,7 +727,7 @@ void fs_waitForDataNodes() {
 		int new_sock = new_dataNode_socket;
 
 		if (pthread_create(&newDataNodeThread, NULL,
-				fs_dataNodeConnectionHandler, (void*) new_dataNode_socket)
+				fs_dataNodeConnectionHandler, connection)
 				< 0) {
 			log_error(logger,"fs_waitForDataNodes: Error creating thread after new connection!");
 		}
@@ -869,13 +899,13 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 			aDataNode->occupiedBlocks);
 
 }
-void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
+void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	sem_t *mutex = malloc(sizeof(sem_t));
 	sem_t *results = malloc(sizeof(sem_t));
 	int valread, cant;
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS";
-	int new_socket = (int *) dataNodeSocket;
+	int new_socket = connection->socketfd;
 
 	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
 
@@ -940,7 +970,8 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	myFS.totalAmountOfBlocks += newDataNode->amountOfBlocks;
 	newDataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(newDataNode);
 	newDataNode->occupiedBlocks = newDataNode->amountOfBlocks - newDataNode->freeBlocks;
-
+	newDataNode->IP = string_from_format("%s",connection->ipAddress);
+	newDataNode->portno = connection->port;
 	log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d]", newDataNode->name, newDataNode->amountOfBlocks, newDataNode->freeBlocks, newDataNode->occupiedBlocks);
 
 
@@ -2134,9 +2165,15 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 			if(j == 0){ //es el primer bloque
 				currentTuple->firstCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->firstCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
+				currentTuple->firstCopyNodeIP = string_from_format("%s", aux->IP);
+				currentTuple->firstCopyNodePort = aux->portno;
 			}else{// es el copia
 				currentTuple->secondCopyNodeID = string_from_format("%s",nodeBlockTupleAsArray[0]);
 				currentTuple->secondCopyBlockID = atoi(nodeBlockTupleAsArray[1]);
+				t_dataNode *aux = fs_getNodeFromNodeName(nodeBlockTupleAsArray[0]);
+				currentTuple->secondCopyNodeIP = string_from_format("%s", aux->IP);
+				currentTuple->secondCopyNodePort = aux->portno;
 			}
 
 			copy = 1;
@@ -2447,6 +2484,8 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 		log_info(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
 		free(tuple[i].firstCopyNodeID);
 		free(tuple[i].secondCopyNodeID);
+		free(tuple[i].firstCopyNodeIP);
+		free(tuple[i].secondCopyNodeIP);
 	}
 
 	free(tuple);
@@ -2810,5 +2849,85 @@ int fs_destroyPackageList(t_list **packageList){
 
 	return EXIT_SUCCESS;
 
+}
+
+int fs_downloadFile(char *yamaFilePath, char *destDirectory){
+	//check if file exists
+	char *physicalFilePath = fs_isAFile(yamaFilePath);
+	if(physicalFilePath == NULL){
+		log_error(logger,"yama file path doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check if dest dir exists
+	DIR* dir = opendir(destDirectory);
+	if (!dir)
+	{
+		log_error(logger,"destination directory doesnt exists");
+		close(dir);
+		return EXIT_FAILURE;
+	}
+	close(dir);
+
+	//traigo el contenido
+	char *fileContent = fs_readFile(yamaFilePath);
+
+
+	//creo el archivo destino, si existe lo piso
+	char *fileName = string_from_format("%s/%s",destDirectory,basename(yamaFilePath));
+	FILE *newFile = fopen(fileName,"w+");
+	int fileSize = fs_getFileSize(physicalFilePath);
+
+	fwrite(fileContent,fileSize,1,newFile);
+	fclose(newFile);
+	free(physicalFilePath);
+	free(fileContent);
+	free(fileName);
+	return EXIT_SUCCESS;
+}
+
+void *fs_downloadBlock(t_dataNode *target, int blockNumber){
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	operation->blockNumber = blockNumber;
+	operation->operationId = 0;
+
+	queue_push(target->operationsQueue,operation);
+
+	sem_post(target->threadSemaphore);
+
+	sem_wait(target->resultSemaphore);
+	void *result = queue_pop(target->resultsQueue);
+
+	return result;
+}
+
+int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer){
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	operation->blockNumber = blockNumber;
+	operation->operationId = 1;
+	operation->buffer = malloc(BLOCK_SIZE);
+	memset(operation->buffer,0,BLOCK_SIZE);
+	memcpy(operation->buffer,buffer,BLOCK_SIZE);
+
+	queue_push(target->operationsQueue,operation);
+
+	sem_post(target->threadSemaphore);
+
+	return EXIT_SUCCESS;
+
+}
+
+int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple){
+	int copies=0;
+
+	if(tuple->firstCopyNodeID != NULL){
+		copies++;
+	}
+
+	if(tuple->secondCopyNodeID != NULL){
+		copies++;
+	}
+
+	return copies;
 }
 

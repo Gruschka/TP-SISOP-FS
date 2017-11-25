@@ -17,6 +17,7 @@
 
 #include "transform.h"
 #include "local_reduce.h"
+#include "final_storage.h"
 #include "utils.h"
 
 // Setup
@@ -50,23 +51,24 @@
 // 5. TODO: notificar resultado a YAMA.
 //
 // Etapa de reducción global
-// TODO: recibir de YAMA la IP y puerto del worker "encargado",
+// Recibir de YAMA la IP y puerto del worker "encargado",
 // el nombre del archivo temporal de reducción de cada worker,
 // el nombre del archivo temporal donde guardar el resultado.
-// TODO: conectarse al worker encargado
-// TODO: enviarle el programa de reducción, lista de todos los
+// 1. Conectarse al worker encargado
+// 2. Enviarle el programa de reducción, lista de todos los
 // workers con sus puertos e IPs, y los nombres de los temporales
 // de reducción local.
-// TODO: esperar confirmación del worker encargado y notificar
-// resultado a YAMA.
+// 3. Esperar confirmación del worker encargado
+// 4. TODO: notificar resultado a YAMA.
 //
 // Almacenado final
-// TODO: recibir de YAMA la IP y puerto del worker "encargado",
+// 1. Recibir de YAMA la IP y puerto del worker "encargado",
 // y el nombre del archivo resultado de la reducción global.
-// TODO: conectarse al worker y pedirle que le envíe al FS
-// TODO: el archivo resultado de la reducción global
+// 2. Conectarse al worker y pedirle que le envíe al FS
+// el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
-// TODO: esperar confirmación y notificar a YAMA.
+// 3. Esperar confirmación
+// 4. TODO: notificar a YAMA.
 //
 // TODO: replanificación.
 // TODO: métricas
@@ -132,9 +134,15 @@ int main(int argc, char **argv) {
 	// la información necesaria para el reduce local
 	master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
 
-	while (1) {
+	// Aguardo de YAMA las instrucciones para la reducción global
+	ipc_struct_master_continueWithGlobalReductionRequest *yamaGlobalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST);
 
-	}
+	// Me conecto con el worker encargado y le envío
+	// información necesaria para el reduce global
+	master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, master_utils_readFile(reduceScriptPath));
+
+	// Aguardo de YAMA las instrucciones para el almacenado final
+	ipc_struct_master_continueWithFinalStorageRequest *yamaFinalStorageRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST);
 
 	return EXIT_SUCCESS;
 }

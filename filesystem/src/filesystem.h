@@ -38,14 +38,24 @@ typedef struct threadOperation {
 	void *buffer;
 } t_threadOperation;
 
+typedef struct nodeConnection {
+	char *ipAddress;
+	int port;
+	int socketfd;
+} t_nodeConnection;
+
+
 typedef struct dataNode {
 
 	char *name;
+	char *IP;
+	t_nodeConnection connection;
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
 	t_bitarray *bitmap;
 	int bitmapFileDescriptor;
+	int portno;
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
 	sem_t *threadSemaphore;
@@ -161,6 +171,9 @@ int fs_createBitmapsOfAllConnectedNodes();
 int fs_getFileSize(char *filePath);
 int fs_destroyPackageList(t_list **packageList);
 int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
+void *fs_downloadBlock(t_dataNode *target, int blockNumber);
+int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
+int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
 
 
 //Console commands
@@ -174,7 +187,7 @@ int fs_cat(char *filePath);
 int fs_mkdir(char *filePath);
 int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType);
 int fs_cpto(char *origFilePath, char *yama_directory);
-int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy);
+int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
@@ -187,5 +200,5 @@ void fs_waitForYama();
 int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
-void fs_dataNodeConnectionHandler(void *dataNodeSocket);
+void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
 #endif /* FILESYSTEM_H_ */
