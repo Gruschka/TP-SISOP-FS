@@ -193,16 +193,16 @@ void connectionHandler(int client_sock){
 				request.tempFilePath = malloc(request.tempFilePathLength + 1);
 				recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
 
-//				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
-				char *template = "echo \"hello world\" | %s";
+				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
+//				char *template = "echo \"hello world\" | %s";
 
-//				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
-				int templateSize = snprintf(NULL, 0, template, scriptPath);
+				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
+//				int templateSize = snprintf(NULL, 0, template, scriptPath);
 
-//				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-//				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
-				sprintf(buffer, template, scriptPath);
+				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+//				sprintf(buffer, template, scriptPath);
 				buffer[templateSize] = '\0';
 				int checkCode = 0;
 
