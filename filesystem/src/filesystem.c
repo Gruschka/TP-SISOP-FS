@@ -105,6 +105,7 @@ int fs_format() {
 	fs_mount(&myFS);
 	fs_wipeDirectoryTable();
     fs_wipeAllConnectedDataNodes();
+    fs_createBitmapsOfAllConnectedNodes();
 	fs_updateAllConnectedNodesOnTable();
 
 	log_debug(logger,"Format successful");
@@ -360,7 +361,7 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 
 	FILE * fileInYama = fopen(fullFilePathInYama,"r");
 	if(fileInYama){
-		log_error(logger,"fs_cpfrom: File '%s' already exists on yama directory '%s' whose index is '%d' - Aborting mv",fileName,destinationDirectory->name,destinationDirectory->index);
+		log_error(logger,"fs_mv: File '%s' already exists on yama directory '%s' whose index is '%d' - Aborting mv",fileName,destinationDirectory->name,destinationDirectory->index);
 		free(fullFilePathInYama);
 		fclose(fileInYama);
 		return EXIT_FAILURE;
@@ -903,6 +904,7 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 	fs_openOrCreateBitmap(myFS, newDataNode);
 
+	myFS.totalAmountOfBlocks += newDataNode->amountOfBlocks;
 	newDataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(newDataNode);
 	newDataNode->occupiedBlocks = newDataNode->amountOfBlocks - newDataNode->freeBlocks;
 
@@ -1082,7 +1084,6 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	if (!isAlreadyInTable) {
 		char * tamanioOriginal = config_get_string_value(nodeTableConfig,
 				"TAMANIO"); //Stores original value of TAMANIO
-
 		int tamanioAcumulado = atoi(tamanioOriginal) + aDataNode.amountOfBlocks; //Suma tamanio original al del nuevo dataNode
 		char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 		config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
@@ -2560,6 +2561,16 @@ int fs_wipeAllConnectedDataNodes(){
 int fs_wipeDataNode(t_dataNode *aDataNode){
 
 
+	struct stat mystat;
+
+	if (fstat(aDataNode->bitmapFile->_fileno, &mystat) < 0) {
+			log_error(logger,
+					"fs_mmapDataNodeBitmap: Error at fstat of data node %s in order to map to memory",
+					aDataNode->name);
+			return EXIT_FAILURE;
+
+	}
+
 	if(aDataNode == NULL){
 		log_error(logger,"fs_wipeDataNode: Node %s isnt valid- wipe aborted", aDataNode->name);
 		return EXIT_FAILURE;
@@ -2577,7 +2588,16 @@ int fs_wipeDataNode(t_dataNode *aDataNode){
 	aDataNode->freeBlocks = aDataNode->amountOfBlocks;
 	aDataNode->occupiedBlocks = 0;
 
-	log_info(logger,"fs_wipeDataNode: Node: %s wiped successfully", aDataNode->name);
+	int munmapResult = munmap(aDataNode->bitmapMapedPointer, mystat.st_size);
+
+	if(munmapResult == -1){
+		log_error(logger,"fs_wipeDataNode: error on munmap");
+		return EXIT_FAILURE;
+	}
+
+	log_debug(logger,"fs_wipeDataNode: munmapped bitmap of DataNode %s successfully", aDataNode->name);
+
+	log_debug(logger,"fs_wipeDataNode: Node: %s wiped successfully", aDataNode->name);
 	return EXIT_SUCCESS;
 
 }
@@ -2696,4 +2716,41 @@ void *fs_readFile(char *filePath){
 	}
 	//log_info(logger,"file: %s",result);
 	return result;
+}
+
+int fs_createBitmapsOfAllConnectedNodes(){
+
+	int listSize = list_size(connectedNodes);
+			int i;
+			t_dataNode * aux;
+			if (listSize == 0){
+				log_error(logger,"fs_createBitmapsOfAllConnectedNodes: No data nodes connected\n");
+				return EXIT_FAILURE;
+
+			}
+			int result;
+			for (i = 0; i < listSize; i++) {
+				aux = list_get(connectedNodes, i);
+
+				result = fs_openOrCreateBitmap(myFS, aux);
+
+				if(result == EXIT_FAILURE){
+					log_error(logger,"fs_createBitmapsOfAllConnectedNodes: Could not wipe all connected nodes\n");
+					return EXIT_FAILURE;
+				}
+
+			}
+
+			log_info(logger,"fs_wipeAllConnectedNodes: All connected nodes have been wiped successfully");
+
+			return EXIT_SUCCESS;
+}
+int fs_getFileSize(char *filePath){
+	t_config *fileMetadata = config_create(filePath);
+	char *stringSize = config_get_string_value(fileMetadata,"TAMANIO");
+	int fileSize = atoi(stringSize);
+	config_destroy(fileMetadata);
+	free(stringSize);
+
+	return fileSize;
 }
