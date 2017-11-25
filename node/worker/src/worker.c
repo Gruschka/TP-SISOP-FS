@@ -193,16 +193,16 @@ void connectionHandler(int client_sock){
 				request.tempFilePath = malloc(request.tempFilePathLength + 1);
 				recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
 
-//				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
-				char *template = "echo \"hello world\" | %s";
+				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
+//				char *template = "echo \"hello world\" | %s";
 
-//				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
-				int templateSize = snprintf(NULL, 0, template, scriptPath);
+				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
+//				int templateSize = snprintf(NULL, 0, template, scriptPath);
 
-//				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
-//				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
-				sprintf(buffer, template, scriptPath);
+				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, request.scriptContent, request.tempFilePath);
+//				sprintf(buffer, template, scriptPath);
 				buffer[templateSize] = '\0';
 				int checkCode = 0;
 
@@ -402,28 +402,35 @@ void connectionHandler(int client_sock){
 				char * fileFinalName = malloc(fileFinalNameLength +1);
 				recv(client_sock, fileFinalName, fileFinalNameLength, 0);
 				sockFs = connectToFileSystem();
-				int fileResultSize = finalFileSize(fileFinalName);
-				if(fileResultSize == -1){
-					perror("File not found");
-					reduction_response.succeeded = 0;
-					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
-					break;
-				}
-
-				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
-				request.globalTempPath[request.globalTempPathLen] = '\0';
-				FILE * finalFile = fopen(request.globalTempPath, "r");
-				int finalFileFd = fileno(finalFile);
-				int bytesSent = sendfile(sockFs, finalFileFd, NULL, fileResultSize);
-				if (bytesSent == fileResultSize){
-					log_debug(logger, "File sent successfully");
-				}
-				else{
-					perror("File couldn't be sent correctly");
-				}
-				free(fileFinalName);
-				fclose(finalFile);
+//				int fileResultSize = finalFileSize(fileFinalName);
+//				if(fileResultSize == -1){
+//					perror("File not found");
+//					reduction_response.succeeded = 0;
+//					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
+//					break;
+//				}
+//
+//				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
+//				request.globalTempPath[request.globalTempPathLen] = '\0';
+//				FILE * finalFile = fopen(request.globalTempPath, "r");
+//				int finalFileFd = fileno(finalFile);
+//				int bytesSent = sendfile(sockFs, finalFileFd, NULL, fileResultSize);
+//				if (bytesSent == fileResultSize){
+//					log_debug(logger, "File sent successfully");
+//				}
+//				else{
+//					perror("File couldn't be sent correctly");
+//				}
+//				free(fileFinalName);
+//				fclose(finalFile);
+				char *fileContent = worker_utils_readFile(fileFinalName);
+				ipc_struct_worker_file_to_yama *sendFile = malloc(sizeof(ipc_struct_worker_file_to_yama));
+				sendFile->file = fileContent;
+				sendFile->pathName = fileFinalName;
+				ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_YAMA, fileContent);
 				free(buffer);
+				free(fileContent);
+				free(sendFile);
 				free(scriptPath);
 				free(request.globalTempPath);
 				free(pairingResultName);
@@ -675,11 +682,27 @@ int connectToFileSystem(){
 	return sockfd;
 }
 
-int finalFileSize(char *filePath) {
-    struct stat st;
+char *worker_utils_readFile(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
 
-    if (stat(filePath, &st) == 0)
-        return st.st_size;
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
 
-    return -1;
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
+
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+
+	/* copy the file into the buffer // AND HANDSHAKE */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return buffer;
 }

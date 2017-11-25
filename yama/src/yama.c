@@ -175,16 +175,29 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	request->filePath = filePath;
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
-	printf("File %s has %d blocks", response->entriesCount);
+	printf("File %s has %d blocks", filePath, response->entriesCount);
 
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_fs_get_file_info_response_entry *entry = response->entries + i;
-		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
-		workerInfo->id = strdup(entry->firstCopyNodeID);
-		workerInfo->ip = strdup(entry->firstCopyNodeIP);
-		workerInfo->port = entry->firstCopyNodePort;
-		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
+		WorkerInfo *firstWorkerInfo = malloc(sizeof(WorkerInfo));
+		firstWorkerInfo->id = strdup(entry->firstCopyNodeID);
+		firstWorkerInfo->ip = strdup(entry->firstCopyNodeIP);
+		firstWorkerInfo->port = entry->firstCopyNodePort;
+		log_debug(logger, "firstWorkerInfo: %s", entry->firstCopyNodeID);
+		//TODO: ver como serializar/deserializar cuando no esta alguna copia
+		if (!dictionary_has_key(workersDict, entry->firstCopyNodeID)) {
+			dictionary_put(workersDict, entry->firstCopyNodeID, firstWorkerInfo);
+		}
+
+		WorkerInfo *secondWorkerInfo = malloc(sizeof(WorkerInfo));
+		secondWorkerInfo->id = strdup(entry->secondCopyNodeID);
+		secondWorkerInfo->ip = strdup(entry->secondCopyNodeIP);
+		secondWorkerInfo->port = entry->secondCopyNodePort;
+		log_debug(logger, "secondWorkerInfo: %s", entry->secondCopyNodeID);
+		if (!dictionary_has_key(workersDict, entry->secondCopyNodeID)) {
+			dictionary_put(workersDict, entry->secondCopyNodeID, secondWorkerInfo);
+		}
 	}
 	return response;
 }
@@ -192,7 +205,9 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 void testFSConnection() {
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	requestInfoToFilesystem("/pruebita/re/linda");
+//	requestInfoToFilesystem("/pruebita/re/linda");
+	ipc_struct_fs_get_file_info_response *response = requestInfoToFilesystem("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+	log_debug(logger, "entriesCount: %d", response->entriesCount);
 }
 
 ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
@@ -307,8 +322,8 @@ void testScheduling(scheduling_algorithm algorithm) {
 void test() {
 //	testStateTable();
 //	testSerialization();
-//	testFSConnection();
-	testScheduling(W_CLOCK);
+	testFSConnection();
+//	testScheduling(W_CLOCK);
 }
 
 void *server_mainThread() {

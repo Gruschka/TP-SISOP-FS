@@ -46,7 +46,7 @@ t_FS myFS = { .mountDirectoryPath = "/mnt/FS/", .MetadataDirectoryPath =
 				"/mnt/FS/metadata/nodos.bin", .directoryTablePath =
 				"/mnt/FS/metadata/directorios.dat", .FSFileList =
 				"/mnt/FS/metadata/archivos/archivos.txt", .totalAmountOfBlocks =
-				0, .freeBlocks = 0, .occupiedBlocks = 0 }; //Global struct containing the information of the FS
+				0, .freeBlocks = 0, .occupiedBlocks = 0, .tempFilesPath = "/mnt/temp" }; //Global struct containing the information of the FS
 
 t_log *logger;
 t_config *nodeTableConfig; //Para levantar la tabla de nodos como un archivo de config
@@ -792,7 +792,7 @@ void fs_waitForYama() {
 		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(request->filePath);
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		int length = fs_getNumberOfBlocksOfAFile(request->filePath);
-		fs_destroyNodeTupleArray(response->entries, length);
+//		fs_destroyNodeTupleArray(response->entries, length);
 		sleep(5);
 	}
 
@@ -1054,7 +1054,7 @@ void fs_waitForWorkers(){
 
 		address.sin_family = AF_INET;
 		address.sin_addr.s_addr = INADDR_ANY;
-		address.sin_port = htons(8081);
+		address.sin_port = htons(8082);
 
 	// Forcefully attaching socket to the port 8080
 		if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
@@ -1075,6 +1075,16 @@ void fs_waitForWorkers(){
 			printf("Hello message sent\n");
 
 			ipc_struct_worker_file_to_yama *sendFile = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_YAMA);
+			t_directory *destinationDirectory = fs_directoryExists(sendFile->pathName);
+			if (!destinationDirectory) {
+				log_error(logger, "fs_waitForWorkers: destination directory doesnt exist");
+			}
+			fs_createTempFileFromWorker(sendFile->pathName);
+			char *fileName = basename(sendFile->pathName);
+			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
+			fs_cpfrom(pathInLocalFS,sendFile->pathName,'-t');
+			remove(pathInLocalFS);
+			free(pathInLocalFS);
 			sleep(5);
 		}
 
@@ -1114,6 +1124,9 @@ int fs_mount(t_FS *FS) {
 
 	/****************************    BITMAP DIRECTORY ****************************/
 	fs_openOrCreateDirectory(myFS.bitmapFilePath, 0);
+
+	/****************************    BITMAP DIRECTORY ****************************/
+	fs_openOrCreateDirectory(myFS.tempFilesPath, 0);
 
 	/****************************    DIRECTORY TABLE PATH ****************************/
 	fs_openOrCreateDirectoryTableFile(myFS.directoryTablePath);
@@ -2980,4 +2993,20 @@ int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *t
 
 	return copies;
 }
+int fs_createTempFileFromWorker(char *filePath){
 
+	char *fileName = basename(filePath);
+	char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
+
+	FILE * file = fopen(pathInLocalFS, "w+");
+
+	free(pathInLocalFS);
+
+	if(file == NULL){
+		log_error(logger,"fs_createTempFileFromWorker: could not create temp file");
+		return EXIT_FAILURE;
+	}
+
+	return EXIT_SUCCESS;
+
+}

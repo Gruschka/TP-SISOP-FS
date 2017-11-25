@@ -87,6 +87,7 @@ typedef struct FS {
 	char *bitmapFilePath;
 	char *nodeTablePath;
 	char *directoryTablePath;
+	char *tempFilesPath;
 	int amountOfDirectories;
 	FILE *directoryTableFile;
 	char *FSMetadataFileName;
@@ -172,7 +173,7 @@ int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
 void *fs_downloadBlock(t_dataNode *target, int blockNumber);
 int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
 int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
-
+int fs_createTempFileFromWorker(char *filePath);
 
 //Console commands
 int fs_format();
