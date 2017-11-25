@@ -46,6 +46,18 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->firstCopyNodeID, tmp, tmpLen + 1); //firstCopyNodeID
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
+
+		tmp = strdup(buffer + offset);
+		tmpLen = strlen(tmp);
+		currentEntry->firstCopyNodeIP = malloc(tmpLen + 1);
+		memcpy(currentEntry->firstCopyNodeIP, tmp, tmpLen + 1); //firstCopyNodeIP
+		entriesOffset += tmpLen + 1;
+		offset += tmpLen + 1;
+
+		memcpy(&(currentEntry->firstCopyNodePort), buffer + offset, sizeof(uint32_t)); //firstCopyNodePort
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
+
 		memcpy(&(currentEntry->firstCopyBlockID), buffer + offset, sizeof(uint32_t)); //firstCopyBlockID
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
@@ -56,10 +68,21 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->secondCopyNodeID, tmp, tmpLen + 1); //secondCopyNodeID
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
-		memcpy(&(currentEntry->secondCopyBlockID), buffer + offset, sizeof(uint32_t)); //secondCopyBlockID
+
+		tmp = strdup(buffer + offset);
+		tmpLen = strlen(tmp);
+		currentEntry->secondCopyNodeIP = malloc(tmpLen + 1);
+		memcpy(currentEntry->secondCopyNodeIP, tmp, tmpLen + 1); //secondCopyNodeIP
+		entriesOffset += tmpLen + 1;
+		offset += tmpLen + 1;
+
+		memcpy(&(currentEntry->secondCopyNodePort), buffer + offset, sizeof(uint32_t)); //secondCopyNodePort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
 
+		memcpy(&(currentEntry->secondCopyBlockID), buffer + offset, sizeof(uint32_t)); //secondCopyBlockID
+		entriesOffset += sizeof(uint32_t);
+		offset += sizeof(uint32_t);
 
 		memcpy(&(currentEntry->blockSize), buffer + offset, sizeof(uint32_t)); //blockSize
 		entriesOffset += sizeof(uint32_t);
@@ -251,6 +274,14 @@ char *serializeFSGetFileInfoResponse(void *data, int *size) {
 		buffer[offset] = '\0';
 		offset += 1;
 
+		memcpy(buffer + offset, currentEntry->firstCopyNodeIP, strlen(currentEntry->firstCopyNodeIP)); //firstCopyNodeIP
+		offset += strlen(currentEntry->firstCopyNodeIP);
+		buffer[offset] = '\0';
+		offset += 1;
+
+		memcpy(buffer + offset, &(currentEntry->firstCopyNodePort), sizeof(uint32_t)); //firstCopyNodePort
+		offset += sizeof(uint32_t);
+
 		memcpy(buffer + offset, &(currentEntry->firstCopyBlockID), sizeof(uint32_t)); //firstCopyBlockID
 		offset += sizeof(uint32_t);
 
@@ -258,6 +289,14 @@ char *serializeFSGetFileInfoResponse(void *data, int *size) {
 		offset += strlen(currentEntry->secondCopyNodeID);
 		buffer[offset] = '\0';
 		offset += 1;
+
+		memcpy(buffer + offset, currentEntry->secondCopyNodeIP, strlen(currentEntry->secondCopyNodeIP)); //secondCopyNodeIP
+		offset += strlen(currentEntry->secondCopyNodeIP);
+		buffer[offset] = '\0';
+		offset += 1;
+
+		memcpy(buffer + offset, &(currentEntry->secondCopyNodePort), sizeof(uint32_t)); //secondCopyNodePort
+		offset += sizeof(uint32_t);
 
 		memcpy(buffer + offset, &(currentEntry->secondCopyBlockID), sizeof(uint32_t)); //secondCopyBlockID
 		offset += sizeof(uint32_t);
@@ -283,7 +322,7 @@ char *serializeYAMAStartTransformationRequest(void *data, int *size) {
 
 // YAMA_START_TRANSFORMATION_RESPONSE
 uint32_t getYAMAStartTransformationResponseEntrySize(ipc_struct_start_transform_reduce_response_entry *entry) {
-	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + (3 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
+	return strlen(entry->nodeID) + strlen(entry->workerIP) + 2 + (3 * sizeof(uint32_t)) + strlen(entry->tempPath) + 1;
 }
 
 uint32_t getYAMAStartTransformationResponseEntriesSize(ipc_struct_start_transform_reduce_response *response) {

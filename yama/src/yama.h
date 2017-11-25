@@ -32,6 +32,12 @@ typedef struct node {
 	uint32_t totalOperationsCount;
 } node;
 
+typedef struct {
+	char *id;
+	char *ip;
+	uint32_t port;
+} WorkerInfo;
+
 void loadConfiguration();
 void signalHandler(int);
 

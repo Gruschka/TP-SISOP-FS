@@ -50,8 +50,12 @@ typedef struct {
 
 typedef struct {
 	char *firstCopyNodeID;
+	char *firstCopyNodeIP;
+	uint32_t firstCopyNodePort;
 	uint32_t firstCopyBlockID;
 	char *secondCopyNodeID;
+	char *secondCopyNodeIP;
+	uint32_t secondCopyNodePort;
 	uint32_t secondCopyBlockID;
 	uint32_t blockSize;
 }__attribute__((packed)) ipc_struct_fs_get_file_info_response_entry;
