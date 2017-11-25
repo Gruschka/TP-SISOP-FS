@@ -310,10 +310,6 @@ void connectionHandler(int client_sock){
 				int i = 0;
 				uint32_t sockFs;
 				ipc_struct_worker_start_global_reduce_request request;
-
-
-
-
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 
 				request.scriptContent = malloc(request.scriptContentLength + 1);
