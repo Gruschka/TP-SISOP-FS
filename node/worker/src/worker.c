@@ -60,7 +60,6 @@ int main() {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
-	fileList = list_create();
 	createServer();
 
 
@@ -466,6 +465,7 @@ void connectionHandler(int client_sock){
 					if(clientCode == REGISTER_REQUEST){
 						if(fgets(registerToSend, 256, fileToOpen) == NULL){
 							strcpy(registerToSend, "NULL");
+							registerSize = strlen(registerToSend);
 							send(client_sock, &registerSize, sizeof(int), 0);
 							send(client_sock, registerToSend, registerSize, 0);
 						}
