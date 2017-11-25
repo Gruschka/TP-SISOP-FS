@@ -50,6 +50,8 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 		ipc_struct_worker_start_local_reduce_TransformTempEntry *entry = request->workerRequest.transformTempEntries + i;
 		send(sockfd, &(entry->tempPathLen), sizeof(uint32_t), 0);
 		send(sockfd, entry->tempPath, (entry->tempPathLen + 1) * sizeof(char), 0);
+
+		free(entry->tempPath);
 	}
 
 	send(sockfd, &(request->workerRequest.reduceTempPathLen), sizeof(uint32_t), 0);
@@ -68,9 +70,10 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
 
 	free(request->workerRequest.scriptContent);
-	free(request->workerRequest.transformTempFilePath);
-	free(request->workerRequest.reduceTempFilePath);
+	free(request->workerRequest.transformTempEntries);
+	free(request->workerRequest.reduceTempPath);
 	free(request->ip);
+	free(request->nodeID);
 	free(request);
 
 	return NULL;

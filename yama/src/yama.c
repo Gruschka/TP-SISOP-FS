@@ -32,20 +32,6 @@ t_dictionary *workersDict;
 node *lastAssignedNode;
 pthread_t serverThread;
 
-//ipc_struct_start_transform_reduce_response *fsFileInfoToTransformationResponse(ipc_struct_fs_get_file_info_response *input) {
-//	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
-//
-//	response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * input->entriesCount);
-//	response->entriesCount = input->entriesCount;
-//
-//	int i;
-//	for (i = 0; i < response->entriesCount; i++) {
-//		ipc_struct_fs_get_file_info_response_entry *inputEntry = input->entries + i;
-//		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
-//
-//		responseEntry->nodeID = strdup(inputEntry->firstCopyNode)
-//	}
-//}
 
 char *tempFileName() {
 	static char template[] = "/tmp/XXXXXX";
@@ -155,7 +141,7 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		workerInfo->id = strdup(entry->firstCopyNodeID);
 		workerInfo->ip = strdup(entry->firstCopyNodeIP);
 		workerInfo->port = entry->firstCopyNodePort;
-//		dictionary_put(workersDict, entry->firstCopyNodeID, )
+		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
 	}
 	return response;
 }
@@ -171,9 +157,37 @@ ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *nod
 	entry->blockSize = 50;
 	entry->firstCopyBlockID = block1;
 	entry->secondCopyBlockID = block2;
-	entry->firstCopyNodeID = node1;
-	entry->secondCopyNodeID = node2;
+	entry->firstCopyNodeID = strdup(node1);
+	entry->secondCopyNodeID = strdup(node2);
+	entry->firstCopyNodeIP = "127.0.0.1";
+	entry->secondCopyNodeIP = "127.0.0.2";
+	entry->firstCopyNodePort = 5001;
+	entry->secondCopyNodePort = 5002;
 	return entry;
+}
+
+ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
+	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
+
+	response->entriesCount = executionPlan->entriesCount;
+	response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
+
+	int i;
+	for (i = 0; i < response->entriesCount; i++) {
+		ExecutionPlanEntry *epEntry = executionPlan->entries + i;
+		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
+
+		responseEntry->blockID = epEntry->blockID;
+		responseEntry->usedBytes = epEntry->usedBytes;
+		responseEntry->nodeID = epEntry->workerID;
+		responseEntry->tempPath = "ble"; //TODO: generar esto
+
+		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
+		responseEntry->workerIP = strdup(workerInfo->ip);
+		responseEntry->workerPort = workerInfo->port;
+	}
+
+	return response;
 }
 
 void testScheduling(scheduling_algorithm algorithm) {
@@ -187,6 +201,15 @@ void testScheduling(scheduling_algorithm algorithm) {
 	testResponse->entries = entries;
 
 	testResponse->entriesCount = 3;
+	int i;
+	for (i = 0; i < testResponse->entriesCount; i++) {
+		ipc_struct_fs_get_file_info_response_entry *entry = testResponse->entries + i;
+		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
+		workerInfo->id = strdup(entry->firstCopyNodeID);
+		workerInfo->ip = strdup(entry->firstCopyNodeIP);
+		workerInfo->port = entry->firstCopyNodePort;
+		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
+	}
 
 	Worker *workerA = malloc(sizeof(Worker));
 	workerA->name = "NodeA";
@@ -215,7 +238,10 @@ void testScheduling(scheduling_algorithm algorithm) {
 	scheduling_addWorker(workerD);
 	scheduling_addWorker(workerE);
 	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
-	printf("Execution plan: %d", executionPlan->entriesCount);
+	log_debug(logger, "Execution plan: %d", executionPlan->entriesCount);
+
+	ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+	printf(response->entriesSize);
 }
 
 void test() {
@@ -223,24 +249,6 @@ void test() {
 //	testSerialization();
 //	testFSConnection();
 	testScheduling(W_CLOCK);
-}
-
-ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
-	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
-
-	response->entriesCount = executionPlan->entriesCount;
-	response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
-
-	int i;
-	for (i = 0; i < response->entriesCount; i++) {
-		ExecutionPlanEntry *epEntry = executionPlan->entries + i;
-		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
-
-		responseEntry->blockID = epEntry->blockID;
-		responseEntry->usedBytes = epEntry->usedBytes;
-	}
-
-	return response;
 }
 
 void *server_mainThread() {
@@ -262,7 +270,7 @@ void *server_mainThread() {
 				ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
 
 				ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
-				ipc_struct_start_transform_reduce_response *response;
+				ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
 				ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 			}
 
