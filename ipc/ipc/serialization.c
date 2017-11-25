@@ -135,8 +135,10 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 	ipc_struct_start_transform_reduce_response_entry *entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_start_transform_reduce_response_entry *currentEntry = entries + i;
+
 		char *tmpNodeID = strdup(buffer + offset);
 		int tmpNodeIDStringLen = strlen(tmpNodeID);
+		currentEntry->nodeID = malloc(tmpNodeIDStringLen + 1);
 		memcpy(currentEntry->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
 		entriesOffset += tmpNodeIDStringLen + 1;
 		offset += tmpNodeIDStringLen + 1;
@@ -159,10 +161,10 @@ void *deserializeYAMAStartTransformationResponse(char *buffer) {
 		memcpy(&(currentEntry->usedBytes), buffer + offset, sizeof(uint32_t)); //usedBytes
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		char *tmpPath = strdup(buffer + offset);
 		int tmpPathLen = strlen(tmpPath);
 		currentEntry->tempPath = malloc(tmpPathLen + 1);
-
 		memcpy(currentEntry->tempPath, tmpPath, tmpPathLen + 1); //tmpPath
 		entriesOffset += tmpPathLen + 1;
 		offset += tmpPathLen + 1;
@@ -188,30 +190,39 @@ void *deserializeMasterContinueWithLocalReductionRequest(char *buffer) {
 	ipc_struct_master_continueWithLocalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = entries + i;
-		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
-		entriesOffset += sizeof(uint32_t);
-		offset += sizeof(uint32_t);
+
+		char *tmpNodeID = strdup(buffer + offset);
+		int tmpNodeIDStringLen = strlen(tmpNodeID);
+		currentEntry->nodeID = malloc(tmpNodeIDStringLen + 1);
+		memcpy(currentEntry->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
+		entriesOffset += tmpNodeIDStringLen + 1;
+		offset += tmpNodeIDStringLen + 1;
+
 		char *tmpWorkerIP = strdup(buffer + offset);
 		int tpmWorkerIPLength = strlen(tmpWorkerIP);
 		currentEntry->workerIP = malloc(tpmWorkerIPLength + 1);
 		memcpy(currentEntry->workerIP, tmpWorkerIP, tpmWorkerIPLength + 1); //workerIP
 		entriesOffset += tpmWorkerIPLength + 1;
 		offset += tpmWorkerIPLength + 1;
+
 		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		char *tmpTransformPath = strdup(buffer + offset);
 		int tmpTransformPathLen = strlen(tmpTransformPath);
 		currentEntry->transformTempPath = malloc(tmpTransformPathLen + 1);
 		memcpy(currentEntry->transformTempPath, tmpTransformPath, tmpTransformPathLen + 1); //tmpTransformPath
 		entriesOffset += tmpTransformPathLen + 1;
 		offset += tmpTransformPathLen + 1;
+
 		char *tmpLocalReducePath = strdup(buffer + offset);
 		int tmpLocalReducePathLen = strlen(tmpLocalReducePath);
 		currentEntry->localReduceTempPath = malloc(tmpLocalReducePathLen + 1);
 		memcpy(currentEntry->localReduceTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
 		entriesOffset += tmpLocalReducePathLen + 1;
 		offset += tmpLocalReducePathLen + 1;
+
 		free(tmpTransformPath);
 		free(tmpLocalReducePath);
 		free(tmpWorkerIP);
@@ -233,33 +244,43 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = entries + i;
-		memcpy(&(currentEntry->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
-		entriesOffset += sizeof(uint32_t);
-		offset += sizeof(uint32_t);
+
+		char *tmpNodeID = strdup(buffer + offset);
+		int tmpNodeIDStringLen = strlen(tmpNodeID);
+		currentEntry->nodeID = malloc(tmpNodeIDStringLen + 1);
+		memcpy(currentEntry->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
+		entriesOffset += tmpNodeIDStringLen + 1;
+		offset += tmpNodeIDStringLen + 1;
+
 		char *tmpWorkerIP = strdup(buffer + offset);
 		int tpmWorkerIPLength = strlen(tmpWorkerIP);
 		currentEntry->workerIP = malloc(tpmWorkerIPLength + 1);
 		memcpy(currentEntry->workerIP, tmpWorkerIP, tpmWorkerIPLength + 1); //workerIP
 		entriesOffset += tpmWorkerIPLength + 1;
 		offset += tpmWorkerIPLength + 1;
+
 		memcpy(&(currentEntry->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		char *tmpLocalReducePath = strdup(buffer + offset);
 		int tmpLocalReducePathLen = strlen(tmpLocalReducePath);
 		currentEntry->localReduceTempPath = malloc(tmpLocalReducePathLen + 1);
 		memcpy(currentEntry->localReduceTempPath, tmpLocalReducePath, tmpLocalReducePathLen + 1); //tmpLocalReducePath
 		entriesOffset += tmpLocalReducePathLen + 1;
 		offset += tmpLocalReducePathLen + 1;
+
 		char *tmpGlobalReducePath = strdup(buffer + offset);
 		int tmpGlobalReducePathLen = strlen(tmpGlobalReducePath);
 		currentEntry->globalReduceTempPath = malloc(tmpGlobalReducePathLen + 1);
 		memcpy(currentEntry->globalReduceTempPath, tmpGlobalReducePath, tmpGlobalReducePathLen + 1); //tmpTransformPath
 		entriesOffset += tmpGlobalReducePathLen + 1;
 		offset += tmpGlobalReducePathLen + 1;
+
 		memcpy(&(currentEntry->isWorkerInCharge), buffer + offset, sizeof(uint32_t)); //workerPort
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
+
 		free(tmpGlobalReducePath);
 		free(tmpLocalReducePath);
 		free(tmpWorkerIP);
@@ -272,8 +293,13 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
 	int offset = 0;
 	ipc_struct_master_continueWithFinalStorageRequest *response = malloc(sizeof(ipc_struct_master_continueWithFinalStorageRequest));
-	memcpy(&(response->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
-	offset += sizeof(uint32_t);
+
+	char *tmpNodeID = strdup(buffer + offset);
+	int tmpNodeIDStringLen = strlen(tmpNodeID);
+	response->nodeID = malloc(tmpNodeIDStringLen + 1);
+	memcpy(response->nodeID, tmpNodeID, tmpNodeIDStringLen + 1); //nodeID
+	offset += tmpNodeIDStringLen + 1;
+
 	char *tmpWorkerIP = strdup(buffer + offset);
 	int tpmWorkerIPLength = strlen(tmpWorkerIP);
 	response->workerIP = malloc(tpmWorkerIPLength + 1);
@@ -281,11 +307,13 @@ void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
 	offset += tpmWorkerIPLength + 1;
 	memcpy(&(response->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
 	offset += sizeof(uint32_t);
+
 	char *tmpResultPath = strdup(buffer + offset);
 	int tmpResultPathLen = strlen(tmpResultPath);
 	response->globalReductionTempPath = malloc(tmpResultPathLen + 1);
 	memcpy(response->globalReductionTempPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
 	offset += tmpResultPathLen + 1;
+
 	free(tmpResultPath);
 	free(tmpWorkerIP);
 	return response;
