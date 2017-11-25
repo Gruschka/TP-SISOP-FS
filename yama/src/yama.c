@@ -192,7 +192,9 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 void testFSConnection() {
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	requestInfoToFilesystem("/pruebita/re/linda");
+//	requestInfoToFilesystem("/pruebita/re/linda");
+	ipc_struct_fs_get_file_info_response *response = requestInfoToFilesystem("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+	log_debug(logger, "entriesCount: %d", response->entriesCount);
 }
 
 ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
@@ -307,8 +309,8 @@ void testScheduling(scheduling_algorithm algorithm) {
 void test() {
 //	testStateTable();
 //	testSerialization();
-//	testFSConnection();
-	testScheduling(W_CLOCK);
+	testFSConnection();
+//	testScheduling(W_CLOCK);
 }
 
 void *server_mainThread() {
