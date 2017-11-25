@@ -18,6 +18,7 @@
 
 typedef struct file {
 	char * filePath;
+	uint32_t filePathLength;
 }fileNode;
 
 typedef struct fileGlobalNode {
