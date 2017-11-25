@@ -50,15 +50,15 @@
 // 5. TODO: notificar resultado a YAMA.
 //
 // Etapa de reducción global
-// TODO: recibir de YAMA la IP y puerto del worker "encargado",
+// Recibir de YAMA la IP y puerto del worker "encargado",
 // el nombre del archivo temporal de reducción de cada worker,
 // el nombre del archivo temporal donde guardar el resultado.
-// TODO: conectarse al worker encargado
-// TODO: enviarle el programa de reducción, lista de todos los
+// 1. Conectarse al worker encargado
+// 2. Enviarle el programa de reducción, lista de todos los
 // workers con sus puertos e IPs, y los nombres de los temporales
 // de reducción local.
-// TODO: esperar confirmación del worker encargado y notificar
-// resultado a YAMA.
+// 3. Esperar confirmación del worker encargado
+// 4. TODO: notificar resultado a YAMA.
 //
 // Almacenado final
 // TODO: recibir de YAMA la IP y puerto del worker "encargado",
@@ -138,6 +138,9 @@ int main(int argc, char **argv) {
 	// Me conecto con el worker encargado y le envío
 	// información necesaria para el reduce global
 	master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, master_utils_readFile(reduceScriptPath));
+
+	// Aguardo de YAMA las instrucciones para el almacenado final
+	ipc_struct_master_continueWithFinalStorageRequest *yamaFinalStorageRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST);
 
 	return EXIT_SUCCESS;
 }

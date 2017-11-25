@@ -248,6 +248,29 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 	return response;
 }
 
+// MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
+void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithFinalStorageRequest *response = malloc(sizeof(ipc_struct_master_continueWithFinalStorageRequest));
+	memcpy(&(response->nodeID), buffer + offset, sizeof(uint32_t)); //nodeID
+	offset += sizeof(uint32_t);
+	char *tmpWorkerIP = strdup(buffer + offset);
+	int tpmWorkerIPLength = strlen(tmpWorkerIP);
+	response->workerIP = malloc(tpmWorkerIPLength + 1);
+	memcpy(response->workerIP, tmpWorkerIP, tpmWorkerIPLength + 1); //workerIP
+	offset += tpmWorkerIPLength + 1;
+	memcpy(&(response->workerPort), buffer + offset, sizeof(uint32_t)); //workerPort
+	offset += sizeof(uint32_t);
+	char *tmpResultPath = strdup(buffer + offset);
+	int tmpResultPathLen = strlen(tmpResultPath);
+	response->resultPath = malloc(tmpResultPathLen + 1);
+	memcpy(response->resultPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
+	offset += tmpResultPathLen + 1;
+	free(tmpResultPath);
+	free(tmpWorkerIP);
+	return response;
+}
+
 // Serialization functions
 
 // TEST_MESSAGE
@@ -564,6 +587,37 @@ char *serializeMasterContinueWithGlobalReductionRequest(void *data, int *size) {
 	return buffer;
 }
 
+// MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
+
+uint32_t getMasterContinueWithFinalStorageRequestSize(ipc_struct_master_continueWithFinalStorageRequest *request) {
+	return strlen(request->nodeID) + 1 + strlen(request->workerIP) + 1 + sizeof(uint32_t) + strlen(request->resultPath) + 1;
+}
+
+char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
+	int offset = 0, i;
+	ipc_struct_master_continueWithFinalStorageRequest *request = data;
+	uint32_t entriesSize = getMasterContinueWithGlobalReductionRequestEntriesSize(request);
+	char *buffer;
+
+	buffer = malloc(*size = getMasterContinueWithFinalStorageRequestSize(request));
+	memcpy(buffer + offset, request->nodeID, strlen(request->nodeID)); //nodeID
+	offset += strlen(request->nodeID);
+	buffer[offset] = '\0';
+	offset += 1;
+	memcpy(buffer + offset, request->workerIP, strlen(request->workerIP)); //workerIP
+	offset += strlen(request->workerIP);
+	buffer[offset] = '\0';
+	offset += 1;
+	memcpy(buffer + offset, &(request->workerPort), sizeof(uint32_t));
+	offset += sizeof(uint32_t);
+	memcpy(buffer + offset, request->resultPath, strlen(request->resultPath));
+	offset += strlen(request->resultPath);
+	buffer[offset] = '\0';
+	offset += 1;
+
+	return buffer;
+}
+
 void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO_REQUEST] = serializeFSGetFileInfoRequest;
@@ -572,6 +626,7 @@ void initializeSerialization() {
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
 	serializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = serializeMasterContinueWithLocalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
+	serializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = serializeMasterContinueWithFinalStorageRequest;
 }
 
 void initializeDeserialization () {
@@ -582,6 +637,7 @@ void initializeDeserialization () {
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
 	deserializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = deserializeMasterContinueWithLocalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
+	deserializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = deserializeMasterContinueWithFinalStorageRequest;
 }
 
 void serialization_initialize() {
