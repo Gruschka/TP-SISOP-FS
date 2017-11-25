@@ -16,6 +16,7 @@
 #include <ipc/serialization.h>
 
 #include "transform.h"
+#include "local_reduce.h"
 #include "utils.h"
 
 // Setup

@@ -94,13 +94,18 @@ typedef struct {
 	uint32_t succeeded;
 }__attribute__((packed)) ipc_struct_worker_start_transform_response;
 
+typedef struct ipc_struct_worker_start_local_reduce_TransformTempEntry {
+	uint32_t tempPathLen;
+	char *tempPath;
+} ipc_struct_worker_start_local_reduce_TransformTempEntry;
+
 typedef struct {
 	uint32_t scriptContentLength;
 	char *scriptContent;
-	uint32_t transformTempFilePathLength;
-	char *transformTempFilePath;
-	uint32_t reduceTempFilePathLength;
-	char *reduceTempFilePath;
+	uint32_t transformTempEntriesCount;
+	ipc_struct_worker_start_local_reduce_TransformTempEntry *transformTempEntries;
+	uint32_t reduceTempPathLen;
+	char *reduceTempPath;
 }__attribute__((packed)) ipc_struct_worker_start_local_reduce_request;
 
 typedef struct {

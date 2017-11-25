@@ -44,10 +44,16 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 
 	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
 	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
-	send(sockfd, &(request->workerRequest.transformTempFilePathLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.transformTempFilePath, (request->workerRequest.transformTempFilePathLength + 1) * sizeof(char), 0);
-	send(sockfd, &(request->workerRequest.reduceTempFilePathLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.reduceTempFilePath, (request->workerRequest.reduceTempFilePathLength + 1) * sizeof(char), 0);
+
+	int i;
+	for (i = 0; i < request->workerRequest.transformTempEntriesCount; i++) {
+		ipc_struct_worker_start_local_reduce_TransformTempEntry *entry = request->workerRequest.transformTempEntries + i;
+		send(sockfd, &(entry->tempPathLen), sizeof(uint32_t), 0);
+		send(sockfd, entry->tempPath, (entry->tempPathLen + 1) * sizeof(char), 0);
+	}
+
+	send(sockfd, &(request->workerRequest.reduceTempPathLen), sizeof(uint32_t), 0);
+	send(sockfd, request->workerRequest.reduceTempPath, (request->workerRequest.reduceTempPathLen + 1) * sizeof(char), 0);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;
@@ -71,37 +77,62 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 }
 
 void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReductionRequest *yamaRequest, char *localReduceScript) {
+	int requestsCount = 0;
+	WorkerRequest *requests = NULL;
+
 	int i = 0;
-	while (i < yamaRequest->entriesCount) {
+	char *currentNodeID = NULL;
+	for (i = 0; i < yamaRequest->entriesCount; i++) {
 		ipc_struct_master_continueWithLocalReductionRequestEntry *entry = yamaRequest->entries + i;
 
-		ipc_struct_worker_start_local_reduce_request workerRequest;
-		workerRequest.scriptContentLength = strlen(localReduceScript);
-		workerRequest.scriptContent = strdup(localReduceScript);
-		workerRequest.transformTempFilePathLength = strlen(entry->transformTempPath);
-		workerRequest.transformTempFilePath = strdup(entry->transformTempPath);
-		workerRequest.reduceTempFilePathLength = strlen(entry->localReduceTempPath);
-		workerRequest.reduceTempFilePath = strdup(entry->localReduceTempPath);
+		if (strcmp(entry->nodeID, currentNodeID) == 1) {
+			currentNodeID = entry->nodeID;
+			requestsCount++;
+			requests = realloc(requests, sizeof(WorkerRequest) * requestsCount);
 
-		WorkerRequest *request = malloc(sizeof(WorkerRequest));
-		request->nodeID = strdup(entry->nodeID);
-		request->ip = strdup(entry->workerIP);
-		request->port = entry->workerPort;
-		request->workerRequest = workerRequest;
+			ipc_struct_worker_start_local_reduce_request workerRequest;
+			workerRequest.scriptContentLength = strlen(localReduceScript);
+			workerRequest.scriptContent = strdup(localReduceScript);
 
-		// Creamos un hilo por cada worker
-		pthread_t thread;
-		if (pthread_create(&thread, NULL, master_transform_connectToWorkerAndMakeRequest, request)) {
-			//FIXME: (Fede) acá hay error
+			workerRequest.transformTempEntriesCount = 1;
+			workerRequest.transformTempEntries = malloc(sizeof(ipc_struct_worker_start_local_reduce_TransformTempEntry));
+			workerRequest.transformTempEntries->tempPathLen = strlen(entry->transformTempPath);
+			workerRequest.transformTempEntries->tempPath = strdup(entry->transformTempPath);
+
+			workerRequest.reduceTempPathLen = strlen(entry->localReduceTempPath);
+			workerRequest.reduceTempPath = strdup(entry->localReduceTempPath);
+
+			WorkerRequest *request = requests + (requestsCount - 1);
+			request->nodeID = strdup(entry->nodeID);
+			request->ip = strdup(entry->workerIP);
+			request->port = entry->workerPort;
+			request->workerRequest = workerRequest;
+		} else {
+			WorkerRequest *request = requests + (requestsCount - 1);
+
+			request->workerRequest.transformTempEntriesCount++;
+			request->workerRequest.transformTempEntries = realloc(request->workerRequest.transformTempEntries, sizeof(ipc_struct_worker_start_local_reduce_TransformTempEntry) * request->workerRequest.transformTempEntriesCount);
+			ipc_struct_worker_start_local_reduce_TransformTempEntry *tempEntry = request->workerRequest.transformTempEntries + request->workerRequest.transformTempEntriesCount;
+			tempEntry->tempPathLen = strlen(entry->transformTempPath);
+			tempEntry->tempPath = strdup(entry->transformTempPath);
 		}
 
 		free(entry->localReduceTempPath);
 		free(entry->transformTempPath);
 		free(entry->workerIP);
 		free(entry->nodeID);
-
-		i++;
 	}
+
+	for (i = 0; i < requestsCount; i++) {
+		WorkerRequest *request = requests + i;
+
+	 	// Creamos un hilo por cada worker
+		pthread_t thread;
+		if (pthread_create(&thread, NULL, master_transform_connectToWorkerAndMakeRequest, request)) {
+			//FIXME: (Fede) acá hay error
+		}
+	}
+
 
 	free(yamaRequest->entries);
 	free(yamaRequest);
