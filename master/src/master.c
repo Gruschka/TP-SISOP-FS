@@ -136,6 +136,10 @@ int main(int argc, char **argv) {
 		} break;
 		case MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST: {
 			ipc_struct_master_continueWithFinalStorageRequest *yamaFinalStorageRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST);
+
+			// Me conecto con el worker encargado y le envío
+			// información necesaria para el almacenado final
+			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest);
 		} break;
 		}
 	}
