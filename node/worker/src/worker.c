@@ -394,7 +394,7 @@ void connectionHandler(int client_sock){
 				recv(client_sock, fileFinalName, fileFinalNameLength, 0);
 				//TODO conectarme al FS y enviarle el archivo, en caso de que falle la escritura avisarle a Master
 				sockFs = connectToFileSystem();
-				uint32_t fileResultSize = finalFileSize(fileFinalName);
+				int fileResultSize = finalFileSize(fileFinalName);
 				if(fileResultSize == -1){
 					perror("File not found");
 					reduction_response.succeeded = 0;
@@ -662,7 +662,7 @@ int connectToFileSystem(){
 	return sockfd;
 }
 
-int finalFileSize(const char *filePath) {
+int finalFileSize(char *filePath) {
     struct stat st;
 
     if (stat(filePath, &st) == 0)
