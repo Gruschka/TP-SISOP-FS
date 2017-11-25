@@ -404,7 +404,13 @@ void connectionHandler(int client_sock){
 				temporalName[temporalNameLength] = '\0';
 				FILE * finalFile = fopen(temporalName, "r");
 				int finalFileFd = fileno(finalFile);
-				sendfile(sockFs, finalFileFd, NULL, fileResultSize);
+				int bytesSent = sendfile(sockFs, finalFileFd, NULL, fileResultSize);
+				if (bytesSent == fileResultSize){
+					log_debug(logger, "File sent successfully");
+				}
+				else{
+					perror("File couldn't be sent correctly");
+				}
 				free(fileFinalName);
 				fclose(finalFile);
 				free(buffer);
