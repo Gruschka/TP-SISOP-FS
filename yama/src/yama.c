@@ -294,7 +294,18 @@ void *server_mainThread() {
 
 				break;
 			}
-
+			case YAMA_NOTIFY_TRANSFORM_FINISH: {
+				break;
+			}
+			case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
+				break;
+			}
+			case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
+				break;
+			}
+			case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
+				break;
+			}
 
 			default:
 				break;

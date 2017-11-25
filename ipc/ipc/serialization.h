@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 15
+#define OPERATIONS_COUNT 19
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
@@ -18,6 +18,10 @@ typedef enum ipc_operation {
 	FS_GET_FILE_INFO_RESPONSE,
 	YAMA_START_TRANSFORM_REDUCE_REQUEST,
 	YAMA_START_TRANSFORM_REDUCE_RESPONSE,
+	YAMA_NOTIFY_TRANSFORM_FINISH,
+	YAMA_NOTIFY_LOCAL_REDUCTION_FINISH,
+	YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH,
+	YAMA_NOTIFY_FINAL_STORAGE_FINISH,
 	WORKER_START_TRANSFORM_REQUEST,
 	WORKER_START_TRANSFORM_RESPONSE,
 	WORKER_START_LOCAL_REDUCTION_REQUEST,
@@ -88,6 +92,16 @@ typedef struct {
 	uint32_t entriesSize;
 	ipc_struct_start_transform_reduce_response_entry *entries;
 }__attribute__((packed)) ipc_struct_start_transform_reduce_response;
+
+//YAMA_NOTIFY_TRANSFORM_FINISH,
+//YAMA_NOTIFY_LOCAL_REDUCTION_FINISH,
+//YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH,
+//YAMA_NOTIFY_FINAL_STORAGE_FINISH,
+typedef struct {
+	char *nodeID;
+	char *tempPath;
+	char succeeded;
+}__attribute__((packed)) ipc_struct_yama_notify_stage_finish;
 
 typedef struct {
 	uint32_t scriptContentLength;
