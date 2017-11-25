@@ -40,7 +40,6 @@ typedef struct threadOperation {
 
 typedef struct nodeConnection {
 	char *ipAddress;
-	int port;
 	int socketfd;
 } t_nodeConnection;
 
@@ -49,13 +48,12 @@ typedef struct dataNode {
 
 	char *name;
 	char *IP;
-	t_nodeConnection connection;
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
 	t_bitarray *bitmap;
 	int bitmapFileDescriptor;
-	int portno;
+	int workerPortno;
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
 	sem_t *threadSemaphore;
