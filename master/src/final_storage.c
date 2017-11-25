@@ -31,8 +31,9 @@ void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFina
 	uint32_t operation = WORKER_START_FINAL_STORAGE_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
 
-	send(sockfd, strlen(yamaRequest->resultPath), sizeof(uint32_t), 0);
-	send(sockfd, yamaRequest->resultPath, (strlen(yamaRequest->resultPath) + 1) * sizeof(char), 0);
+	int resultPathLen = strlen(yamaRequest->resultPath);
+	send(sockfd, &resultPathLen, sizeof(uint32_t), 0);
+	send(sockfd, yamaRequest->resultPath, resultPathLen + 1, 0);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;

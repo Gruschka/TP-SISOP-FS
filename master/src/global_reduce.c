@@ -43,23 +43,28 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	uint32_t operation = WORKER_START_GLOBAL_REDUCTION_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
 
-	send(sockfd, strlen(globalReduceScript), sizeof(uint32_t), 0);
-	send(sockfd, globalReduceScript, strlen(globalReduceScript) + 1, 0);
+	int globalReduceScriptLen = strlen(globalReduceScript);
+	send(sockfd, &globalReduceScriptLen, sizeof(uint32_t), 0);
+	send(sockfd, globalReduceScript, globalReduceScriptLen + 1, 0);
 
 	send(sockfd, &(yamaRequest->entriesCount), sizeof(uint32_t), 0);
 	for (i = 0; i < yamaRequest->entriesCount; i++) {
 		ipc_struct_master_continueWithGlobalReductionRequestEntry *entry = yamaRequest->entries + i;
-		send(sockfd, strlen(entry->nodeID), sizeof(uint32_t), 0);
-		send(sockfd, entry->nodeID, strlen(entry->nodeID) + 1, 0);
-		send(sockfd, strlen(entry->workerIP), sizeof(uint32_t), 0);
-		send(sockfd, entry->workerIP, strlen(entry->workerIP) + 1, 0);
+		int nodeIDLen = strlen(entry->nodeID);
+		send(sockfd, &nodeIDLen, sizeof(uint32_t), 0);
+		send(sockfd, entry->nodeID, nodeIDLen + 1, 0);
+		int workerIPLen = strlen(entry->workerIP);
+		send(sockfd, &workerIPLen, sizeof(uint32_t), 0);
+		send(sockfd, entry->workerIP, workerIPLen + 1, 0);
 		send(sockfd, &(entry->workerPort), sizeof(uint32_t), 0);
-		send(sockfd, strlen(entry->localReduceTempPath), sizeof(uint32_t), 0);
-		send(sockfd, entry->localReduceTempPath, strlen(entry->localReduceTempPath) + 1, 0);
+		int localReduceTempPathLen = strlen(entry->localReduceTempPath);
+		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), 0);
+		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, 0);
 	}
 
-	send(sockfd, strlen(workerInChargeEntry->globalReduceTempPath), sizeof(uint32_t), 0);
-	send(sockfd, workerInChargeEntry->globalReduceTempPath, strlen(workerInChargeEntry->globalReduceTempPath) + 1, 0);
+	int globalReduceTempPathLen = strlen(workerInChargeEntry->globalReduceTempPath);
+	send(sockfd, &globalReduceTempPathLen, sizeof(uint32_t), 0);
+	send(sockfd, workerInChargeEntry->globalReduceTempPath, globalReduceTempPathLen + 1, 0);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;
