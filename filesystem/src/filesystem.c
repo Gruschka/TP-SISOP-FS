@@ -591,7 +591,7 @@ int fs_md5(char *filePath) {
 
 	int result = fs_downloadFile(filePath,myFS.filesDirectoryPath);
 
-	char *command = string_from_format("md5sum %s/%s",myFS.filesDirectoryPath,basename(filePath));
+	char *command = string_from_format("md5sum %s/%s |cut -d \" \" -f 1",myFS.filesDirectoryPath,basename(filePath));
 	system(command);
 
 	free(command);

@@ -20,6 +20,7 @@
 #include "global_reduce.h"
 #include "final_storage.h"
 #include "utils.h"
+#include "yama_socket.h"
 
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
@@ -37,7 +38,7 @@
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
 // 5. esperar confirmación de cada etapa
-// 6. TODO: comunicar a YAMA el resultado de cada etapa
+// 6. Comunicar a YAMA el resultado de cada etapa
 //
 // Etapa de reducción local
 // Esperar indicación de YAMA con el nombre de los archivos
@@ -49,7 +50,7 @@
 // 3. enviarle el programa de reducción, la lista de archivos
 //    temporales del nodo y el nombre del temporal resultante.
 // 4. esperar confirmación del worker
-// 5. TODO: notificar resultado a YAMA.
+// 5. Notificar resultado a YAMA.
 //
 // Etapa de reducción global
 // Recibir de YAMA la IP y puerto del worker "encargado",
@@ -60,7 +61,7 @@
 // workers con sus puertos e IPs, y los nombres de los temporales
 // de reducción local.
 // 3. Esperar confirmación del worker encargado
-// 4. TODO: notificar resultado a YAMA.
+// 4. Notificar resultado a YAMA.
 //
 // Almacenado final
 // 1. Recibir de YAMA la IP y puerto del worker "encargado",
@@ -69,15 +70,11 @@
 // el archivo resultado de la reducción global
 // y el nombre y path bajo el cual deberá almacenarse.
 // 3. Esperar confirmación
-// 4. TODO: notificar a YAMA.
+// 4. Notificar a YAMA.
 //
 // TODO: replanificación.
 // TODO: métricas
 // TODO: logs
-
-int yamaPort;
-char *yamaIP;
-int yamaSocket;
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -96,8 +93,8 @@ int main(int argc, char **argv) {
 
 	// Levanto la config
 	t_config *config = config_create("conf/master.conf");
-	yamaPort = config_get_int_value(config, "YAMA_PUERTO");
-	yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
+	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+	char *yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
 	config_destroy(config);
 
 	// Me conecto con YAMA
@@ -139,7 +136,7 @@ int main(int argc, char **argv) {
 
 			// Me conecto con el worker encargado y le envío
 			// información necesaria para el almacenado final
-			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest);
+			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest, strdup(outputFilePath));
 		} break;
 		}
 	}

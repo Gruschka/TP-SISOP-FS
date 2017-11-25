@@ -263,8 +263,8 @@ void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
 	offset += sizeof(uint32_t);
 	char *tmpResultPath = strdup(buffer + offset);
 	int tmpResultPathLen = strlen(tmpResultPath);
-	response->resultPath = malloc(tmpResultPathLen + 1);
-	memcpy(response->resultPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
+	response->globalReductionTempPath = malloc(tmpResultPathLen + 1);
+	memcpy(response->globalReductionTempPath, tmpResultPath, tmpResultPathLen + 1); //tmpLocalReducePath
 	offset += tmpResultPathLen + 1;
 	free(tmpResultPath);
 	free(tmpWorkerIP);
@@ -613,7 +613,7 @@ char *serializeMasterContinueWithGlobalReductionRequest(void *data, int *size) {
 // MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
 
 uint32_t getMasterContinueWithFinalStorageRequestSize(ipc_struct_master_continueWithFinalStorageRequest *request) {
-	return strlen(request->nodeID) + 1 + strlen(request->workerIP) + 1 + sizeof(uint32_t) + strlen(request->resultPath) + 1;
+	return strlen(request->nodeID) + 1 + strlen(request->workerIP) + 1 + sizeof(uint32_t) + strlen(request->globalReductionTempPath) + 1;
 }
 
 char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
@@ -633,8 +633,8 @@ char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
 	offset += 1;
 	memcpy(buffer + offset, &(request->workerPort), sizeof(uint32_t));
 	offset += sizeof(uint32_t);
-	memcpy(buffer + offset, request->resultPath, strlen(request->resultPath));
-	offset += strlen(request->resultPath);
+	memcpy(buffer + offset, request->globalReductionTempPath, strlen(request->globalReductionTempPath));
+	offset += strlen(request->globalReductionTempPath);
 	buffer[offset] = '\0';
 	offset += 1;
 

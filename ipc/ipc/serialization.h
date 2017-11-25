@@ -149,8 +149,8 @@ typedef struct {
 	char *scriptContent;
 	uint32_t workersEntriesCount;
 	ipc_struct_worker_start_global_reduce_WorkerEntry *workersEntries;
-	uint32_t resultPathLen;
-	char *resultPath;
+	uint32_t globalTempPathLen;
+	char *globalTempPath;
 }__attribute__((packed)) ipc_struct_worker_start_global_reduce_request;
 
 typedef struct {
@@ -158,8 +158,8 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_worker_start_global_reduce_response;
 
 typedef struct {
-	uint32_t resultPathLen;
-	char *resultPath;
+	uint32_t finalResultPathLen;
+	char *finalResultPath;
 }__attribute__((packed)) ipc_struct_worker_start_final_storage_request;
 
 typedef struct {
@@ -199,7 +199,7 @@ typedef struct {
 	char *nodeID;
 	char *workerIP;
 	uint32_t workerPort;
-	char *resultPath;
+	char *globalReductionTempPath;
 }__attribute__((packed)) ipc_struct_master_continueWithFinalStorageRequest;
 
 void serialization_initialize();

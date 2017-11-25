@@ -10,6 +10,6 @@
 
 #include <ipc/serialization.h>
 
-void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest);
+void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest, char *resultPath);
 
 #endif /* FINAL_STORAGE_H_ */

@@ -6,6 +6,7 @@
  */
 
 #include "transform.h"
+#include "yama_socket.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,7 +25,7 @@
 //    de bytes ocupados en dicho bloque, y el archivo temporal donde
 //    guardar el resultado.
 // 5. esperar confirmación de cada etapa
-// 6. TODO: comunicar a YAMA el resultado de cada etapa
+// 6. Comunicar a YAMA el resultado de cada etapa
 
 typedef struct WorkerRequest {
 	char *nodeID;
@@ -57,7 +58,11 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
 
-	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
+	ipc_struct_yama_notify_stage_finish notification;
+	notification.nodeID = strdup(request->nodeID);
+	notification.tempPath = strdup(request->workerRequest.tempFilePath);
+	notification.succeeded = transformSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, &notification);
 
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.tempFilePath);
