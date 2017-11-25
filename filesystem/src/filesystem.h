@@ -41,18 +41,21 @@ typedef struct threadOperation {
 typedef struct nodeConnection {
 	char *ipAddress;
 	int port;
+	int socketfd;
 } t_nodeConnection;
 
 
 typedef struct dataNode {
 
 	char *name;
+	char *IP;
 	t_nodeConnection connection;
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
 	t_bitarray *bitmap;
 	int bitmapFileDescriptor;
+	int portno;
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
 	sem_t *threadSemaphore;
@@ -194,5 +197,5 @@ void fs_waitForYama();
 int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
-void fs_dataNodeConnectionHandler(void *dataNodeSocket);
+void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
 #endif /* FILESYSTEM_H_ */
