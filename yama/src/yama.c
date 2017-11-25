@@ -31,6 +31,7 @@ t_list *nodesList;
 t_dictionary *workersDict;
 node *lastAssignedNode;
 pthread_t serverThread;
+uint32_t lastJobID = 1;
 
 
 char *tempFileName() {
@@ -180,7 +181,7 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		responseEntry->blockID = epEntry->blockID;
 		responseEntry->usedBytes = epEntry->usedBytes;
 		responseEntry->nodeID = epEntry->workerID;
-		responseEntry->tempPath = "ble"; //TODO: generar esto
+		responseEntry->tempPath = tempFileName();
 
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
@@ -188,6 +189,23 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 	}
 
 	return response;
+}
+
+void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response) {
+	int idx;
+	for (idx = 0; idx < response->entriesCount; idx++) {
+		yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
+		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + idx;
+
+		entry->jobID = lastJobID + 1;
+		entry->blockNumber = responseEntry->blockID;
+		entry->masterID = 1;
+		entry->nodeID = strdup(responseEntry->nodeID);
+		entry->stage = TRANSFORMATION;
+		entry->status = IN_PROCESS;
+		entry->tempPath = strdup(responseEntry->tempPath);
+	}
+	lastJobID++;
 }
 
 void testScheduling(scheduling_algorithm algorithm) {
@@ -271,10 +289,13 @@ void *server_mainThread() {
 
 				ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 				ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+				trackTransformationResponseInStateTable(response);
 				ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
-			}
 
 				break;
+			}
+
+
 			default:
 				break;
 		}
