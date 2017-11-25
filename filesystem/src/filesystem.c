@@ -63,6 +63,8 @@ enum flags {
 	FALSE = 0
 };
 
+
+
 /********* MAIN **********/
 void main() {
 	serialization_initialize();
@@ -398,16 +400,12 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 }
 int fs_cat(char *filePath) {
 	printf("Showing file %s\n", filePath);
-	return -1;
-	//todo: armar lista de packets igual que fs_store, pero para pedir lecturas
-	// La diferencia principal radica que en store tenés 2 * cant de bloques
-	// en read tenes que leer 1 vez cada bloque entonces si el archivo tiene 3 bloques, son 3 paquetes
-	// t_blockPackage package
-	//package.blockCopyNumber = Copia a leer
-	//package.blockNumber = Bloque a leer (e.g. 0,1,2)
-	//	package.blockSize = tamaño a leer;
-	//	package.destinationBlock = bloque fisico en el nodo;
-	//	package.destinationNode = referencia al nodo destino;
+
+	char *fileContent = fs_readFile(filePath);
+
+	log_info(logger,"fileContent: %s",filePath);
+
+	return EXIT_SUCCESS;
 
 }
 int fs_mkdir(char *directoryPath) {
@@ -839,6 +837,7 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 }
 void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	sem_t *mutex = malloc(sizeof(sem_t));
+	sem_t *results = malloc(sizeof(sem_t));
 	int valread, cant;
 	char buffer[1024] = { 0 };
 	char *hello = "You are connected to the FS";
@@ -864,8 +863,11 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 	}
 	//If the Node isnt already connected->include it to the global lists of connected nodes
 	sem_init(mutex,0,0);
+	sem_init(results,0,0);
 	newDataNode->threadSemaphore = mutex;
+	newDataNode->resultSemaphore = results;
 	newDataNode->operationsQueue = queue_create();
+	newDataNode->resultsQueue = queue_create();
 	list_add(connectedNodes, newDataNode);
 
 
@@ -926,27 +928,42 @@ void fs_dataNodeConnectionHandler(void *dataNodeSocket) {
 
 		//pop operation
 		t_threadOperation *operation = queue_pop(newDataNode->operationsQueue);
-
+		int serializedOperationSize;
 		//serializo
-		int serializedOperationSize = sizeof(uint32_t)*2 + operation->size;
+		if(operation->operationId){
+			serializedOperationSize = sizeof(uint32_t)*2 + BLOCK_SIZE;
+		}else{
+			serializedOperationSize = sizeof(uint32_t)*2;
+		}
+
 		void *serializedOperation = malloc(serializedOperationSize);
 		memset(serializedOperation,0,serializedOperationSize);
 		int offset = 0;
 
-		memcpy(serializedOperation+offset,operation->operationId,sizeof(uint32_t));
+		memcpy(serializedOperation+offset,&operation->operationId,sizeof(uint32_t));
 		offset+=sizeof(uint32_t);
 
-		memcpy(serializedOperation+offset,operation->size,sizeof(uint32_t));
+		memcpy(serializedOperation+offset,&operation->blockNumber,sizeof(uint32_t));
 		offset+=sizeof(uint32_t);
 
-		memcpy(serializedOperation+offset,operation->blockNumber,sizeof(uint32_t));
-		offset+=sizeof(uint32_t);
-
-		memcpy(serializedOperation+offset,operation->buffer,operation->size);
-		free(operation);
+		if(operation->operationId){
+			memcpy(serializedOperation+offset,operation->buffer,BLOCK_SIZE);
+		}
 
 		//send operation
 		send(new_socket, serializedOperation, serializedOperationSize, 0);
+
+
+		void *result;
+		if(!operation->operationId){
+			result = malloc(BLOCK_SIZE);
+			recv(new_socket, result, BLOCK_SIZE,MSG_WAITALL);
+			//todo agregar a la queue de resultados
+			queue_push(newDataNode->resultsQueue,result);
+			sem_post(newDataNode->resultSemaphore);
+		}
+
+		free(operation);
 
 		sleep(5);
 
@@ -1671,8 +1688,8 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			remainingSizeToSplit -= BLOCK_SIZE;
 		}
 
-		bufferSplit = malloc(splitSize);
-		memset(bufferSplit, 0, splitSize);
+		bufferSplit = malloc(BLOCK_SIZE);
+		memset(bufferSplit, 0, BLOCK_SIZE);
 		memcpy(bufferSplit, buffer + offset, splitSize);
 		offset += splitSize;
 
@@ -1681,7 +1698,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			package = malloc(sizeof(t_blockPackage));
 			package->blockCopyNumber = copy;
 			package->blockNumber = blockNumber;
-			package->blockSize = splitSize;
+			package->blockSize = BLOCK_SIZE;
 			package->buffer = bufferSplit;
 			//decide nodes to deliver original blocks and copy
 			package->destinationNode = fs_getDataNodeWithMostFreeSpace(exclude);
@@ -1697,10 +1714,10 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	//list failed packages and resend to 2nd alternative, else abort.
 	int operationStatus;
 
-//	if (operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)) {
-//		log_error(logger, "fs_storeFile: Error with data transmition to nodes");
-//		return EXIT_FAILURE;
-//	}
+	if (operationStatus = fs_sendPackagesToCorrespondingNodes(packageList)) {
+		log_error(logger, "fs_storeFile: Error with data transmition to nodes");
+		return EXIT_FAILURE;
+	}
 
 	//set metadata values
 	char *fileSizeString = string_from_format("%d", fileSize);
@@ -1783,8 +1800,9 @@ int *fs_sendPackagesToCorrespondingNodes(t_list *packageList) {
 		operation = malloc(sizeof(t_threadOperation));
 		operation->operationId = 1; //todo: reemplazar por define 0=read 1=write
 		operation->size = package->blockSize;
-		operation->buffer = malloc(package->blockSize);
-		memcpy(operation->buffer,package->buffer,package->blockSize);
+		operation->buffer = malloc(BLOCK_SIZE);
+		memcpy(operation->buffer,package->buffer,BLOCK_SIZE);
+		operation->blockNumber = package->destinationBlock;
 
 		//pusheo al datanode
 		queue_push(package->destinationNode->operationsQueue,operation);
@@ -2590,4 +2608,92 @@ int fs_directoryStartsWithSlash(char *directory){
 	log_error(logger,"fs_directoryStartsWithFlash: FALSE");
 	return FALSE;
 
+}
+
+t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy){
+	if(first == NULL && copy != NULL){
+		return copy;
+	}else{
+		if(copy == NULL && first != NULL){
+			return first;
+		}else{
+			if(copy == NULL && first == NULL){
+				return NULL;
+			}
+		}
+	}
+	return (queue_size(first->operationsQueue) > queue_size(copy->operationsQueue)) ? copy : first;
+}
+
+void *fs_readFile(char *filePath){
+	char *physicalPath = fs_isAFile(filePath);
+
+	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
+
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+
+	int iterator = 0;
+	t_dataNode *first = NULL;
+	t_dataNode *copy = NULL;
+	t_dataNode *target = NULL;
+
+	t_threadOperation *operation;
+	t_dataNode **readOrder = malloc(sizeof(t_dataNode*)*amountOfBlocks);
+
+	while(iterator<amountOfBlocks){
+		if(blockArray[iterator].firstCopyNodeID != NULL){
+			first = fs_getNodeFromNodeName(blockArray[iterator].firstCopyNodeID);
+		}else{
+			first = NULL;
+		}
+		if(blockArray[iterator].secondCopyNodeID != NULL){
+			copy = fs_getNodeFromNodeName(blockArray[iterator].secondCopyNodeID);
+		}else{
+			copy = NULL;
+		}
+
+		target = fs_pickNodeToSendRead(first,copy);
+
+		if(target == NULL){
+			log_error(logger,"no nodes to send read operation");
+			return NULL;
+		}
+
+		operation = malloc(sizeof(t_threadOperation));
+		operation->operationId = 0; // reada
+		if(target == first){
+			operation->blockNumber = blockArray[iterator].firstCopyBlockID;
+		}else{
+			operation->blockNumber = blockArray[iterator].secondCopyBlockID;
+		}
+
+		queue_push(target->operationsQueue,operation);
+		sem_post(target->threadSemaphore);
+		readOrder[iterator] = target;
+
+
+		iterator++;
+	}
+
+	//borrar a la mierda
+	void *buffer = BLOCK_SIZE; // arre
+	void *result = malloc(BLOCK_SIZE * amountOfBlocks);
+	memset(result,0,BLOCK_SIZE * amountOfBlocks);
+
+	// termine de mandar los pedidos ahora a leer
+	iterator = 0;
+	int offset = 0;
+	while(iterator < amountOfBlocks){
+		target = readOrder[iterator];
+
+		sem_wait(target->resultSemaphore);
+		void *buffer = queue_pop(target->resultsQueue);
+
+		memcpy(result+offset,buffer,BLOCK_SIZE);
+		free(buffer);
+		offset+= BLOCK_SIZE;
+		iterator++;
+	}
+	//log_info(logger,"file: %s",result);
+	return result;
 }
