@@ -38,9 +38,16 @@ typedef struct threadOperation {
 	void *buffer;
 } t_threadOperation;
 
+typedef struct nodeConnection {
+	char *ipAddress;
+	int port;
+} t_nodeConnection;
+
+
 typedef struct dataNode {
 
 	char *name;
+	t_nodeConnection connection;
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;

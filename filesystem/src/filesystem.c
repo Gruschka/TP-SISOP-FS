@@ -524,37 +524,7 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 int fs_cpto(char *yamaFilePath,char *destDirectory) {
 	printf("Copying %s to directory %s\n", yamaFilePath, destDirectory);
 
-	//check if file exists
-	char *physicalFilePath = fs_isAFile(yamaFilePath);
-	if(physicalFilePath == NULL){
-		log_error(logger,"yama file path doesnt exist");
-		return EXIT_FAILURE;
-	}
-
-	//check if dest dir exists
-	DIR* dir = opendir(destDirectory);
-	if (!dir)
-	{
-		log_error(logger,"destination directory doesnt exists");
-		close(dir);
-		return EXIT_FAILURE;
-	}
-	close(dir);
-
-	//traigo el contenido
-	char *fileContent = fs_readFile(yamaFilePath);
-
-
-	//creo el archivo destino, si existe lo piso
-	char *fileName = string_from_format("%s/%s",destDirectory,basename(yamaFilePath));
-	FILE *newFile = fopen(fileName,"w+");
-	int fileSize = fs_getFileSize(physicalFilePath);
-
-	fwrite(fileContent,fileSize,1,newFile);
-	fclose(newFile);
-	free(physicalFilePath);
-	free(fileContent);
-	free(fileName);
+	int result = fs_downloadFile(yamaFilePath,destDirectory);
 
 	return EXIT_SUCCESS;
 
@@ -568,6 +538,12 @@ int fs_cpblock(char *origFilePath, int blockNumberToCopy, int nodeNumberToCopy) 
 int fs_md5(char *filePath) {
 	printf("Showing file %s\n", filePath);
 
+	int result = fs_downloadFile(filePath,myFS.filesDirectoryPath);
+
+	char *command = string_from_format("md5sum %s/%s",myFS.filesDirectoryPath,basename(filePath));
+	system(command);
+
+	free(command);
 	return 0;
 
 }
@@ -619,7 +595,6 @@ int fs_info(char *filePath) {
 
 	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
 	printf("Showing info of file file %s\n", filePath);
-
 
 	int i = 0;
 
@@ -690,6 +665,8 @@ void fs_waitForDataNodes() {
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
 
+		t_nodeConnection connection;
+		connection.ipAddress = inet_ntoa(address.sin_addr);
 		log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
 		pthread_t newDataNodeThread;
 
@@ -2812,3 +2789,37 @@ int fs_destroyPackageList(t_list **packageList){
 
 }
 
+int fs_downloadFile(char *yamaFilePath, char *destDirectory){
+	//check if file exists
+	char *physicalFilePath = fs_isAFile(yamaFilePath);
+	if(physicalFilePath == NULL){
+		log_error(logger,"yama file path doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check if dest dir exists
+	DIR* dir = opendir(destDirectory);
+	if (!dir)
+	{
+		log_error(logger,"destination directory doesnt exists");
+		close(dir);
+		return EXIT_FAILURE;
+	}
+	close(dir);
+
+	//traigo el contenido
+	char *fileContent = fs_readFile(yamaFilePath);
+
+
+	//creo el archivo destino, si existe lo piso
+	char *fileName = string_from_format("%s/%s",destDirectory,basename(yamaFilePath));
+	FILE *newFile = fopen(fileName,"w+");
+	int fileSize = fs_getFileSize(physicalFilePath);
+
+	fwrite(fileContent,fileSize,1,newFile);
+	fclose(newFile);
+	free(physicalFilePath);
+	free(fileContent);
+	free(fileName);
+	return EXIT_SUCCESS;
+}
