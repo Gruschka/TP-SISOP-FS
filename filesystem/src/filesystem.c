@@ -1234,6 +1234,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 		config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
 		myFS.totalAmountOfBlocks = tamanioAcumulado;
+		free(tamanioFinal);
 
 	}
 
@@ -1244,11 +1245,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		char *libreTotalFinal = string_from_format("%d", aDataNode.freeBlocks); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = aDataNode.freeBlocks;
+		free(libreTotalFinal);
 	} else {
 		//int bloquesLibresTotales = myFS.freeBlocks - libresFinal;
 		char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = libresFinal;
+		free(libreTotalFinal);
 	}
 
 	myFS.occupiedBlocks = myFS.totalAmountOfBlocks - myFS.freeBlocks;
@@ -1270,7 +1273,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 			listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 			//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
+			free(listaNodosFinal);
 		} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
 
 			if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
@@ -1291,12 +1294,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 				listaNodosFinal = string_from_format("[%s]", listaNodosAux);
 				config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 				//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+				free(listaNodosFinal);
 
 			}
 
 		}
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
+		free(listaNodosAux);
 	}
 
 	/*************** ACTUALIZA INFORMACION DE BLOQUES DEL NODO EN NODE TABLE ***************/
@@ -1330,6 +1334,8 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		config_set_value(nodeTableConfig, libresArray[0], bloquesLibresFinal);
 		config_set_value(nodeTableConfig, totalesArray[0], bloquesTotalesFinal);
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+		free(totalesArray);
+		free(libresArray);
 
 	} else { //No esta en la lista entonces tengo que crear nueva entrada
 
@@ -1348,12 +1354,11 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 
-	/*
-	 free(nombreAux1);
-	 free(nombreAux2);
-	 free(libres);
-	 free(total);
-	 */
+	free(total);
+	free(libres);
+	free(listaNodosArray);
+	free(bloquesLibresFinal);
+	free(bloquesTotalesFinal);
 	config_destroy(nodeTableConfig);
 	return 0;
 
