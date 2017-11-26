@@ -184,7 +184,6 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		firstWorkerInfo->id = strdup(entry->firstCopyNodeID);
 		firstWorkerInfo->ip = strdup(entry->firstCopyNodeIP);
 		firstWorkerInfo->port = entry->firstCopyNodePort;
-		log_debug(logger, "firstWorkerInfo: %s", entry->firstCopyNodeID);
 		//TODO: ver como serializar/deserializar cuando no esta alguna copia
 		if (!dictionary_has_key(workersDict, entry->firstCopyNodeID)) {
 			Worker *worker = malloc(sizeof(Worker));
@@ -200,7 +199,6 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		secondWorkerInfo->id = strdup(entry->secondCopyNodeID);
 		secondWorkerInfo->ip = strdup(entry->secondCopyNodeIP);
 		secondWorkerInfo->port = entry->secondCopyNodePort;
-		log_debug(logger, "secondWorkerInfo: %s", entry->secondCopyNodeID);
 		if (!dictionary_has_key(workersDict, entry->secondCopyNodeID)) {
 			Worker *worker = malloc(sizeof(Worker));
 			worker->availability = 0;
@@ -252,6 +250,8 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
 		responseEntry->workerPort = workerInfo->port;
+
+		log_debug(logger, "[ExecutionPlan] i: %d. blockID: %d. workerID: %s", i, epEntry->blockID, epEntry->workerID);
 	}
 
 	return response;
