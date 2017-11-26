@@ -40,7 +40,6 @@ typedef struct threadOperation {
 
 typedef struct nodeConnection {
 	char *ipAddress;
-	int port;
 	int socketfd;
 } t_nodeConnection;
 
@@ -49,21 +48,20 @@ typedef struct dataNode {
 
 	char *name;
 	char *IP;
-	t_nodeConnection connection;
 	int amountOfBlocks;
 	int freeBlocks;
 	int occupiedBlocks;
 	t_bitarray *bitmap;
 	int bitmapFileDescriptor;
-	int portno;
+	int workerPortno;
 	FILE *bitmapFile;
 	char *bitmapMapedPointer;
 	sem_t *threadSemaphore;
 	sem_t *resultSemaphore;
 	t_queue *operationsQueue;
 	t_queue *resultsQueue;
-
 } t_dataNode;
+
 typedef struct blockPackage {
 
 	int blockNumber;
@@ -89,6 +87,7 @@ typedef struct FS {
 	char *bitmapFilePath;
 	char *nodeTablePath;
 	char *directoryTablePath;
+	char *tempFilesPath;
 	int amountOfDirectories;
 	FILE *directoryTableFile;
 	char *FSMetadataFileName;
@@ -174,7 +173,7 @@ int fs_downloadFile(char *yamaFilePath, char *destinationDirectory);
 void *fs_downloadBlock(t_dataNode *target, int blockNumber);
 int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
 int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
-
+int fs_createTempFileFromWorker(char *filePath);
 
 //Console commands
 int fs_format();
@@ -201,4 +200,6 @@ int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
+void fs_workerConnectionThread();
+
 #endif /* FILESYSTEM_H_ */

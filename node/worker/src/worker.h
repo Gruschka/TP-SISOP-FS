@@ -21,9 +21,12 @@ typedef struct file {
 	uint32_t filePathLength;
 }fileNode;
 
-typedef struct fileGlobalNode {
-	char * filePath;
-	char * workerIp;
+typedef struct fileGlobalNode{
+	char *workerName;
+	uint32_t workerNameLength;
+	char *filePath;
+	char *workerIp;
+	uint32_t workerIpLen;
 	int port;
 	uint32_t sockfd;
 	int filePathLength;
@@ -36,8 +39,9 @@ void connectionHandler(int client_fd);
 void pairingGlobalFiles(t_list *listToPair, char* resultName);
 void pairingFiles();
 void *createServer();
-int connectToWorker(fileGlobalNode * worker);
+int connectToWorker(char *workerIp, int port);
 int connectToFileSystem();
 int finalFileSize(char * filePath);
+char *worker_utils_readFile(char *path);
 
 #endif /* WORKER_H_ */

@@ -6,6 +6,7 @@
  */
 
 #include "local_reduce.h"
+#include "yama_socket.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +27,7 @@
 // 3. enviarle el programa de reducción, la lista de archivos
 //    temporales del nodo y el nombre del temporal resultante.
 // 4. esperar confirmación del worker
-// 5. TODO: notificar resultado a YAMA.
+// 5. Notificar resultado a YAMA.
 
 typedef struct WorkerRequest {
 	char *nodeID;
@@ -62,13 +63,17 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	uint32_t incomingOperation = 666;
 	recv(sockfd, &incomingOperation, sizeof(uint32_t), 0);
 
-	uint32_t transformSucceeded = 0;
+	uint32_t reduceSucceeded = 0;
 
 	if (incomingOperation == WORKER_START_LOCAL_REDUCTION_RESPONSE) {
-		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
+		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
-	//FIXME: (Fede) acá enviar resultado de la operación a YAMA
+	ipc_struct_yama_notify_stage_finish notification;
+	notification.nodeID = strdup(request->nodeID);
+	notification.tempPath = strdup(request->workerRequest.reduceTempPath);
+	notification.succeeded = reduceSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, &notification);
 
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.transformTempEntries);
@@ -125,6 +130,7 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 		free(entry->transformTempPath);
 		free(entry->workerIP);
 		free(entry->nodeID);
+		free(localReduceScript);
 	}
 
 	for (i = 0; i < requestsCount; i++) {

@@ -31,7 +31,50 @@ t_list *nodesList;
 t_dictionary *workersDict;
 node *lastAssignedNode;
 pthread_t serverThread;
+uint32_t lastJobID = 1;
 
+int stringsAreEqual(char *str1, char *str2);
+
+int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID &&
+				currentEntry->stage == stage &&
+				stringsAreEqual(currentEntry->nodeID, nodeID) &&
+				currentEntry->status != FINISHED_OK) // si hay algun archivo de ese job q no termino, doy false
+			return 0;
+	}
+
+	return 1;
+}
+
+uint32_t getJobIDForTempPath(char *tempPath) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (stringsAreEqual(tempPath, currentEntry->tempPath)) {
+			return currentEntry->jobID;
+		}
+	}
+
+	return -1;
+}
+
+yama_state_table_entry *getEntry(char *nodeID, char *tempPath) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (stringsAreEqual(currentEntry->nodeID, nodeID) && stringsAreEqual(currentEntry->tempPath, tempPath)) {
+			return currentEntry;
+		}
+	}
+
+	return NULL;
+}
 
 char *tempFileName() {
 	static char template[] = "/tmp/XXXXXX";
@@ -132,16 +175,29 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	request->filePath = filePath;
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
-	printf("File %s has %d blocks", response->entriesCount);
+	printf("File %s has %d blocks", filePath, response->entriesCount);
 
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_fs_get_file_info_response_entry *entry = response->entries + i;
-		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
-		workerInfo->id = strdup(entry->firstCopyNodeID);
-		workerInfo->ip = strdup(entry->firstCopyNodeIP);
-		workerInfo->port = entry->firstCopyNodePort;
-		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
+		WorkerInfo *firstWorkerInfo = malloc(sizeof(WorkerInfo));
+		firstWorkerInfo->id = strdup(entry->firstCopyNodeID);
+		firstWorkerInfo->ip = strdup(entry->firstCopyNodeIP);
+		firstWorkerInfo->port = entry->firstCopyNodePort;
+		log_debug(logger, "firstWorkerInfo: %s", entry->firstCopyNodeID);
+		//TODO: ver como serializar/deserializar cuando no esta alguna copia
+		if (!dictionary_has_key(workersDict, entry->firstCopyNodeID)) {
+			dictionary_put(workersDict, entry->firstCopyNodeID, firstWorkerInfo);
+		}
+
+		WorkerInfo *secondWorkerInfo = malloc(sizeof(WorkerInfo));
+		secondWorkerInfo->id = strdup(entry->secondCopyNodeID);
+		secondWorkerInfo->ip = strdup(entry->secondCopyNodeIP);
+		secondWorkerInfo->port = entry->secondCopyNodePort;
+		log_debug(logger, "secondWorkerInfo: %s", entry->secondCopyNodeID);
+		if (!dictionary_has_key(workersDict, entry->secondCopyNodeID)) {
+			dictionary_put(workersDict, entry->secondCopyNodeID, secondWorkerInfo);
+		}
 	}
 	return response;
 }
@@ -149,7 +205,9 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 void testFSConnection() {
 
 	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	requestInfoToFilesystem("/pruebita/re/linda");
+//	requestInfoToFilesystem("/pruebita/re/linda");
+	ipc_struct_fs_get_file_info_response *response = requestInfoToFilesystem("/mnt/FS/metadata/archivos/1/ejemplo.txt");
+	log_debug(logger, "entriesCount: %d", response->entriesCount);
 }
 
 ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
@@ -180,7 +238,7 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		responseEntry->blockID = epEntry->blockID;
 		responseEntry->usedBytes = epEntry->usedBytes;
 		responseEntry->nodeID = epEntry->workerID;
-		responseEntry->tempPath = "ble"; //TODO: generar esto
+		responseEntry->tempPath = tempFileName();
 
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
@@ -188,6 +246,23 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 	}
 
 	return response;
+}
+
+void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response) {
+	int idx;
+	for (idx = 0; idx < response->entriesCount; idx++) {
+		yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
+		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + idx;
+
+		entry->jobID = lastJobID + 1;
+		entry->blockNumber = responseEntry->blockID;
+		entry->masterID = 1;
+		entry->nodeID = strdup(responseEntry->nodeID);
+		entry->stage = TRANSFORMATION;
+		entry->status = IN_PROCESS;
+		entry->tempPath = strdup(responseEntry->tempPath);
+	}
+	lastJobID++;
 }
 
 void testScheduling(scheduling_algorithm algorithm) {
@@ -247,8 +322,8 @@ void testScheduling(scheduling_algorithm algorithm) {
 void test() {
 //	testStateTable();
 //	testSerialization();
-//	testFSConnection();
-	testScheduling(W_CLOCK);
+	testFSConnection();
+//	testScheduling(W_CLOCK);
 }
 
 void *server_mainThread() {
@@ -271,10 +346,48 @@ void *server_mainThread() {
 
 				ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 				ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+				trackTransformationResponseInStateTable(response);
 				ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
-			}
 
 				break;
+			}
+			case YAMA_NOTIFY_TRANSFORM_FINISH: {
+				ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_TRANSFORM_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
+
+				//succeeded me lo paso por los huevos
+
+				// lo marco como finalizado
+				yama_state_table_entry *entry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+				entry->status = FINISHED_OK;
+
+				uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
+
+				// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
+				if (jobIsFinished(jobID, entry->nodeID, TRANSFORMATION)) {
+
+				}
+
+				break;
+			}
+			case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
+				ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
+				break;
+			}
+			case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
+				ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", globalReductionFinish->nodeID, globalReductionFinish->tempPath, globalReductionFinish->succeeded);
+
+				break;
+			}
+			case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
+				ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
+				log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
+
+				break;
+			}
+
 			default:
 				break;
 		}
