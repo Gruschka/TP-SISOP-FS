@@ -515,7 +515,7 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 	t_fileType typeFile = !strcmp(fileType, "-b") ? T_BINARY : T_TEXT;
 	void *buffer = fs_serializeFile(originalFile, originalFileStats.st_size);
 
-	int result = fs_storeFile(yama_directory, fileName, typeFile, buffer,
+	int result = fs_storeFile(yama_directory, origFilePath, typeFile, buffer,
 			originalFileStats.st_size);
 	if(result == EXIT_SUCCESS) log_debug(logger,"fs_cpfrom: Stored filed successfully");
 	return EXIT_SUCCESS;
@@ -1774,10 +1774,10 @@ int fs_getOffsetFromDirectory(t_directory *directory) {
 
 	return EXIT_FAILURE;
 }
-int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
+int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 		void *buffer, int fileSize) {
 	//check if there's enough space in system (filesize * 2), else abort
-
+	char *fileName = basename(sourceFilePath);
 	int totalFileSize = 2 * fileSize;
 	int amountOfBlocks =
 			(totalFileSize % BLOCK_SIZE) ?
@@ -1825,7 +1825,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 	t_blockPackage *package;
 
 	int remainingSizeToSplit = fileSize;
-	while (remainingSizeToSplit) {
+	while (remainingSizeToSplit && fileType == T_BINARY) {
 		if (remainingSizeToSplit < BLOCK_SIZE) {
 			//single block remaining
 			splitSize = remainingSizeToSplit;
@@ -1857,6 +1857,65 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 		blockNumber++;
 	}
 
+
+	char block[BLOCK_SIZE];
+	memset(block,0,BLOCK_SIZE);
+	char line[BLOCK_SIZE];
+	int iterator = 0;
+	int lineSize = 0;
+	int remainingSizeInBlock = BLOCK_SIZE;
+	int carry = 0;
+	FILE *sourceFile = fopen(sourceFilePath,"r+");
+
+	memset(line, 0, BLOCK_SIZE);
+	fgets(line,BLOCK_SIZE,sourceFile);
+
+	if(fileType == T_TEXT){
+		while (1){
+			lineSize = strlen(line);
+
+			if (lineSize > 0 && lineSize <= remainingSizeInBlock) {
+				memcpy(block+offset,line,lineSize);
+				offset += lineSize;
+
+				memset(line, 0, BLOCK_SIZE);
+				remainingSizeToSplit -= lineSize;
+				remainingSizeInBlock -= lineSize;
+
+				fgets(line,BLOCK_SIZE,sourceFile);
+			} else {
+				bufferSplit = malloc(BLOCK_SIZE);
+				memset(bufferSplit, 0, BLOCK_SIZE);
+				memcpy(bufferSplit, block, offset);
+				t_dataNode *exclude = NULL;
+				for (copy = 0; copy < 2; copy++) {
+					package = malloc(sizeof(t_blockPackage));
+					package->blockCopyNumber = copy;
+					package->blockNumber = blockNumber;
+					package->blockSize = offset;
+					package->buffer = bufferSplit;
+					//decide nodes to deliver original blocks and copy
+					package->destinationNode = fs_getDataNodeWithMostFreeSpace(exclude);
+					exclude = package->destinationNode;
+					package->destinationBlock = fs_getFirstFreeBlockFromNode(
+							package->destinationNode);
+					list_add(packageList, package);
+				}
+				blockNumber++;
+
+				memset(block,0,BLOCK_SIZE);
+				offset = 0;
+				remainingSizeInBlock = BLOCK_SIZE;
+
+				if (lineSize == 0) {
+					break;
+				}
+			}
+		}
+	}
+
+	fclose(sourceFile);
+
 	//wait for receipt confirmation of all packages, update admin structures
 	//list failed packages and resend to 2nd alternative, else abort.
 	int operationStatus;
@@ -1880,8 +1939,7 @@ int fs_storeFile(char *fullFilePath, char *fileName, t_fileType fileType,
 			return EXIT_FAILURE;
 		}
 	}
-
-	int iterator = 0;
+	iterator = 0;
 	char *blockString;
 	char *blockSizeString;
 	char *blockNumberString;
