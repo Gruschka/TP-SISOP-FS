@@ -182,8 +182,6 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 		}
 
-		sleep(5);
-
 	}
 
 }

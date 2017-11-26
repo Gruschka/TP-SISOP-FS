@@ -794,10 +794,10 @@ void fs_waitForYama() {
 		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(new_socket, FS_GET_FILE_INFO_REQUEST);
 		printf("Request: %s", request->filePath);
 		printf("Hello message sent\n");
-
-		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(request->filePath);
+		char *pathInLocalFS = fs_isAFile(request->filePath);
+		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(pathInLocalFS);
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
-		int length = fs_getNumberOfBlocksOfAFile(request->filePath);
+		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
 //		fs_destroyNodeTupleArray(response->entries, length);
 		sleep(5);
 	}
