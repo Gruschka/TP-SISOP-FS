@@ -160,7 +160,7 @@ int fs_console_validateOp(char * newLine) {
 	if (!strcmp(operation, "cpblock")) {
 		log_debug(logger,"Console operation: [%s]", operation);
 		opResult = fs_cpblock(parameter_list[1], atoi(parameter_list[2]),
-				atoi(parameter_list[3]));
+				parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			log_error(logger,"fs_console_validateOp:cpblock operation failed");
 
