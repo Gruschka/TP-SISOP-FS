@@ -32,6 +32,7 @@ t_dictionary *workersDict;
 node *lastAssignedNode;
 pthread_t serverThread;
 uint32_t lastJobID = 1;
+int fsFd;
 
 int stringsAreEqual(char *str1, char *str2);
 
@@ -170,7 +171,6 @@ void testSerialization() {
 }
 
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
-	int fsFd = ipc_createAndConnect(8081, "10.0.1.152");
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = filePath;
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
@@ -184,9 +184,14 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		firstWorkerInfo->id = strdup(entry->firstCopyNodeID);
 		firstWorkerInfo->ip = strdup(entry->firstCopyNodeIP);
 		firstWorkerInfo->port = entry->firstCopyNodePort;
-		log_debug(logger, "firstWorkerInfo: %s", entry->firstCopyNodeID);
 		//TODO: ver como serializar/deserializar cuando no esta alguna copia
 		if (!dictionary_has_key(workersDict, entry->firstCopyNodeID)) {
+			Worker *worker = malloc(sizeof(Worker));
+			worker->availability = 0;
+			worker->currentLoad = 0;
+			worker->historicalLoad = 0;
+			worker->name = strdup(entry->firstCopyNodeID);
+			scheduling_addWorker(worker);
 			dictionary_put(workersDict, entry->firstCopyNodeID, firstWorkerInfo);
 		}
 
@@ -194,8 +199,13 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		secondWorkerInfo->id = strdup(entry->secondCopyNodeID);
 		secondWorkerInfo->ip = strdup(entry->secondCopyNodeIP);
 		secondWorkerInfo->port = entry->secondCopyNodePort;
-		log_debug(logger, "secondWorkerInfo: %s", entry->secondCopyNodeID);
 		if (!dictionary_has_key(workersDict, entry->secondCopyNodeID)) {
+			Worker *worker = malloc(sizeof(Worker));
+			worker->availability = 0;
+			worker->currentLoad = 0;
+			worker->historicalLoad = 0;
+			worker->name = strdup(entry->secondCopyNodeID);
+			scheduling_addWorker(worker);
 			dictionary_put(workersDict, entry->secondCopyNodeID, secondWorkerInfo);
 		}
 	}
@@ -203,9 +213,6 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 }
 
 void testFSConnection() {
-
-	//int fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-//	requestInfoToFilesystem("/pruebita/re/linda");
 	ipc_struct_fs_get_file_info_response *response = requestInfoToFilesystem("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 	log_debug(logger, "entriesCount: %d", response->entriesCount);
 }
@@ -243,6 +250,8 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
 		responseEntry->workerPort = workerInfo->port;
+
+		log_debug(logger, "[ExecutionPlan] i: %d. blockID: %d. workerID: %s", i, epEntry->blockID, epEntry->workerID);
 	}
 
 	return response;
@@ -322,7 +331,7 @@ void testScheduling(scheduling_algorithm algorithm) {
 void test() {
 //	testStateTable();
 //	testSerialization();
-	testFSConnection();
+//	testFSConnection();
 //	testScheduling(W_CLOCK);
 }
 
@@ -404,6 +413,7 @@ void initialize() {
 	stateTable = list_create();
 	nodesList = list_create();
 	workersDict = dictionary_create();
+	fsFd = ipc_createAndConnect(8081, "10.0.1.152");
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }

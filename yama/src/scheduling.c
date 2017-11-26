@@ -14,7 +14,7 @@
 
 extern uint32_t scheduling_baseAvailability;
 uint32_t maximumLoad = 0;
-uint32_t workersList_count;
+uint32_t workersList_count = 0;
 pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
 Worker *maximumAvailabilityWorker = NULL;
@@ -112,7 +112,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	int i;
 	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
-		BlockInfo *blockInfo = response->entries;
+		BlockInfo *blockInfo = response->entries + i;
 
 		int assigned = 0;
 
