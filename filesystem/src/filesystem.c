@@ -641,10 +641,15 @@ int fs_ls(char *directoryPath) {
 }
 int fs_info(char *filePath) {
 
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
+	char *filePathInLocalFS = fs_isAFile(filePath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePathInLocalFS);
 
+	if(amountOfBlocks == EXIT_FAILURE){
+		log_error(logger,"fs_info: Number of blocks of file %s failed",filePath);
+		return EXIT_FAILURE;
+	}
 
-	t_fileBlockTuple *arrayOfBlockTuples = fs_getFileBlockTuples(filePath);
+	ipc_struct_fs_get_file_info_response_entry  *arrayOfBlockTuples = fs_getFileBlockTuples(filePathInLocalFS);
 	printf("Showing info of file file %s\n", filePath);
 
 	int i = 0;
@@ -655,6 +660,7 @@ int fs_info(char *filePath) {
 	}
 
 	fs_destroyNodeTupleArray(arrayOfBlockTuples, amountOfBlocks);
+	free(filePathInLocalFS);
 	return EXIT_SUCCESS;
 
 }
@@ -2181,7 +2187,7 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 	FILE * fileToOpen = fopen(filePath,"r");
 		if(fileToOpen == NULL){
-			log_error(logger,"fs_getAmountOfBlocks: File %s does not exist",filePath);
+			log_error(logger,"fs_getFileBlockTuples: File %s does not exist",filePath);
 			close(fileToOpen);
 			return EXIT_FAILURE;
 		}
@@ -2191,6 +2197,7 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 
 
 	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
+
 	ipc_struct_fs_get_file_info_response_entry *output = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry) * amountOfBlocks);
 
 
@@ -2322,7 +2329,7 @@ int fs_getAmountOfBlocksAndCopiesOfAFile(char *file){
 
 }
 
-void fs_dumpBlockTuple(t_fileBlockTuple blockTuple){
+void fs_dumpBlockTuple(ipc_struct_fs_get_file_info_response_entry  blockTuple){
 
 
 	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
@@ -2518,7 +2525,7 @@ int fs_getNumberOfBlocksOfAFile(char *file){
 										blockToSearch);
 
 				if(nodeBlockTupleAsString == NULL){
-					log_error(logger,"fs_getNumberOfBlocksOfAFile: Block tuple: %s not found",blockToSearch);
+					//log_error(logger,"fs_getNumberOfBlocksOfAFile: Block tuple: %s not found",blockToSearch);
 					config_destroy(fileConfig);
 					free(blockToSearch);
 
@@ -2537,6 +2544,7 @@ int fs_getNumberOfBlocksOfAFile(char *file){
 	}
 
 
+	log_debug(logger,"fs_getNumberOfBlocksOfAFile: file %s has %d blocks", file, totalAmountOfBlocks);
 	return totalAmountOfBlocks;
 
 
