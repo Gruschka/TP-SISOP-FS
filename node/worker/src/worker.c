@@ -137,6 +137,7 @@ void *createServer() {
 		connectionHandler(client_sock);
 
 	}
+//	connectionHandler(5);
 
 	if (client_sock < 0) {
 		log_error(logger, "Couldn't accept connection.");
@@ -158,20 +159,36 @@ void connectionHandler(int client_sock){
 
 		//Recibo toda la informacion necesaria para ejecutar las tareas
 		uint32_t operation;
+
+//		operation = WORKER_START_TRANSFORM_REQUEST;
+
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
 		switch(operation){
 			case WORKER_START_TRANSFORM_REQUEST:{
 				log_debug(logger, "Transformation Stage");
+
 				ipc_struct_worker_start_transform_request request;
+
+//				//Valores Hardcoded
+//				request.block = 3;
+//				request.tempFilePath = "/home/utnso/resultadoHardcoded";
+//				request.usedBytes = 10000;
 
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 				request.scriptContent = malloc(request.scriptContentLength + 1);
 				recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), 0);
+				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
+				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
+				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
+				request.tempFilePath = malloc(request.tempFilePathLength + 1);
+				recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
 
 				char chmode[] = "0777";
 			    int chmodNumber;
 			    chmodNumber = strtol(chmode, 0, 8);
 				char * scriptPathFormat = "/home/utnso/transformationScript%d";
+
+//				char * scriptPath = "/home/utnso/transformationScript5";
 				char *scriptPath = malloc(100);
 				sprintf(scriptPath, scriptPathFormat, client_sock);
 				FILE *scriptFile = fopen(scriptPath, "w");
@@ -179,34 +196,23 @@ void connectionHandler(int client_sock){
 					exit(-1); //fixme: ola q ace
 				}
 				fprintf(scriptFile, strdup(request.scriptContent), "");
-//				fwrite(request.scriptContent, sizeof(char), request.scriptContentLength, scriptFile);
 				fclose(scriptFile);
 				if (chmod(scriptPath, chmodNumber)){
 					perror("Permissions couldn't be given");
 					break;
 				}
 
-				recv(client_sock, &(request.block), sizeof(uint32_t), 0);
-
-				recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
-				recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
-				request.tempFilePath = malloc(request.tempFilePathLength + 1);
-				recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
-
 				char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
-//				char *template = "echo \"hello world\" | %s";
 
 				long int bytesToRead = (request.block * blockSize) + request.usedBytes;
-//				int templateSize = snprintf(NULL, 0, template, scriptPath);
-
 				int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
 				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
-//				sprintf(buffer, template, scriptPath);
 				buffer[templateSize] = '\0';
-				int checkCode = 0;
 
+				int checkCode = 0;
 				checkCode = system(buffer);
+
 				ipc_struct_worker_start_transform_response transform_response;
 				if(checkCode == 127 || checkCode == -1){
 					transform_response.succeeded = 0;
@@ -215,12 +221,8 @@ void connectionHandler(int client_sock){
 					transform_response.succeeded = 1;
 				}
 
-//				fileNode *file = malloc (sizeof(fileNode));
-//				file->filePath = malloc(request.tempFilePathLength);
-//				memcpy(file->filePath, request.tempFilePath, request.tempFilePathLength);
 
 				free(buffer);
-//				free(file);
 				free(request.scriptContent);
 				free(request.tempFilePath);
 				uint32_t response_operation = WORKER_START_TRANSFORM_RESPONSE;
