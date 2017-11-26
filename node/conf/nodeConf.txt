@@ -1,12 +1,7 @@
 IP_FILESYSTEM=10.0.1.152
 PUERTO_FILESYSTEM=8080
 NOMBRE_NODO=Nodo1
-<<<<<<< HEAD
 PUERTO_WORKER=5012
 PUERTO_DATANODE=5060
-=======
-PUERTO_WORKER=5030
-PUERTO_DATANODE=5050
->>>>>>> branch 'master' of https://github.com/sisoputnfrba/tp-2017-2c-Deus-Vult.git
 RUTA_DATABIN=/home/utnso/data1.bin
 TAMANO_DATABIN=150
