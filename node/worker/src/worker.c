@@ -211,6 +211,8 @@ void connectionHandler(int client_sock){
 				buffer[templateSize] = '\0';
 
 				int checkCode = 0;
+				printf("\n SOY EL BLOQUE: %d \n", request.block);
+				printf("\n %s \n", buffer);
 				checkCode = system(buffer);
 
 				ipc_struct_worker_start_transform_response transform_response;
@@ -282,6 +284,7 @@ void connectionHandler(int client_sock){
 				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, request.reduceTempPath, scriptPath, request.reduceTempPath);
 				buffer[templateSize] = '\0';
+
 				int checkCode = system(buffer);
 				ipc_struct_worker_start_local_reduce_response reduction_response;
 				if(checkCode == 127 || checkCode == -1){
@@ -377,6 +380,7 @@ void connectionHandler(int client_sock){
 				char *buffer = malloc(templateSize + 1);
 				sprintf(buffer, template, request.globalTempPath, scriptPath, request.globalTempPath);
 				buffer[templateSize] = '\0';
+
 				int checkCode = system(buffer);
 
 				if(checkCode == 127 || checkCode == -1){
