@@ -522,7 +522,7 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 
 }
 int fs_cpto(char *yamaFilePath,char *destDirectory) {
-	printf("Copying %s to directory %s\n", yamaFilePath, destDirectory);
+	log_debug(logger,"Copying %s to directory %s\n", yamaFilePath, destDirectory);
 
 	int result = fs_downloadFile(yamaFilePath,destDirectory);
 
@@ -633,6 +633,7 @@ int fs_ls(char *directoryPath) {
 		int result = system(command);
 		free(physicalPath);
 		free(command);
+		closedir(dir);
 		return 0;
 	}
 
@@ -650,12 +651,12 @@ int fs_info(char *filePath) {
 	}
 
 	ipc_struct_fs_get_file_info_response_entry  *arrayOfBlockTuples = fs_getFileBlockTuples(filePathInLocalFS);
-	printf("Showing info of file file %s\n", filePath);
+	log_info(logger,"Showing info of file file %s\n", filePath);
 
 	int i = 0;
 
 	for(i = 0; i < amountOfBlocks; i++){
-
+		log_info(logger,"Block number: [%d]",i);
 		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
 	}
 
@@ -1334,8 +1335,9 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		config_set_value(nodeTableConfig, libresArray[0], bloquesLibresFinal);
 		config_set_value(nodeTableConfig, totalesArray[0], bloquesTotalesFinal);
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-		free(totalesArray);
-		free(libresArray);
+		fs_destroyAnArrayOfCharPointers(libresArray);
+		fs_destroyAnArrayOfCharPointers(totalesArray);
+
 
 	} else { //No esta en la lista entonces tengo que crear nueva entrada
 
@@ -1354,9 +1356,9 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 
+
 	free(total);
 	free(libres);
-	free(listaNodosArray);
 	free(bloquesLibresFinal);
 	free(bloquesTotalesFinal);
 	config_destroy(nodeTableConfig);
@@ -2395,9 +2397,9 @@ int fs_getAmountOfBlocksAndCopiesOfAFile(char *file){
 void fs_dumpBlockTuple(ipc_struct_fs_get_file_info_response_entry  blockTuple){
 
 
-	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
-	printf("BLOCK:[%d] COPY:[1] NODE:[%s]\n", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
-	printf("BLOCK SIZE: %d\n", blockTuple.blockSize);
+	log_info(logger,"BLOCK:[%d] COPY:[0] NODE:[%s]", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
+	log_info(logger, "BLOCK:[%d] COPY:[1] NODE:[%s]", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
+	log_info(logger, "BLOCK SIZE: %d\n", blockTuple.blockSize);
 
 }
 
@@ -2573,6 +2575,7 @@ int fs_getNumberOfBlocksOfAFile(char *file){
 	int j = 0;
 	int copy = 0;
 	int totalAmountOfBlocks = 0;
+	config_destroy(fileConfig);
 
 
 	for(i = 0; i < totalBlockKeys; i++){
@@ -2627,7 +2630,7 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 	int i = 0;
 
 	for(i = 0; i < arrayLength ; i++){
-		log_info(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
+		log_debug(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
 		free(tuple[i].firstCopyNodeID);
 		free(tuple[i].secondCopyNodeID);
 		free(tuple[i].firstCopyNodeIP);
@@ -3079,5 +3082,16 @@ int fs_createTempFileFromWorker(char *filePath){
 	}
 
 	return EXIT_SUCCESS;
+
+}
+int fs_destroyAnArrayOfCharPointers(char **array){
+
+	int length = fs_amountOfElementsInArray(array);
+	int i = 0;
+	for(i = 0; i < length; i++){
+		if(array[i] != NULL) free(array[i]);
+	}
+	return EXIT_SUCCESS;
+
 
 }
