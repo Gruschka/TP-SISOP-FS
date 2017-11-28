@@ -125,7 +125,7 @@ void *createServer() {
 	}
 
 	// Listen
-	listen(socket_desc, 4);
+	listen(socket_desc, SOMAXCONN);
 
 	// Accept and incoming connection
 	log_debug(logger, "Waiting for incoming connections...");
@@ -135,7 +135,6 @@ void *createServer() {
 	while ((client_sock = accept(socket_desc, (struct sockaddr *) &client, (socklen_t*) &c))) {
 		log_debug(logger, "Connection accepted");
 		connectionHandler(client_sock);
-
 	}
 //	connectionHandler(5);
 
