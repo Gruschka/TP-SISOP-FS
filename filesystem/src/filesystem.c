@@ -1874,8 +1874,15 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	int carry = 0;
 	FILE *sourceFile = fopen(sourceFilePath,"r+");
 
+	uint32_t debug = 0;
+
 	memset(line, 0, BLOCK_SIZE);
 	fgets(line,BLOCK_SIZE,sourceFile);
+	debug++;
+	int cantidadDeLineasDelBloque = 1;
+	int cantidadDeLineasDespachadas = 0;
+	uint32_t fragmentacionInterna = 0;
+	uint32_t fragmentacionInternaDelBloque = 0;
 
 	if(fileType == T_TEXT){
 		while (1){
@@ -1890,6 +1897,8 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				remainingSizeInBlock -= lineSize;
 
 				fgets(line,BLOCK_SIZE,sourceFile);
+				cantidadDeLineasDelBloque++;
+				debug++;
 			} else {
 				bufferSplit = malloc(BLOCK_SIZE);
 				memset(bufferSplit, 0, BLOCK_SIZE);
@@ -1908,6 +1917,11 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 							package->destinationNode);
 					list_add(packageList, package);
 				}
+				fragmentacionInternaDelBloque = BLOCK_SIZE - offset;
+				fragmentacionInterna += fragmentacionInternaDelBloque;
+				cantidadDeLineasDespachadas += cantidadDeLineasDelBloque;
+				log_debug(logger, "Bloque nro %d tiene %d lineas. Fragm: %d (Total acum. lineas: %d - Total acum. fragm. interna: %d)", blockNumber, cantidadDeLineasDelBloque, fragmentacionInternaDelBloque, cantidadDeLineasDespachadas, fragmentacionInterna);
+				cantidadDeLineasDelBloque = 0;
 				blockNumber++;
 
 				memset(block,0,BLOCK_SIZE);
@@ -1921,6 +1935,7 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 		}
 	}
 
+	log_debug(logger, "keku: %d", debug);
 	fclose(sourceFile);
 
 	//wait for receipt confirmation of all packages, update admin structures
