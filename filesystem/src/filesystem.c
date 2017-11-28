@@ -800,7 +800,7 @@ void fs_waitForYama() {
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
 //		fs_destroyNodeTupleArray(response->entries, length);
-		sleep(5);
+//		sleep(5);
 	}
 
 }
@@ -1039,7 +1039,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 
 		free(operation);
 
-		sleep(5);
+//		sleep(5);
 
 	}
 }
@@ -1092,7 +1092,7 @@ void fs_waitForWorkers(){
 			fs_cpfrom(pathInLocalFS,sendFile->pathName,'-t');
 			remove(pathInLocalFS);
 			free(pathInLocalFS);
-			sleep(5);
+//			sleep(5);
 		}
 
 
