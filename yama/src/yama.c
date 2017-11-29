@@ -36,6 +36,23 @@ int fsFd;
 
 int stringsAreEqual(char *str1, char *str2);
 
+t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
+	t_list *result = list_create();
+
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID &&
+				currentEntry->stage == stage &&
+				stringsAreEqual(currentEntry->nodeID, nodeID) &&
+				currentEntry->stage == stage)
+			list_add(result, currentEntry);
+	}
+
+	return result;
+}
+
 int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
@@ -369,14 +386,32 @@ void *server_mainThread() {
 				//succeeded me lo paso por los huevos
 
 				// lo marco como finalizado
-				yama_state_table_entry *entry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
-				entry->status = FINISHED_OK;
+				yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+				ystEntry->status = FINISHED_OK;
 
 				uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
 
 				// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
-				if (jobIsFinished(jobID, entry->nodeID, TRANSFORMATION)) {
+				if (jobIsFinished(jobID, ystEntry->nodeID, TRANSFORMATION)) {
+					t_list *entriesToReduce = getEntriesMatching(jobID, ystEntry->nodeID, TRANSFORMATION);
+					ipc_struct_master_continueWithLocalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequest));
+					request->entriesCount = list_size(entriesToReduce);
+					request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
 
+					int i;
+					for (i = 0; i < list_size(entriesToReduce); i++) {
+						yama_state_table_entry *entry = list_get(entriesToReduce, i);
+						ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
+
+						currentEntry->localReduceTempPath = tempFileName();
+						currentEntry->transformTempPath = strdup(entry->tempPath);
+						WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
+						currentEntry->workerIP = workerInfo->ip;
+						currentEntry->workerPort = workerInfo->port;
+						currentEntry->nodeID = entry->nodeID;
+					}
+
+					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
 				}
 
 				break;
