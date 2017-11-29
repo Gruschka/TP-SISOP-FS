@@ -35,6 +35,7 @@
 #include <math.h> //Para redondear los bits
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
+#include <signal.h>
 
 /********* GLOBAL RESOURCES AND HANDSHAKE**********/
 t_list *connectedNodes; //Every time a new node is connected to the FS its included in this list
@@ -1003,10 +1004,12 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 		t_threadOperation *operation = queue_pop(newDataNode->operationsQueue);
 		int serializedOperationSize;
 		//serializo
-		if(operation->operationId){
+		if(operation->operationId == 1){
 			serializedOperationSize = sizeof(uint32_t)*2 + BLOCK_SIZE;
-		}else{
+		}else if(operation->operationId == 0){
 			serializedOperationSize = sizeof(uint32_t)*2;
+		}else{ // check status operation
+			serializedOperationSize = sizeof(int);
 		}
 
 		void *serializedOperation = malloc(serializedOperationSize);
@@ -1016,20 +1019,58 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 		memcpy(serializedOperation+offset,&operation->operationId,sizeof(uint32_t));
 		offset+=sizeof(uint32_t);
 
-		memcpy(serializedOperation+offset,&operation->blockNumber,sizeof(uint32_t));
-		offset+=sizeof(uint32_t);
+		if(operation->operationId == 1 ||operation->operationId == 0){
+			memcpy(serializedOperation+offset,&operation->blockNumber,sizeof(uint32_t));
+			offset+=sizeof(uint32_t);
+		}
 
-		if(operation->operationId){
+		//read
+		if(operation->operationId == 1){
 			memcpy(serializedOperation+offset,operation->buffer,BLOCK_SIZE);
 		}
 
 		//send operation
-		send(new_socket, serializedOperation, serializedOperationSize, 0);
-		free(serializedOperation);
-
-
+		// read and write
+		int checkStatus = 0;
 		void *result;
-		if(!operation->operationId){
+
+		if(operation->operationId == 0 || operation->operationId == 1){
+			send(new_socket, serializedOperation, serializedOperationSize, 0);
+			free(serializedOperation);
+		}else{
+			//check operation
+			//ignoro sigpipe
+			struct sigaction new_actn, old_actn;
+			new_actn.sa_handler = SIG_IGN;
+			sigemptyset (&new_actn.sa_mask);
+			new_actn.sa_flags = 0;
+			sigaction (SIGPIPE, &new_actn, &old_actn);
+
+			checkStatus = write(new_socket,serializedOperation,serializedOperationSize);
+			if(checkStatus == -1){
+			    printf("Oh dear, something went wrong with read()! %s\n", strerror(errno));
+				checkStatus = 0;
+				result = malloc(sizeof(int));
+			    memcpy(result,&checkStatus,sizeof(int));
+			    queue_push(newDataNode->resultsQueue,result);
+				sem_post(newDataNode->resultSemaphore);
+			    //todo: matar thread y actualizar node table
+			}else{
+				result = malloc(sizeof(int));
+				recv(new_socket, result, sizeof(int),MSG_WAITALL);
+				queue_push(newDataNode->resultsQueue,result);
+				sem_post(newDataNode->resultSemaphore);
+			}
+			//restore signaling
+			sigaction (SIGPIPE, &old_actn, NULL);
+
+		}
+
+
+
+
+		// read
+		if(operation->operationId == 0){
 			result = malloc(BLOCK_SIZE);
 			recv(new_socket, result, BLOCK_SIZE,MSG_WAITALL);
 			//todo agregar a la queue de resultados
@@ -2087,9 +2128,14 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	}
 
 	if (output != NULL) {
-		log_debug(logger, "fs_getDataNodeWithMostFreeSpace: The dataNode with most free space is %s",
-				output->name);
-		return output;
+		if(fs_isDataNodeAlreadyConnected(*output)){
+			log_debug(logger, "fs_getDataNodeWithMostFreeSpace: The dataNode with most free space is %s",
+					output->name);
+			return output;
+		}else{
+			log_error(logger,"selected node is disconnected, terminating thread and selecting new node");
+			return fs_getDataNodeWithMostFreeSpace(output);
+		}
 	} else {
 
 		log_error(logger,
@@ -2248,11 +2294,23 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 	int amountOfNodes = list_size(connectedNodes);
 	int i;
 	t_dataNode *aux = NULL;
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	int *result;
 	for(i = 0; i < amountOfNodes ; i++){
 		aux = list_get(connectedNodes, i);
 		if(!strcmp(aDataNode.name, aux->name)){
-			log_error(logger, "Node:[%s] is already connected previous session. Aborting connection", aDataNode.name);
-			return DATANODE_ALREADY_CONNECTED;
+			operation->operationId = 2; //check status
+			queue_push(aDataNode.operationsQueue,operation);
+			sem_post(aDataNode.threadSemaphore);
+			sem_wait(aDataNode.resultSemaphore);
+			result = queue_pop(aDataNode.resultsQueue);
+			if(result){
+				free(result);
+				return DATANODE_ALREADY_CONNECTED;
+			}else{
+				free(result);
+				return 0; // not connected
+			}
 		}
 	}
 	log_info(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);

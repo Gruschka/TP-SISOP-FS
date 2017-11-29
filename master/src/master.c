@@ -77,7 +77,9 @@
 // TODO: métricas
 // TODO: logs
 
-t_log *logger;
+int yamaSocket;
+
+t_log *master_log;
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -99,7 +101,9 @@ int main(int argc, char **argv) {
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
 	config_destroy(config);
-	logger = log_create(tmpnam(NULL), "Master", 1, LOG_LEVEL_DEBUG);
+
+	// Creo el logger
+	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
 
 	// Me conecto con YAMA
 	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
