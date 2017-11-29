@@ -157,8 +157,8 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 		//leo operation type
 		//read(sockfd, &operationType, sizeof(uint32_t));
 		recv(sockfd,&operationType,sizeof(uint32_t),MSG_WAITALL);
-
-		if(operationType){
+		int sending;
+		if(operationType == 1){
 			//write
 			//leo size a escribir
 			//read(sockfd, &size, sizeof(uint32_t));
@@ -172,14 +172,15 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 			//read(sockfd, operationBuffer, size);
 			recv(sockfd, operationBuffer, BLOCK_SIZE,MSG_WAITALL);
 			dataNode_setBlock(blockNumber,operationBuffer);
-		}else{
+		}else if(operationType == 0){
 			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
 			void *blockRead = malloc(BLOCK_SIZE);
 			blockRead = dataNode_getBlock(blockNumber);
 			send(sockfd, blockRead, BLOCK_SIZE, 0);
 			free(blockRead);
-
-
+		}else if(operationType == 2){
+			sending = 1;
+			send(sockfd,&sending,sizeof(int),0);
 		}
 
 	}
