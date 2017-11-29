@@ -1047,8 +1047,10 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 			sigaction (SIGPIPE, &new_actn, &old_actn);
 
 			checkStatus = write(new_socket,serializedOperation,serializedOperationSize);
+			checkStatus = write(new_socket,serializedOperation,serializedOperationSize); // porque pue2
+
 			if(checkStatus == -1){
-			    printf("Oh dear, something went wrong with read()! %s\n", strerror(errno));
+			    printf("Oh dear, something went wrong with write()! %s\n", strerror(errno));
 				checkStatus = 0;
 				result = malloc(sizeof(int));
 			    memcpy(result,&checkStatus,sizeof(int));
@@ -2304,7 +2306,7 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 			sem_post(aDataNode.threadSemaphore);
 			sem_wait(aDataNode.resultSemaphore);
 			result = queue_pop(aDataNode.resultsQueue);
-			if(result){
+			if(*result){
 				free(result);
 				return DATANODE_ALREADY_CONNECTED;
 			}else{
