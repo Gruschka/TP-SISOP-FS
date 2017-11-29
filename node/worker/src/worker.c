@@ -256,7 +256,7 @@ void connectionHandler(int client_sock){
 					break;
 				}
 				int i =0;//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
-				t_list * fileList;
+				t_list * fileList = NULL;
 				for(i = 0; i < request.transformTempEntriesCount; i++ ){
 					fileNode * fileToReduce = malloc(sizeof(fileNode));
 					recv(client_sock, &(fileToReduce->filePathLength), sizeof(uint32_t), 0);
@@ -308,7 +308,7 @@ void connectionHandler(int client_sock){
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
 				log_debug(logger, "Global Reduction Stage");
-				t_list * workerList;
+				t_list * workerList = NULL;
 				int i = 0;
 				uint32_t sockFs;
 				ipc_struct_worker_start_global_reduce_request request;
