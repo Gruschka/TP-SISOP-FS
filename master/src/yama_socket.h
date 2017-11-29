@@ -8,6 +8,6 @@
 #ifndef YAMA_SOCKET_H_
 #define YAMA_SOCKET_H_
 
-static int yamaSocket;
+extern int yamaSocket;
 
 #endif /* YAMA_SOCKET_H_ */

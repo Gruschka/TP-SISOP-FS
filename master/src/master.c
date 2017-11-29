@@ -76,6 +76,8 @@
 // TODO: métricas
 // TODO: logs
 
+int yamaSocket;
+
 int main(int argc, char **argv) {
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
