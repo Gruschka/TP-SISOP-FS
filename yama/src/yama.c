@@ -384,6 +384,8 @@ void *server_mainThread() {
 				log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
 				//succeeded me lo paso por los huevos
+				// bueno, esta bien
+				// TODO: replanificar
 
 				// lo marco como finalizado
 				yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
@@ -406,12 +408,18 @@ void *server_mainThread() {
 						currentEntry->localReduceTempPath = tempFileName();
 						currentEntry->transformTempPath = strdup(entry->tempPath);
 						WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
-						currentEntry->workerIP = workerInfo->ip;
+						currentEntry->workerIP = strdup(workerInfo->ip);
 						currentEntry->workerPort = workerInfo->port;
 						currentEntry->nodeID = entry->nodeID;
+
+						free(entry->nodeID);
+						free(entry->tempPath);
+						list_remove(entriesToReduce, i);
 					}
 
+					list_destroy(entriesToReduce);
 					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
+					free(request);
 				}
 
 				break;
