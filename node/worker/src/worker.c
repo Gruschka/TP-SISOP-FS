@@ -185,11 +185,7 @@ void connectionHandler(int client_sock){
 				char chmode[] = "0777";
 			    int chmodNumber;
 			    chmodNumber = strtol(chmode, 0, 8);
-				char * scriptPathFormat = "/home/utnso/transformationScript%d";
-
-//				char * scriptPath = "/home/utnso/transformationScript5";
-				char *scriptPath = malloc(100);
-				sprintf(scriptPath, scriptPathFormat, client_sock);
+				char * scriptPath = scriptTempFileName();
 				FILE *scriptFile = fopen(scriptPath, "w");
 				if (scriptFile == NULL) {
 					exit(-1); //fixme: ola q ace
@@ -210,12 +206,12 @@ void connectionHandler(int client_sock){
 				buffer[templateSize] = '\0';
 
 				int checkCode = 0;
-				printf("\n SOY EL BLOQUE: %d \n", request.block);
+				printf("\n Transforming Block: %d \n", request.block);
 				printf("\n %s \n", buffer);
 				checkCode = system(buffer);
 
 				ipc_struct_worker_start_transform_response transform_response;
-				if(checkCode == 127 || checkCode == -1){
+				if(checkCode!= 0){
 					transform_response.succeeded = 0;
 				}
 				else{
@@ -229,6 +225,8 @@ void connectionHandler(int client_sock){
 				uint32_t response_operation = WORKER_START_TRANSFORM_RESPONSE;
 				send(client_sock, &response_operation, sizeof(uint32_t), 0);
 				send(client_sock, &(transform_response.succeeded), sizeof(int), 0);
+				remove(scriptPath);
+				free(scriptPath);
 				break;
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
@@ -245,9 +243,7 @@ void connectionHandler(int client_sock){
 				char chmode[] = "0777";
 			    int chmodNumber;
 			    chmodNumber = strtol(chmode, 0, 8);
-				char * scriptPathFormat = "/home/utnso/localReductionScript%d";
-				char *scriptPath = malloc(100);
-				sprintf(scriptPath, scriptPathFormat, client_sock);
+				char * scriptPath = scriptTempFileName();
 				FILE *scriptFile = fopen(scriptPath, "w");
 				if (scriptFile == NULL) {
 					exit(-1); //fixme: ola q ace
@@ -286,7 +282,7 @@ void connectionHandler(int client_sock){
 
 				int checkCode = system(buffer);
 				ipc_struct_worker_start_local_reduce_response reduction_response;
-				if(checkCode == 127 || checkCode == -1){
+				if(checkCode != 0){
 					reduction_response.succeeded = 0;
 				}
 				else{
@@ -306,6 +302,8 @@ void connectionHandler(int client_sock){
 				send(client_sock, &response_operation, sizeof(uint32_t), 0);
 				send(client_sock, &(reduction_response.succeeded), sizeof(int), 0);
 				free(reduceTempFilePath);
+				remove(scriptPath);
+				free(scriptPath);
 				break;
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
@@ -322,9 +320,7 @@ void connectionHandler(int client_sock){
 				char chmode[] = "0777";
 			    int chmodNumber;
 			    chmodNumber = strtol(chmode, 0, 8);
-				char * scriptPathFormat = "/home/utnso/GlobalReductionScript%d";
-				char *scriptPath = malloc(100);
-				sprintf(scriptPath, scriptPathFormat, client_sock);
+				char * scriptPath = scriptTempFileName();
 				FILE *scriptFile = fopen(scriptPath, "w");
 				if (scriptFile == NULL) {
 					exit(-1); //fixme: ola q ace
@@ -382,7 +378,7 @@ void connectionHandler(int client_sock){
 
 				int checkCode = system(buffer);
 
-				if(checkCode == 127 || checkCode == -1){
+				if(checkCode != 0){
 					reduction_response.succeeded = 0;
 				}
 				else{
@@ -407,27 +403,6 @@ void connectionHandler(int client_sock){
 				char * fileFinalName = malloc(fileFinalNameLength +1);
 				recv(client_sock, fileFinalName, fileFinalNameLength, 0);
 				sockFs = connectToFileSystem();
-//				int fileResultSize = finalFileSize(fileFinalName);
-//				if(fileResultSize == -1){
-//					perror("File not found");
-//					reduction_response.succeeded = 0;
-//					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
-//					break;
-//				}
-//
-//				send(sockFs, &fileResultSize, sizeof(uint32_t), 0);
-//				request.globalTempPath[request.globalTempPathLen] = '\0';
-//				FILE * finalFile = fopen(request.globalTempPath, "r");
-//				int finalFileFd = fileno(finalFile);
-//				int bytesSent = sendfile(sockFs, finalFileFd, NULL, fileResultSize);
-//				if (bytesSent == fileResultSize){
-//					log_debug(logger, "File sent successfully");
-//				}
-//				else{
-//					perror("File couldn't be sent correctly");
-//				}
-//				free(fileFinalName);
-//				fclose(finalFile);
 				char *fileContent = worker_utils_readFile(fileFinalName);
 				ipc_struct_worker_file_to_yama *sendFile = malloc(sizeof(ipc_struct_worker_file_to_yama));
 				sendFile->file = fileContent;
@@ -436,9 +411,10 @@ void connectionHandler(int client_sock){
 				free(buffer);
 				free(fileContent);
 				free(sendFile);
-				free(scriptPath);
 				free(request.globalTempPath);
 				free(pairingResultName);
+				remove(scriptPath);
+				free(scriptPath);
 				break;
 			}
 			case SLAVE_WORKER:{
@@ -711,3 +687,13 @@ char *worker_utils_readFile(char *path) {
 
 	return buffer;
 }
+
+char *scriptTempFileName() {
+	static char template[] = "/tmp/scripts/XXXXXX";
+	char *name = malloc(strlen(template) + 1);
+	strcpy(name, template);
+	mktemp(name);
+
+	return name;
+}
+

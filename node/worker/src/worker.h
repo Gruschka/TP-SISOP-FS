@@ -43,5 +43,5 @@ int connectToWorker(char *workerIp, int port);
 int connectToFileSystem();
 int finalFileSize(char * filePath);
 char *worker_utils_readFile(char *path);
-
+char *scriptTempFileName();
 #endif /* WORKER_H_ */
