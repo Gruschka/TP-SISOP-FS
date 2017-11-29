@@ -522,7 +522,7 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 
 }
 int fs_cpto(char *yamaFilePath,char *destDirectory) {
-	printf("Copying %s to directory %s\n", yamaFilePath, destDirectory);
+	log_debug(logger,"Copying %s to directory %s\n", yamaFilePath, destDirectory);
 
 	int result = fs_downloadFile(yamaFilePath,destDirectory);
 
@@ -633,6 +633,7 @@ int fs_ls(char *directoryPath) {
 		int result = system(command);
 		free(physicalPath);
 		free(command);
+		closedir(dir);
 		return 0;
 	}
 
@@ -650,12 +651,12 @@ int fs_info(char *filePath) {
 	}
 
 	ipc_struct_fs_get_file_info_response_entry  *arrayOfBlockTuples = fs_getFileBlockTuples(filePathInLocalFS);
-	printf("Showing info of file file %s\n", filePath);
+	log_info(logger,"Showing info of file file %s\n", filePath);
 
 	int i = 0;
 
 	for(i = 0; i < amountOfBlocks; i++){
-
+		log_info(logger,"Block number: [%d]",i);
 		fs_dumpBlockTuple(arrayOfBlockTuples[i]);
 	}
 
@@ -799,7 +800,7 @@ void fs_waitForYama() {
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
 //		fs_destroyNodeTupleArray(response->entries, length);
-		sleep(5);
+//		sleep(5);
 	}
 
 }
@@ -1038,7 +1039,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 
 		free(operation);
 
-		sleep(5);
+//		sleep(5);
 
 	}
 }
@@ -1091,7 +1092,7 @@ void fs_waitForWorkers(){
 			fs_cpfrom(pathInLocalFS,sendFile->pathName,'-t');
 			remove(pathInLocalFS);
 			free(pathInLocalFS);
-			sleep(5);
+//			sleep(5);
 		}
 
 
@@ -1234,6 +1235,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		char *tamanioFinal = string_from_format("%d", tamanioAcumulado); // Pasa el valor a string
 		config_set_value(nodeTableConfig, "TAMANIO", tamanioFinal); //Toma el valor
 		myFS.totalAmountOfBlocks = tamanioAcumulado;
+		free(tamanioFinal);
 
 	}
 
@@ -1244,11 +1246,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		char *libreTotalFinal = string_from_format("%d", aDataNode.freeBlocks); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = aDataNode.freeBlocks;
+		free(libreTotalFinal);
 	} else {
 		//int bloquesLibresTotales = myFS.freeBlocks - libresFinal;
 		char *libreTotalFinal = string_from_format("%d", libresFinal); //La pasa a string
 		config_set_value(nodeTableConfig, "LIBRE", libreTotalFinal);
 		myFS.freeBlocks = libresFinal;
+		free(libreTotalFinal);
 	}
 
 	myFS.occupiedBlocks = myFS.totalAmountOfBlocks - myFS.freeBlocks;
@@ -1270,7 +1274,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 			listaNodosFinal = string_from_format("[%s]", aDataNode.name);
 			config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 			//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
+			free(listaNodosFinal);
 		} else { //Si no esta vacio, tengo que fijarme si ya esta en la lista
 
 			if (!fs_arrayContainsString(listaNodosArray, aDataNode.name)) { //Si esta en la lista, no lo agrego
@@ -1291,12 +1295,13 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 				listaNodosFinal = string_from_format("[%s]", listaNodosAux);
 				config_set_value(nodeTableConfig, "NODOS", listaNodosFinal);
 				//config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+				free(listaNodosFinal);
 
 			}
 
 		}
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
-
+		free(listaNodosAux);
 	}
 
 	/*************** ACTUALIZA INFORMACION DE BLOQUES DEL NODO EN NODE TABLE ***************/
@@ -1330,6 +1335,9 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 		config_set_value(nodeTableConfig, libresArray[0], bloquesLibresFinal);
 		config_set_value(nodeTableConfig, totalesArray[0], bloquesTotalesFinal);
 		config_save_in_file(nodeTableConfig, myFS.nodeTablePath);
+		fs_destroyAnArrayOfCharPointers(libresArray);
+		fs_destroyAnArrayOfCharPointers(totalesArray);
+
 
 	} else { //No esta en la lista entonces tengo que crear nueva entrada
 
@@ -1348,12 +1356,11 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 
-	/*
-	 free(nombreAux1);
-	 free(nombreAux2);
-	 free(libres);
-	 free(total);
-	 */
+
+	free(total);
+	free(libres);
+	free(bloquesLibresFinal);
+	free(bloquesTotalesFinal);
 	config_destroy(nodeTableConfig);
 	return 0;
 
@@ -1867,8 +1874,15 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	int carry = 0;
 	FILE *sourceFile = fopen(sourceFilePath,"r+");
 
+	uint32_t debug = 0;
+
 	memset(line, 0, BLOCK_SIZE);
 	fgets(line,BLOCK_SIZE,sourceFile);
+	debug++;
+	int cantidadDeLineasDelBloque = 1;
+	int cantidadDeLineasDespachadas = 0;
+	uint32_t fragmentacionInterna = 0;
+	uint32_t fragmentacionInternaDelBloque = 0;
 
 	if(fileType == T_TEXT){
 		while (1){
@@ -1883,6 +1897,8 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				remainingSizeInBlock -= lineSize;
 
 				fgets(line,BLOCK_SIZE,sourceFile);
+				cantidadDeLineasDelBloque++;
+				debug++;
 			} else {
 				bufferSplit = malloc(BLOCK_SIZE);
 				memset(bufferSplit, 0, BLOCK_SIZE);
@@ -1901,6 +1917,11 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 							package->destinationNode);
 					list_add(packageList, package);
 				}
+				fragmentacionInternaDelBloque = BLOCK_SIZE - offset;
+				fragmentacionInterna += fragmentacionInternaDelBloque;
+				cantidadDeLineasDespachadas += cantidadDeLineasDelBloque;
+				log_debug(logger, "Bloque nro %d tiene %d lineas. Fragm: %d (Total acum. lineas: %d - Total acum. fragm. interna: %d)", blockNumber, cantidadDeLineasDelBloque, fragmentacionInternaDelBloque, cantidadDeLineasDespachadas, fragmentacionInterna);
+				cantidadDeLineasDelBloque = 0;
 				blockNumber++;
 
 				memset(block,0,BLOCK_SIZE);
@@ -1914,6 +1935,7 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 		}
 	}
 
+	log_debug(logger, "keku: %d", debug);
 	fclose(sourceFile);
 
 	//wait for receipt confirmation of all packages, update admin structures
@@ -2390,9 +2412,9 @@ int fs_getAmountOfBlocksAndCopiesOfAFile(char *file){
 void fs_dumpBlockTuple(ipc_struct_fs_get_file_info_response_entry  blockTuple){
 
 
-	printf("BLOCK:[%d] COPY:[0] NODE:[%s]\n", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
-	printf("BLOCK:[%d] COPY:[1] NODE:[%s]\n", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
-	printf("BLOCK SIZE: %d\n", blockTuple.blockSize);
+	log_info(logger,"BLOCK:[%d] COPY:[0] NODE:[%s]", blockTuple.firstCopyBlockID, blockTuple.firstCopyNodeID);
+	log_info(logger, "BLOCK:[%d] COPY:[1] NODE:[%s]", blockTuple.secondCopyBlockID, blockTuple.secondCopyNodeID);
+	log_info(logger, "BLOCK SIZE: %d\n", blockTuple.blockSize);
 
 }
 
@@ -2568,6 +2590,7 @@ int fs_getNumberOfBlocksOfAFile(char *file){
 	int j = 0;
 	int copy = 0;
 	int totalAmountOfBlocks = 0;
+	config_destroy(fileConfig);
 
 
 	for(i = 0; i < totalBlockKeys; i++){
@@ -2622,7 +2645,7 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 	int i = 0;
 
 	for(i = 0; i < arrayLength ; i++){
-		log_info(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
+		log_debug(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
 		free(tuple[i].firstCopyNodeID);
 		free(tuple[i].secondCopyNodeID);
 		free(tuple[i].firstCopyNodeIP);
@@ -3074,5 +3097,16 @@ int fs_createTempFileFromWorker(char *filePath){
 	}
 
 	return EXIT_SUCCESS;
+
+}
+int fs_destroyAnArrayOfCharPointers(char **array){
+
+	int length = fs_amountOfElementsInArray(array);
+	int i = 0;
+	for(i = 0; i < length; i++){
+		if(array[i] != NULL) free(array[i]);
+	}
+	return EXIT_SUCCESS;
+
 
 }

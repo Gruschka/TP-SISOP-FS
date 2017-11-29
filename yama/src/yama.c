@@ -270,6 +270,8 @@ void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_r
 		entry->stage = TRANSFORMATION;
 		entry->status = IN_PROCESS;
 		entry->tempPath = strdup(responseEntry->tempPath);
+
+		yst_addEntry(entry);
 	}
 	lastJobID++;
 }
@@ -413,7 +415,7 @@ void initialize() {
 	stateTable = list_create();
 	nodesList = list_create();
 	workersDict = dictionary_create();
-	fsFd = ipc_createAndConnect(8081, "10.0.1.152");
+	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
