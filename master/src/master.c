@@ -101,6 +101,8 @@ int main(int argc, char **argv) {
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
 	config_destroy(config);
+
+	// Creo el logger
 	logger = log_create(tmpnam(NULL), "master", 1, LOG_LEVEL_DEBUG);
 
 	// Me conecto con YAMA
