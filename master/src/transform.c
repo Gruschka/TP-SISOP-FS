@@ -17,6 +17,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include <commons/log.h>
+
 // Por cada tarea de transformación:
 // 1. crear un hilo
 // 2. conectarse al worker correspondiente
@@ -26,6 +28,8 @@
 //    guardar el resultado.
 // 5. esperar confirmación de cada etapa
 // 6. Comunicar a YAMA el resultado de cada etapa
+
+extern t_log *logger;
 
 typedef struct WorkerRequest {
 	char *nodeID;
@@ -37,6 +41,7 @@ typedef struct WorkerRequest {
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
+	log_debug(logger, "Connected to worker %s (fd: %d)", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_TRANSFORM_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
@@ -57,6 +62,7 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	if (incomingOperation == WORKER_START_TRANSFORM_RESPONSE) {
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
+	log_debug(logger, "Transform succeeded: %d (file: %s. fd: %d)",transformSucceeded, request->workerRequest.tempFilePath, sockfd);
 
 	ipc_struct_yama_notify_stage_finish notification;
 	notification.nodeID = strdup(request->nodeID);
