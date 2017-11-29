@@ -79,7 +79,7 @@
 
 int yamaSocket;
 
-t_log *logger;
+t_log *master_log;
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
 	config_destroy(config);
 
 	// Creo el logger
-	logger = log_create(tmpnam(NULL), "master", 1, LOG_LEVEL_DEBUG);
+	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
 
 	// Me conecto con YAMA
 	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
