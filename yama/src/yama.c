@@ -36,6 +36,10 @@ int fsFd;
 
 int stringsAreEqual(char *str1, char *str2);
 
+void dumpEntry(yama_state_table_entry *entry) {
+	log_debug("%d | %d | %s | %d | %d | %s | %d", entry->jobID, entry->masterID, entry->nodeID, entry->blockNumber, entry->stage, entry->tempPath, entry->status);
+}
+
 t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	t_list *result = list_create();
 
@@ -396,6 +400,7 @@ void *server_mainThread() {
 				// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
 				if (jobIsFinished(jobID, ystEntry->nodeID, TRANSFORMATION)) {
 					t_list *entriesToReduce = getEntriesMatching(jobID, ystEntry->nodeID, TRANSFORMATION);
+					log_debug(logger, "Terminaron todas las transformaciones (%d) para el job %d, nodeID: %s", list_size(entriesToReduce), jobID, ystEntry->nodeID);
 					ipc_struct_master_continueWithLocalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequest));
 					request->entriesCount = list_size(entriesToReduce);
 					request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
@@ -410,14 +415,14 @@ void *server_mainThread() {
 						WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
 						currentEntry->workerIP = strdup(workerInfo->ip);
 						currentEntry->workerPort = workerInfo->port;
-						currentEntry->nodeID = entry->nodeID;
+						currentEntry->nodeID = strdup(entry->nodeID);
 
 						free(entry->nodeID);
 						free(entry->tempPath);
-						list_remove(entriesToReduce, i);
+//						list_remove(entriesToReduce, i);
 					}
 
-					list_destroy(entriesToReduce);
+//					list_destroy(entriesToReduce);
 					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
 					free(request);
 				}

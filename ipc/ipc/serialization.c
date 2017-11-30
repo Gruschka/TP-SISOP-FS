@@ -531,7 +531,8 @@ char *serializeYAMAStartTransformationResponse(void *data, int *size) {
 // MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST
 
 uint32_t getMasterContinueWithLocalReductionRequestEntrySize(ipc_struct_master_continueWithLocalReductionRequestEntry *entry) {
-	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + sizeof(uint32_t) + strlen(entry->transformTempPath) + 1 + strlen(entry->localReduceTempPath) + 1;
+	return strlen(entry->nodeID) + 1 + strlen(entry->workerIP) + 1 + sizeof(uint32_t) +
+			strlen(entry->transformTempPath) + 1 + strlen(entry->localReduceTempPath) + 1;
 }
 
 uint32_t getMasterContinueWithLocalReductionRequestEntriesSize(ipc_struct_master_continueWithLocalReductionRequest *request) {
