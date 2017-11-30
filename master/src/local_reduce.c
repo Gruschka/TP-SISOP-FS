@@ -74,6 +74,8 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	notification.tempPath = strdup(request->workerRequest.reduceTempPath);
 	notification.succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, &notification);
+	free(notification.nodeID);
+	free(notification.tempPath);
 
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.transformTempEntries);
@@ -94,8 +96,8 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 	for (i = 0; i < yamaRequest->entriesCount; i++) {
 		ipc_struct_master_continueWithLocalReductionRequestEntry *entry = yamaRequest->entries + i;
 
-		if (strcmp(entry->nodeID, currentNodeID) == 1) {
-			currentNodeID = entry->nodeID;
+		if (strcmp(entry->nodeID, currentNodeID ?: "") != 0) {
+			currentNodeID = strdup(entry->nodeID);
 			requestsCount++;
 			requests = realloc(requests, sizeof(WorkerRequest) * requestsCount);
 
@@ -105,8 +107,9 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 
 			workerRequest.transformTempEntriesCount = 1;
 			workerRequest.transformTempEntries = malloc(sizeof(ipc_struct_worker_start_local_reduce_TransformTempEntry));
-			workerRequest.transformTempEntries->tempPathLen = strlen(entry->transformTempPath);
-			workerRequest.transformTempEntries->tempPath = strdup(entry->transformTempPath);
+			ipc_struct_worker_start_local_reduce_TransformTempEntry *tempEntry = workerRequest.transformTempEntries;
+			tempEntry->tempPathLen = strlen(entry->transformTempPath);
+			tempEntry->tempPath = strdup(entry->transformTempPath);
 
 			workerRequest.reduceTempPathLen = strlen(entry->localReduceTempPath);
 			workerRequest.reduceTempPath = strdup(entry->localReduceTempPath);
@@ -121,7 +124,7 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 
 			request->workerRequest.transformTempEntriesCount++;
 			request->workerRequest.transformTempEntries = realloc(request->workerRequest.transformTempEntries, sizeof(ipc_struct_worker_start_local_reduce_TransformTempEntry) * request->workerRequest.transformTempEntriesCount);
-			ipc_struct_worker_start_local_reduce_TransformTempEntry *tempEntry = request->workerRequest.transformTempEntries + request->workerRequest.transformTempEntriesCount;
+			ipc_struct_worker_start_local_reduce_TransformTempEntry *tempEntry = request->workerRequest.transformTempEntries + (request->workerRequest.transformTempEntriesCount - 1);
 			tempEntry->tempPathLen = strlen(entry->transformTempPath);
 			tempEntry->tempPath = strdup(entry->transformTempPath);
 		}
@@ -130,7 +133,6 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 		free(entry->transformTempPath);
 		free(entry->workerIP);
 		free(entry->nodeID);
-		free(localReduceScript);
 	}
 
 	for (i = 0; i < requestsCount; i++) {
@@ -143,7 +145,7 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 		}
 	}
 
-
+	free(currentNodeID);
 	free(yamaRequest->entries);
 	free(yamaRequest);
 	free(localReduceScript);
