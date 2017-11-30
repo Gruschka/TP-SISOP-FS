@@ -419,7 +419,7 @@ void *server_mainThread() {
 
 						free(entry->nodeID);
 						free(entry->tempPath);
-//						list_remove(entriesToReduce, i);
+						list_remove(entriesToReduce, i);
 					}
 
 //					list_destroy(entriesToReduce);
