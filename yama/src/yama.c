@@ -29,7 +29,6 @@ t_log *logger;
 t_list *stateTable;
 t_list *nodesList;
 t_dictionary *workersDict;
-node *lastAssignedNode;
 pthread_t serverThread;
 uint32_t lastJobID = 1;
 int fsFd;
@@ -419,6 +418,7 @@ void *server_mainThread() {
 					}
 
 					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
+					list_destroy(entriesToReduce);
 					free(request);
 				}
 
@@ -459,6 +459,7 @@ void initialize() {
 	nodesList = list_create();
 	workersDict = dictionary_create();
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	log_debug(logger, "Connected to FS");
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
