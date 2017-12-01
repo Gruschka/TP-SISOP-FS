@@ -101,7 +101,7 @@ int ipc_createAndListen(int port, int optval) {
 		exit(1);
 	}
 	fcntl(sockfd, F_SETFL, FD_CLOEXEC);
-	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+	setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &optval, sizeof(optval));
 
 	socketInfo.sin_family = AF_INET;
 	socketInfo.sin_addr.s_addr = INADDR_ANY;

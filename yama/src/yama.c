@@ -20,6 +20,11 @@
 #include "configuration.h"
 #include "scheduling.h"
 
+//TODO: Setear id de master como el fd de su conexion
+//TODO: Cerrar scheduling
+//TODO: Revisar leaks
+//TODO: Deshardcodear puerto
+
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
@@ -29,6 +34,7 @@ t_log *logger;
 t_list *stateTable;
 t_list *nodesList;
 t_dictionary *workersDict;
+t_dictionary *mastersDict;
 pthread_t serverThread;
 uint32_t lastJobID = 1;
 int fsFd;
@@ -357,97 +363,97 @@ void test() {
 //	testScheduling(W_CLOCK);
 }
 
-void *server_mainThread() {
-	log_debug(logger, "Waiting for masters");
-	int sockfd = ipc_createAndListen(8888, 0);
+void newConnectionHandler(int fd) {
+	log_debug(logger, "New master connection accepted. FD: %d", fd);
+}
 
-	struct sockaddr_in cliaddr;
-	int clilen = sizeof(cliaddr);
-	int newsockfd = accept(sockfd, (struct sockaddr *)&cliaddr, &clilen);
-	log_debug(logger, "New socket accepted. fd: %d", newsockfd);
-	while (true) {
-		int operation = ipc_getNextOperationId(newsockfd);
+void disconnectionHandler(int fd) {
+	log_debug(logger, "Master disconnected. FD: %d", fd);
+}
 
-		switch (operation) {
-			case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
-				ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
-				log_debug(logger, "request: path: %s", request->filePath);
+void incomingDataHandler(int fd, ipc_struct_header header) {
+	switch (header.type) {
+	case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
+		ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(fd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
+		log_debug(logger, "request: path: %s", request->filePath);
 
-				ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
+		ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
 
-				ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
-				ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
-				trackTransformationResponseInStateTable(response);
-				ipc_sendMessage(newsockfd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
+		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+		trackTransformationResponseInStateTable(response);
+		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
-				break;
-			}
-			case YAMA_NOTIFY_TRANSFORM_FINISH: {
-				ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_TRANSFORM_FINISH);
-				log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
+		break;
+	}
+	case YAMA_NOTIFY_TRANSFORM_FINISH: {
+		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
+		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
-				//succeeded me lo paso por los huevos
-				// bueno, esta bien
-				// TODO: replanificar
+		//succeeded me lo paso por los huevos
+		// bueno, esta bien
+		// TODO: replanificar
 
-				// lo marco como finalizado
-				yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
-				ystEntry->status = FINISHED_OK;
+		// lo marco como finalizado
+		yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+		ystEntry->status = FINISHED_OK;
 
-				uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
+		uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
 
-				// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
-				if (jobIsFinished(jobID, ystEntry->nodeID, TRANSFORMATION)) {
-					t_list *entriesToReduce = getEntriesMatching(jobID, ystEntry->nodeID, TRANSFORMATION);
-					log_debug(logger, "Terminaron todas las transformaciones (%d) para el job %d, nodeID: %s", list_size(entriesToReduce), jobID, ystEntry->nodeID);
-					ipc_struct_master_continueWithLocalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequest));
-					request->entriesCount = list_size(entriesToReduce);
-					request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
+		// si terminaron todas las transformaciones para ese nodo disparo la siguiente etapa
+		if (jobIsFinished(jobID, ystEntry->nodeID, TRANSFORMATION)) {
+			t_list *entriesToReduce = getEntriesMatching(jobID, ystEntry->nodeID, TRANSFORMATION);
+			log_debug(logger, "Terminaron todas las transformaciones (%d) para el job %d, nodeID: %s", list_size(entriesToReduce), jobID, ystEntry->nodeID);
+			ipc_struct_master_continueWithLocalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequest));
+			request->entriesCount = list_size(entriesToReduce);
+			request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
 
-					int i;
-					for (i = 0; i < request->entriesCount; i++) {
-						yama_state_table_entry *entry = list_get(entriesToReduce, i);
-						ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
-						dumpEntry(entry, i);
-						currentEntry->localReduceTempPath = tempFileName();
-						currentEntry->transformTempPath = strdup(entry->tempPath);
-						WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
-						currentEntry->workerIP = strdup(workerInfo->ip);
-						currentEntry->workerPort = workerInfo->port;
-						currentEntry->nodeID = strdup(entry->nodeID);
-					}
-
-					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
-					list_destroy(entriesToReduce);
-					free(request);
-				}
-
-				break;
-			}
-			case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
-				ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
-				log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
-				break;
-			}
-			case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
-				ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
-				log_debug(logger, "[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", globalReductionFinish->nodeID, globalReductionFinish->tempPath, globalReductionFinish->succeeded);
-
-				break;
-			}
-			case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
-				ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(newsockfd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
-				log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
-
-				break;
+			int i;
+			for (i = 0; i < request->entriesCount; i++) {
+				yama_state_table_entry *entry = list_get(entriesToReduce, i);
+				ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
+				dumpEntry(entry, i);
+				currentEntry->localReduceTempPath = tempFileName();
+				currentEntry->transformTempPath = strdup(entry->tempPath);
+				WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
+				currentEntry->workerIP = strdup(workerInfo->ip);
+				currentEntry->workerPort = workerInfo->port;
+				currentEntry->nodeID = strdup(entry->nodeID);
 			}
 
-			default:
-				break;
+			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
+			list_destroy(entriesToReduce);
+			free(request);
 		}
 
-
+		break;
 	}
+	case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
+		ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(fd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
+		log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
+		break;
+	}
+	case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
+		ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(fd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
+		log_debug(logger, "[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", globalReductionFinish->nodeID, globalReductionFinish->tempPath, globalReductionFinish->succeeded);
+
+		break;
+	}
+	case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
+		ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(fd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
+		log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
+
+		break;
+	}
+
+	default:
+		break;
+	}
+}
+
+void *server_mainThread() {
+	log_debug(logger, "Waiting for masters");
+	ipc_createEpollServer("8888", newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
 
@@ -458,6 +464,7 @@ void initialize() {
 	stateTable = list_create();
 	nodesList = list_create();
 	workersDict = dictionary_create();
+	mastersDict = dictionary_create();
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	log_debug(logger, "Connected to FS");
 	pthread_mutex_init(&stateTable_mutex, NULL);
