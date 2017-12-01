@@ -62,7 +62,8 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	if (incomingOperation == WORKER_START_TRANSFORM_RESPONSE) {
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
-	log_debug(master_log, "Transform succeeded: %d (file: %s. fd: %d)",transformSucceeded, request->workerRequest.tempFilePath, sockfd);
+
+	log_debug(master_log, "Transform. succeeded: %d (file: %s. fd: %d)", transformSucceeded, request->workerRequest.tempFilePath, sockfd);
 
 	ipc_struct_yama_notify_stage_finish notification;
 	notification.nodeID = strdup(request->nodeID);
