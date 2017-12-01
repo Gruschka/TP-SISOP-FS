@@ -36,8 +36,8 @@ int fsFd;
 
 int stringsAreEqual(char *str1, char *str2);
 
-void dumpEntry(yama_state_table_entry *entry) {
-	log_debug("%d | %d | %s | %d | %d | %s | %d", entry->jobID, entry->masterID, entry->nodeID, entry->blockNumber, entry->stage, entry->tempPath, entry->status);
+void dumpEntry(yama_state_table_entry *entry, uint32_t i) {
+	log_debug(logger, "%d -> %d | %d | %s | %d | %d | %s | %d", i, entry->jobID, entry->masterID, entry->nodeID, entry->blockNumber, entry->stage, entry->tempPath, entry->status);
 }
 
 t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
@@ -406,23 +406,18 @@ void *server_mainThread() {
 					request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
 
 					int i;
-					for (i = 0; i < list_size(entriesToReduce); i++) {
+					for (i = 0; i < request->entriesCount; i++) {
 						yama_state_table_entry *entry = list_get(entriesToReduce, i);
 						ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
-
+						dumpEntry(entry, i);
 						currentEntry->localReduceTempPath = tempFileName();
 						currentEntry->transformTempPath = strdup(entry->tempPath);
 						WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
 						currentEntry->workerIP = strdup(workerInfo->ip);
 						currentEntry->workerPort = workerInfo->port;
 						currentEntry->nodeID = strdup(entry->nodeID);
-
-						free(entry->nodeID);
-						free(entry->tempPath);
-						list_remove(entriesToReduce, i);
 					}
 
-//					list_destroy(entriesToReduce);
 					ipc_sendMessage(newsockfd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
 					free(request);
 				}
