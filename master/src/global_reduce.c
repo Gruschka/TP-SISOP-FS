@@ -91,11 +91,11 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
-	ipc_struct_yama_notify_stage_finish notification;
-	notification.nodeID = strdup(workerInChargeEntry->nodeID);
-	notification.tempPath = strdup(workerInChargeEntry->globalReduceTempPath);
-	notification.succeeded = reduceSucceeded;
-	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, &notification);
+	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+	notification->nodeID = strdup(workerInChargeEntry->nodeID);
+	notification->tempPath = strdup(workerInChargeEntry->globalReduceTempPath);
+	notification->succeeded = reduceSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, notification);
 	log_debug(master_log, "REDUCCIÓN GLOBAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, workerInChargeEntry->globalReduceTempPath, sockfd);
 
 	close(sockfd);
@@ -104,8 +104,9 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	free(workerInChargeEntry->workerIP);
 	free(workerInChargeEntry->localReduceTempPath);
 	free(workerInChargeEntry->globalReduceTempPath);
-	free(notification.nodeID);
-	free(notification.tempPath);
+	free(notification->nodeID);
+	free(notification->tempPath);
+	free(notification);
 	free(yamaRequest->entries);
 	free(yamaRequest);
 	free(globalReduceScript);

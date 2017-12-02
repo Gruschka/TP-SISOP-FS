@@ -56,17 +56,18 @@ void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFina
 		recv(sockfd, &storageSucceeded, sizeof(uint32_t), 0);
 	}
 
-	ipc_struct_yama_notify_stage_finish notification;
-	notification.nodeID = strdup(yamaRequest->nodeID);
-	notification.tempPath = strdup(yamaRequest->globalReductionTempPath);
-	notification.succeeded = storageSucceeded;
-	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_FINAL_STORAGE_FINISH, &notification);
+	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+	notification->nodeID = strdup(yamaRequest->nodeID);
+	notification->tempPath = strdup(yamaRequest->globalReductionTempPath);
+	notification->succeeded = storageSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_FINAL_STORAGE_FINISH, notification);
 	log_debug(master_log, "ALMACENADO FINAL. Éxito: %d (file: %s. fd: %d).", storageSucceeded, yamaRequest->globalReductionTempPath, sockfd);
 
 	close(sockfd);
 
-	free(notification.nodeID);
-	free(notification.tempPath);
+	free(notification->nodeID);
+	free(notification->tempPath);
+	free(notification);
 	free(yamaRequest->nodeID);
 	free(yamaRequest->workerIP);
 	free(yamaRequest->globalReductionTempPath);
