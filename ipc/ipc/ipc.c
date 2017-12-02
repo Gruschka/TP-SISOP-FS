@@ -302,6 +302,7 @@ int ipc_createEpollServer(char *port, EpollConnectionEventHandler newConnectionH
             	  disconnectionHandler(events[i].data.fd);
               } else {
             	  // Manejar error
+            	  printf("manejar");
               }
 
               free(buffer);

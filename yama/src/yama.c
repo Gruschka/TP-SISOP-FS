@@ -36,7 +36,7 @@ t_list *nodesList;
 t_dictionary *workersDict;
 t_dictionary *mastersDict;
 pthread_t serverThread;
-uint32_t lastJobID = 1;
+uint32_t lastJobID = 0;
 int fsFd;
 
 int stringsAreEqual(char *str1, char *str2);
@@ -44,6 +44,7 @@ int stringsAreEqual(char *str1, char *str2);
 void dumpEntry(yama_state_table_entry *entry, uint32_t i) {
 	log_debug(logger, "%d -> %d | %d | %s | %d | %d | %s | %d", i, entry->jobID, entry->masterID, entry->nodeID, entry->blockNumber, entry->stage, entry->tempPath, entry->status);
 }
+
 
 t_list *getEntriesMatchingJobID(uint32_t jobID) {
 	t_list *result = list_create();
@@ -59,6 +60,8 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 		}
 	}
 
+	//TODO: ver que no est'e liberanod cualqueir cosa
+	dictionary_destroy(dictionary);
 	return result;
 }
 
@@ -97,11 +100,11 @@ int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
-		if (currentEntry->jobID == jobID &&
-				currentEntry->stage == stage &&
-				stringsAreEqual(currentEntry->nodeID, nodeID) &&
-				currentEntry->status != FINISHED_OK) // si hay algun archivo de ese job q no termino, doy false
-			return 0;
+		if (currentEntry->jobID == jobID && currentEntry->stage == stage && stringsAreEqual(currentEntry->nodeID, nodeID)){
+			if(currentEntry->status != FINISHED_OK) {
+				return 0;
+			}
+		}
 	}
 
 	return 1;
