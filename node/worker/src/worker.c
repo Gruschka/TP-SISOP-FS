@@ -113,8 +113,8 @@ void *createServer() {
 		int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
 		if (client_sock >= 0) {
 			log_debug(logger, "Connection accepted");
-			close(client_sock);
-//			connectionHandler(client_sock);
+//			close(client_sock);
+			connectionHandler(client_sock);
 		} else {
 			log_error(logger, "Couldn't accept connection.");
 		}
@@ -423,21 +423,22 @@ void connectionHandler(int client_sock){
 			}
 
 			char *registerToSend = malloc(maxLineSize);
-			int clientCode = 0;
-			while(clientCode != FILE_CLOSE_REQUEST) {
-				log_error(logger, "Esperando pedido...");
+			while (1) {
+//				log_debug(logger, "Esperando pedido...");
+				int clientCode = 0;
 				recv(client_sock, &clientCode, sizeof(int), 0);
 				if (clientCode == REGISTER_REQUEST) {
-					log_error(logger, "Se recibio REGISTER_REQUEST.");
+//					log_debug(logger, "Se recibio REGISTER_REQUEST.");
 					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
 						strcpy(registerToSend, "NULL");
 						int registerSize = strlen(registerToSend);
 						log_debug(logger, "Termino un archivo \n");
 						send(client_sock, &registerSize, sizeof(int), 0);
 						send(client_sock, registerToSend, registerSize + 1, 0);
+						break;
 					} else {
 						int registerSize = strlen(registerToSend);
-						log_debug(logger,"Linea: %s \n", registerToSend);
+//						log_debug(logger,"Linea: %s \n", registerToSend);
 						send(client_sock, &registerSize, sizeof(int), 0);
 						send(client_sock, registerToSend, registerSize + 1, 0);
 					}
@@ -489,12 +490,11 @@ void pairingFiles(t_list *listToPair, char* resultName){
 	}
 
 	char *lowerString = malloc(maxLineSize);
+	strcpy(lowerString, filesCursors[0]);
 	FILE *pairingResultFile = fopen(resultName, "w");
 
 	int pairedFilesCount = 0;
 	while (pairedFilesCount < filesCount) {
-		memset(lowerString, 255, maxLineSize);
-
 		int fileIndex;
 
 		for (i = 0; i < filesCount; i++) {
@@ -504,11 +504,16 @@ void pairingFiles(t_list *listToPair, char* resultName){
 			}
 		}
 
-		fputs(lowerString, pairingResultFile);
+		fprintf(pairingResultFile, "%s", lowerString);
+		fflush(pairingResultFile);
 
 		if (fgets(filesCursors[fileIndex], maxLineSize, filesArray[fileIndex]) == NULL) {
 			filesCursors[fileIndex] = NULL;
+			memset(lowerString, 255, maxLineSize - 1);
+			lowerString[maxLineSize - 1] = '\0';
 			pairedFilesCount++;
+		} else {
+			strcpy(lowerString, filesCursors[fileIndex]);
 		}
 	}
 
@@ -535,12 +540,11 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	}
 
 	char *lowerString = malloc(maxLineSize);
+	strcpy(lowerString, filesCursors[0]);
 	FILE *pairingResultFile = fopen(resultName, "w");
 	fileGlobalNode * workerToRequest;
 	int pairedFilesCount = 0;
 	while (pairedFilesCount < filesCount) {
-		memset(lowerString, 255, maxLineSize);
-
 		int fileIndex;
 
 		for (i = 0; i < filesCount; i++) {
@@ -551,20 +555,26 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 			}
 		}
 
-		fputs(lowerString, pairingResultFile);
+		fprintf(pairingResultFile, "%s", lowerString);
+		fflush(pairingResultFile);
+
 		registerReceiver(filesCursors[fileIndex], workerToRequest->sockfd);
 		if (strcmp(filesCursors[fileIndex], "NULL") == 0) {
 			filesCursors[fileIndex] = NULL;
-			pairedFilesCount++;
 			log_debug(logger, "Llegue al final del archivo del nodo: %d", workerToRequest->workerName);
+			memset(lowerString, 255, maxLineSize - 1);
+			lowerString[maxLineSize - 1] = '\0';
+			pairedFilesCount++;
+		} else {
+			strcpy(lowerString, filesCursors[fileIndex]);
 		}
 	}
 
 	for (i = 0; i < filesCount; i++) {
-		fileGlobalNode * workerToFree = list_get(listToPair, i);
-		int closeRequest = FILE_CLOSE_REQUEST;
+//		fileGlobalNode * workerToFree = list_get(listToPair, i);
+//		int closeRequest = FILE_CLOSE_REQUEST;
 		free(filesCursors[i]);
-		send(workerToFree->sockfd, &closeRequest, sizeof(int),0);
+//		send(workerToFree->sockfd, &closeRequest, sizeof(int),0);/
 	}
 
 	fclose(pairingResultFile);
@@ -573,19 +583,19 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 void registerReceiver(char *buffer, int sockfd) {
-	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
+//	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
 	int requestCode = REGISTER_REQUEST;
-	log_debug(logger, "workerFD: %d \n", sockfd);
+//	log_debug(logger, "workerFD: %d \n", sockfd);
 	send(sockfd, &requestCode, sizeof(int), 0);
 
-	log_debug(logger, "Esperando registerLength.");
+//	log_debug(logger, "Esperando registerLength.");
 	int registerLength = 0;
 	recv(sockfd, &registerLength, sizeof(int), 0);
 
-	log_debug(logger, "Esperando buffer.");
+//	log_debug(logger, "Esperando buffer.");
 	recv(sockfd, buffer, registerLength + 1, 0);
 
-	log_debug(logger, "Se recibio lectura sin problemas.");
+//	log_debug(logger, "Se recibio lectura sin problemas.");
 	return;
 }
 
