@@ -82,6 +82,8 @@
 int yamaSocket;
 
 t_log *master_log;
+char *transformScript;
+char *reduceScript;
 
 int main(int argc, char **argv) {
 	if (argc != 5) {
@@ -97,6 +99,11 @@ int main(int argc, char **argv) {
 
 	// Creo el logger
 	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
+
+	// Levanto los scripts de transformación y reducción
+	log_debug(master_log, "Levantando los scripts de transformación y reducción.");
+	transformScript = master_utils_readFile(transformScriptPath);
+	reduceScript = master_utils_readFile(reduceScriptPath);
 
 	// Inicializo IPC
 	log_debug(master_log, "Inicializando librería IPC.");
@@ -131,7 +138,7 @@ int main(int argc, char **argv) {
 	// Me conecto con los workers indicados y les
 	// envío la información necesaria para la transformación
 	log_debug(master_log, "Iniciando etapa de transformación.");
-	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
+	master_requestWorkersTransform(yamaResponse, strdup(transformScript));
 
 	while (1) {
 		int operation = ipc_getNextOperationId(yamaSocket);
@@ -143,7 +150,7 @@ int main(int argc, char **argv) {
 
 			// Me conecto con los workers indicados y les envío
 			// la información necesaria para el reduce local
-			master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
+			master_requestWorkersLocalReduce(yamaLocalReduceRequest, strdup(reduceScript));
 		} break;
 		case MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST: {
 			log_debug(master_log, "Iniciando etapa de reducción global.");
@@ -152,7 +159,7 @@ int main(int argc, char **argv) {
 
 			// Me conecto con el worker encargado y le envío
 			// información necesaria para el reduce global
-			master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, master_utils_readFile(reduceScriptPath));
+			master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, strdup(reduceScript));
 		} break;
 		case MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST: {
 			log_debug(master_log, "Iniciando etapa de almacenado final.");
@@ -165,13 +172,14 @@ int main(int argc, char **argv) {
 			goto Exit;
 		} break;
 		default: {
-			log_debug(master_log, "Se recibió una orden desconocida. Cerrando.");
+			log_debug(master_log, "Se recibió una orden desconocida.");
 			goto Exit;
 		} break;
 		}
 	}
 
 	Exit:
+	log_debug(master_log, "Cerrando.");
 	close(yamaSocket);
 	return EXIT_SUCCESS;
 }

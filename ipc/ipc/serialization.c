@@ -241,7 +241,7 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 	offset += sizeof(uint32_t);
 
 	int entriesOffset = 0;
-	ipc_struct_master_continueWithGlobalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest) * response->entriesCount);
+	ipc_struct_master_continueWithGlobalReductionRequestEntry *entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequestEntry) * response->entriesCount);
 	for (i = 0; i < response->entriesCount; i++) {
 		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = entries + i;
 
@@ -284,6 +284,7 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 		free(tmpGlobalReducePath);
 		free(tmpLocalReducePath);
 		free(tmpWorkerIP);
+		free(tmpNodeID);
 	}
 	response->entries = entries;
 	return response;
