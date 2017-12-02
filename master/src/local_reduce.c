@@ -75,18 +75,18 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
-	ipc_struct_yama_notify_stage_finish notification;
-	notification.nodeID = strdup(request->nodeID);
-	notification.tempPath = strdup(request->workerRequest.reduceTempPath);
-	notification.succeeded = reduceSucceeded;
-	log_debug("sendMessage YAMA_NOTIFY_LOCAL_REDUCTION_FINISH to fd %d", yamaSocket);
-	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, &notification);
+	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+	notification->nodeID = strdup(request->nodeID);
+	notification->tempPath = strdup(request->workerRequest.reduceTempPath);
+	notification->succeeded = reduceSucceeded;
+	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, notification);
 	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
 
 	close(sockfd);
 
-	free(notification.nodeID);
-	free(notification.tempPath);
+	free(notification->nodeID);
+	free(notification->tempPath);
+	free(notification);
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.transformTempEntries);
 	free(request->workerRequest.reduceTempPath);
