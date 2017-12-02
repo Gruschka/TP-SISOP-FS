@@ -17,6 +17,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include <commons/log.h>
+
 // Almacenado final
 // 1. Recibir de YAMA la IP y puerto del worker "encargado",
 // y el nombre del archivo resultado de la reducción global.
@@ -25,6 +27,8 @@
 // y el nombre y path bajo el cual deberá almacenarse.
 // 3. Esperar confirmación
 // 4. Notificar a YAMA.
+
+extern t_log *master_log;
 
 void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFinalStorageRequest *yamaRequest, char *resultPath) {
 	int sockfd = ipc_createAndConnect(yamaRequest->workerPort, yamaRequest->workerIP);

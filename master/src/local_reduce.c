@@ -17,6 +17,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include <commons/log.h>
+
 // Etapa de reducción local
 // Esperar indicación de YAMA con el nombre de los archivos
 // temporales por cada nodo sobre el cual se deba aplicar reducción

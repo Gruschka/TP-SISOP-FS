@@ -17,6 +17,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include <commons/log.h>
+
 // Etapa de reducción global
 // Recibir de YAMA la IP y puerto del worker "encargado",
 // el nombre del archivo temporal de reducción de cada worker,
@@ -27,6 +29,8 @@
 // de reducción local.
 // 3. Esperar confirmación del worker encargado
 // 4. Notificar resultado a YAMA.
+
+extern t_log *master_log;
 
 void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlobalReductionRequest *yamaRequest, char *globalReduceScript) {
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *workerInChargeEntry = NULL;
