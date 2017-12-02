@@ -300,6 +300,7 @@ void connectionHandler(int client_sock){
 			    int chmodNumber;
 			    chmodNumber = strtol(chmode, 0, 8);
 				char * scriptPath = scriptTempFileName();
+				log_debug(logger, "scriptPath: %s \n", scriptPath);
 				FILE *scriptFile = fopen(scriptPath, "w");
 				if (scriptFile == NULL) {
 					exit(-1); //fixme: ola q ace
@@ -329,6 +330,7 @@ void connectionHandler(int client_sock){
 					workerToRequest->filePath = malloc(workerToRequest->filePathLength + 1);
 					recv(client_sock, workerToRequest->filePath, (workerToRequest->filePathLength + 1), 0);
 					workerToRequest->filePath[workerToRequest->filePathLength] = '\0';
+					log_debug(logger, "workerID: %s \n", workerToRequest->workerName);
 					workerToRequest->sockfd = connectToWorker(workerToRequest->workerIp, workerToRequest->port);
 					if(workerToRequest->sockfd == -1){
 						log_debug(logger, "Failed connecting to a Worker. Aborting!");
@@ -337,8 +339,9 @@ void connectionHandler(int client_sock){
 						break;
 					}
 					list_add(workerList, workerToRequest);
-					send(workerToRequest->sockfd, &(workerToRequest->filePathLength), sizeof(int),0);
-					workerToRequest->filePath = malloc(workerToRequest->filePathLength + 1);
+					uint32_t operation_code = SLAVE_WORKER;
+					send(workerToRequest->sockfd, &(operation_code), sizeof(uint32_t), 0);
+					send(workerToRequest->sockfd, &(workerToRequest->filePathLength), sizeof(int), 0);
 					send(workerToRequest->sockfd, workerToRequest->filePath, workerToRequest->filePathLength,0);
 
 				}
@@ -415,18 +418,17 @@ void connectionHandler(int client_sock){
 
 				char *temporalName = malloc(temporalNameLength + 1);
 				recv(client_sock, temporalName, temporalNameLength, 0);
-
-				FILE * fileToOpen;
-				fileToOpen = fopen(temporalName, "r");
+				temporalName[temporalNameLength] = '\0';
+				log_debug(logger, "el archivo es: %s", temporalName);
+				FILE * fileToOpen = fopen(temporalName, "r");
 				if(fileToOpen == NULL){
 					log_error(logger, "Couldn't open file");
 					close(client_sock);
 					break;
 				}
-				int closeCode = 0;
 				int clientCode = 0;
 				int registerSize = 0;
-				while(closeCode != FILE_CLOSE_REQUEST){
+				while(clientCode != FILE_CLOSE_REQUEST){
 					recv(client_sock, &clientCode, sizeof(int), 0);
 					if(clientCode == REGISTER_REQUEST){
 						if(fgets(registerToSend, maxLineSize, fileToOpen) == NULL){
@@ -442,7 +444,6 @@ void connectionHandler(int client_sock){
 						}
 
 					}
-					recv(client_sock, &closeCode, sizeof(int), 0);
 				}
 
 				close(client_sock);
@@ -513,66 +514,64 @@ void pairingFiles(t_list *listToPair, char* resultName){
 }
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
-	int i, lower, eofCounter, registerLength, registerPosition = 0;
 	int maxLineSize = 1024 * 1024;
-	int requestCode = REGISTER_REQUEST;
-	int closeCode = FILE_CLOSE_REQUEST;
-
-	FILE * pairingResultFile;
-	pairingResultFile = fopen(resultName, "w");
-	int listSize = list_size(listToPair);
-	char * fileRegister [listSize];
-	fileGlobalNode * fileToOpen;
-	for(i=0; i<listSize; i++){
-		fileToOpen = list_get(listToPair, i);
-		fileRegister[i] = malloc(maxLineSize);
-		send(fileToOpen->sockfd, &requestCode, sizeof(int), 0);
-		recv(fileToOpen->sockfd, &registerLength, sizeof(int), 0);
-		recv(fileToOpen->sockfd, fileRegister[i], registerLength, 0);
+	log_debug(logger, "Estoy Adentro del Algoritmo Globlal");
+	int filesCount = list_size(listToPair);
+	char *filesCursors[filesCount];
+	int i;
+	for(i = 0; i < filesCount; i++){
+		fileGlobalNode *fileToOpen = list_get(listToPair, i);
+		filesCursors[i] = malloc(maxLineSize);
+		registerReceiver(&(filesCursors[i]), fileToOpen->sockfd);
+		log_debug(logger, "Linea: %s \n", filesCursors[i]);
 	}
+
+	char *lowerString = malloc(maxLineSize);
+	FILE *pairingResultFile = fopen(resultName, "w");
 	fileGlobalNode * workerToRequest;
-	i = 0;
-	char * lowerString = malloc(maxLineSize);
-	memset(lowerString, 255, maxLineSize);
-	while(eofCounter < listSize){
-		if(fileRegister[i] != NULL){
-			lower = strcmp(lowerString, fileRegister[i]);
-			if(lower > 0){
-				strcpy(lowerString, fileRegister[i]);
-				workerToRequest = list_get(listToPair, i);
-				registerPosition = i;
-			}
-		}
-		if(i == (listSize - 1)){
-			fputs(lowerString, pairingResultFile);
-			send(workerToRequest->sockfd, &requestCode, sizeof(int), 0);
-			recv(workerToRequest->sockfd, &registerLength, sizeof(int), 0);
-			recv(workerToRequest->sockfd, fileRegister[registerPosition], registerLength, 0);
-			if (strcmp(fileRegister[registerPosition], "NULL") == 0){
-				eofCounter ++;
-				fileRegister[registerPosition] = NULL;
-				memset(lowerString, 255, maxLineSize);
+	int pairedFilesCount = 0;
+	while (pairedFilesCount < filesCount) {
+		memset(lowerString, 255, maxLineSize);
 
+		int fileIndex;
+
+		for (i = 0; i < filesCount; i++) {
+			if (filesCursors[i] != NULL && strcmp(lowerString, filesCursors[i]) > 0) {
+				strcpy(lowerString, filesCursors[i]);
+				fileIndex = i;
+				workerToRequest = list_get(listToPair, i);
 			}
-			else{
-				strcpy(lowerString, fileRegister[registerPosition]);
-			}
-			i = 0;
 		}
-		else{
-			i++;
+
+		fputs(lowerString, pairingResultFile);
+		registerReceiver(&(filesCursors[fileIndex]), workerToRequest->sockfd);
+		if (strcmp(filesCursors[fileIndex], "NULL") == 0) {
+			filesCursors[fileIndex] = NULL;
+			pairedFilesCount++;
+			log_debug(logger, "Llegue al final del archivo del nodo: %d", workerToRequest->workerName);
 		}
 	}
-		for(i=0; i < listSize; i++){
-			fileToOpen = list_get(listToPair, i);
-			send(fileToOpen->sockfd, &closeCode, sizeof(int), 0);
-			free(fileRegister[i]);
-		}
+
+	for (i = 0; i < filesCount; i++) {
+		fileGlobalNode * workerToFree = list_get(listToPair, i);
+		int closeRequest = FILE_CLOSE_REQUEST;
+		free(filesCursors[i]);
+		send(workerToFree->sockfd, &closeRequest, sizeof(int),0);
+	}
+
 	fclose(pairingResultFile);
 	free(lowerString);
 
 }
 
+void registerReceiver(char ** registerToReceive, int sockfd){
+	int requestCode = REGISTER_REQUEST;
+	int registerLength = 0;
+	send(sockfd, &requestCode, sizeof(int), 0);
+	recv(sockfd, &registerLength, sizeof(int), 0);
+	recv(sockfd, registerToReceive, registerLength, 0);
+	return;
+}
 
 int connectToWorker(char *workerIp, int port){
 	int sockfd;
