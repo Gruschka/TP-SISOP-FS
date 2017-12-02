@@ -93,39 +93,50 @@ int main(int argc, char **argv) {
 	char *inputFilePath = argv[3];
 	char *outputFilePath = argv[4];
 
+	// Creo el logger
+	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
+
 	// Inicializo IPC
+	log_debug(master_log, "Inicializando librería IPC.");
 	serialization_initialize();
 
 	// Levanto la config
+	log_debug(master_log, "Levantando archivo de configuración.");
 	t_config *config = config_create("conf/master.conf");
 	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
 	char *yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
 	config_destroy(config);
 
-	// Creo el logger
-	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
-
 	// Me conecto con YAMA
+	log_debug(master_log, "Conectando con YAMA...");
 	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
+	log_debug(master_log, "Conectado a YAMA correctamente.");
 
 	// Le aviso a YAMA que deseo comenzar un transform
 	// sobre un archivo
+	log_debug(master_log, "Enviando solicitud de inicio de transformación a YAMA...");
 	ipc_struct_start_transform_reduce_request request;
 	request.filePath = strdup(inputFilePath);
 	ipc_sendMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+	log_debug(master_log, "Se envió solicitud correctamente.");
 
 	// Espero respuesta de YAMA indicándome a qué workers
 	// conectarme y qué enviarles
+	log_debug(master_log, "Esperando respuesta de YAMA...");
 	ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+	log_debug(master_log, "Se recibió respuesta.");
 
 	// Me conecto con los workers indicados y les
 	// envío la información necesaria para la transformación
+	log_debug(master_log, "Iniciando etapa de transformación.");
 	master_requestWorkersTransform(yamaResponse, master_utils_readFile(transformScriptPath));
 
 	while (1) {
 		int operation = ipc_getNextOperationId(yamaSocket);
 		switch (operation) {
 		case MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST: {
+			log_debug(master_log, "Iniciando etapa de reducción local.");
+
 			ipc_struct_master_continueWithLocalReductionRequest *yamaLocalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST);
 
 			// Me conecto con los workers indicados y les envío
@@ -133,6 +144,8 @@ int main(int argc, char **argv) {
 			master_requestWorkersLocalReduce(yamaLocalReduceRequest, master_utils_readFile(reduceScriptPath));
 		} break;
 		case MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST: {
+			log_debug(master_log, "Iniciando etapa de reducción global.");
+
 			ipc_struct_master_continueWithGlobalReductionRequest *yamaGlobalReduceRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST);
 
 			// Me conecto con el worker encargado y le envío
@@ -140,11 +153,17 @@ int main(int argc, char **argv) {
 			master_requestInChargeWorkerGlobalReduce(yamaGlobalReduceRequest, master_utils_readFile(reduceScriptPath));
 		} break;
 		case MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST: {
+			log_debug(master_log, "Iniciando etapa de almacenado final.");
+
 			ipc_struct_master_continueWithFinalStorageRequest *yamaFinalStorageRequest = ipc_recvMessage(yamaSocket, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST);
 
 			// Me conecto con el worker encargado y le envío
 			// información necesaria para el almacenado final
 			master_requestInChargeWorkerFinalStorage(yamaFinalStorageRequest, strdup(outputFilePath));
+			goto Exit;
+		} break;
+		default: {
+			log_debug(master_log, "Se recibió una orden desconocida. Cerrando.");
 			goto Exit;
 		} break;
 		}

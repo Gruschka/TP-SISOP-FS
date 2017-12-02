@@ -36,9 +36,12 @@ typedef struct WorkerRequest {
 	ipc_struct_worker_start_local_reduce_request workerRequest;
 } WorkerRequest;
 
+extern t_log *master_log;
+
 void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
+	log_debug(master_log, "REDUCCIÓN LOCAL. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_LOCAL_REDUCTION_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
@@ -74,6 +77,8 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	notification.tempPath = strdup(request->workerRequest.reduceTempPath);
 	notification.succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, &notification);
+	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
+
 	free(notification.nodeID);
 	free(notification.tempPath);
 
