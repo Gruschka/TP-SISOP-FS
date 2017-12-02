@@ -64,7 +64,7 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
 
-	ipc_struct_yama_notify_stage_finish *notification;
+	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
 	notification->nodeID = strdup(request->nodeID);
 	notification->tempPath = strdup(request->workerRequest.tempFilePath);
 	notification->succeeded = transformSucceeded;
