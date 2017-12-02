@@ -3,7 +3,10 @@
 
  */
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+
 #include "datanode.h"
 #include <commons/log.h>
 #include <sys/socket.h>
@@ -18,11 +21,10 @@ t_config *config;
 t_dataNode myDataNode;
 t_dataNodeConfig nodeConfig;
 
+int dataNode_mmapDataBin(char* dataBinPath);
+
 int main(int argc, char **argv) {
-
-	char *logFile = tmpnam(NULL);
-
-	logger = log_create(logFile, "DataNode", 1, LOG_LEVEL_DEBUG);
+	logger = log_create("log.txt", "DataNode", 1, LOG_LEVEL_DEBUG);
 
 	//Validar parametros de entrada
 	if (argc < 2) {
@@ -35,8 +37,7 @@ int main(int argc, char **argv) {
 	}
 
 	//Abro el archivo data.bin y si no lo creo con el tamanio pasado por config
-	int dataBinResult = dataNode_openOrCreateDataBinFile(
-			myDataNode.config.databinPath, myDataNode.config.sizeInMb);
+	dataNode_openOrCreateDataBinFile(myDataNode.config.databinPath, myDataNode.config.sizeInMb);
 
 	//FILE * dataBinFile = fopen(myDataNode.config.databinPath, "w+");
 
@@ -71,7 +72,7 @@ int dataNode_loadConfig(t_dataNode *dataNode) {
 int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 
 	FILE * dataBinFileDescriptor;
-	if (dataBinFileDescriptor = fopen(dataBinPath, "r+")) { //Existe el archivo de data.bin
+	if ((dataBinFileDescriptor = fopen(dataBinPath, "r+"))) { //Existe el archivo de data.bin
 		log_debug(logger, "Data.bin file  found. Wont create from scratch");
 		log_debug(logger, "Maping Data.bin to memory");
 
@@ -94,8 +95,6 @@ int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 		dataNode_mmapDataBin(dataBinPath);
 		return EXIT_SUCCESS;
 	}
-
-	return NULL;
 }
 
 void dataNode_connectToFileSystem(t_dataNode dataNode) {
@@ -104,10 +103,8 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 	int sockfd;
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
-	int programLength;
 
-	printf("\IP FS: %s Portno: %d\n", dataNode.config.fsIP,
-			dataNode.config.fsPortno);
+	printf("\nIP FS: %s Portno: %d\n", dataNode.config.fsIP, dataNode.config.fsPortno);
 	printf("\nConnecting to FS\n");
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -148,7 +145,6 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 
 	//wait for request from fs
 	uint32_t operationType;
-	uint32_t size;
 	uint32_t blockNumber;
 	void *operationBuffer;
 	while (1) {

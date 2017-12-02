@@ -17,6 +17,8 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 
+#include <commons/log.h>
+
 // Etapa de reducción global
 // Recibir de YAMA la IP y puerto del worker "encargado",
 // el nombre del archivo temporal de reducción de cada worker,
@@ -27,6 +29,8 @@
 // de reducción local.
 // 3. Esperar confirmación del worker encargado
 // 4. Notificar resultado a YAMA.
+
+extern t_log *master_log;
 
 void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlobalReductionRequest *yamaRequest, char *globalReduceScript) {
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *workerInChargeEntry = NULL;
@@ -41,6 +45,8 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	}
 
 	int sockfd = ipc_createAndConnect(workerInChargeEntry->workerPort, workerInChargeEntry->workerIP);
+	log_debug(master_log, "REDUCCIÓN GLOBAL. Conectado al worker '%s' (fd: %d).", workerInChargeEntry->nodeID, sockfd);
+
 	uint32_t operation = WORKER_START_GLOBAL_REDUCTION_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
 
@@ -86,7 +92,12 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	notification.tempPath = strdup(workerInChargeEntry->globalReduceTempPath);
 	notification.succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, &notification);
+	log_debug(master_log, "REDUCCIÓN GLOBAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, workerInChargeEntry->globalReduceTempPath, sockfd);
 
+	close(sockfd);
+
+	free(notification.nodeID);
+	free(notification.tempPath);
 	free(yamaRequest->entries);
 	free(yamaRequest);
 	free(globalReduceScript);

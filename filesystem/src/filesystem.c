@@ -79,7 +79,6 @@ void main() {
 
 	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
-
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
 	while (fs_isStable()) { //Placeholder hardcodeado durlock
@@ -519,6 +518,7 @@ int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType) {
 	int result = fs_storeFile(yama_directory, origFilePath, typeFile, buffer,
 			originalFileStats.st_size);
 	if(result == EXIT_SUCCESS) log_debug(logger,"fs_cpfrom: Stored filed successfully");
+	free(buffer);
 	return EXIT_SUCCESS;
 
 }
@@ -791,15 +791,18 @@ void fs_waitForYama() {
 		perror("accept");
 		exit(-1);
 	}
+	log_debug(logger,"Yama connected");
 
 	while (1) {
+		log_debug(logger,"Awaiting YAMA request");
 		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(new_socket, FS_GET_FILE_INFO_REQUEST);
-		printf("Request: %s", request->filePath);
-		printf("Hello message sent\n");
+		log_debug(logger,"Yama Request: %s", request->filePath);
 		char *pathInLocalFS = fs_isAFile(request->filePath);
 		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(pathInLocalFS);
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		log_debug(logger,"YAMA Request Answered");
+
 //		fs_destroyNodeTupleArray(response->entries, length);
 //		sleep(5);
 	}
@@ -925,6 +928,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	strcpy(newDataNode->name, buffer);
 	log_debug(logger,"fs_dataNodeConnectionHandler: New node name: %s", newDataNode->name);
 
+
 	if(fs_isDataNodeAlreadyConnected(*newDataNode)){//Dont accept another node with same ID a
 		log_error(logger, "fs_connectionHandler: Node %s already connected - Aborting connection", newDataNode->name);
 		int closeResult = close(new_socket);
@@ -933,6 +937,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 		return;
 
 	}
+
 	//If the Node isnt already connected->include it to the global lists of connected nodes
 	sem_init(mutex,0,0);
 	sem_init(results,0,0);
@@ -1005,9 +1010,9 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 		int serializedOperationSize;
 		//serializo
 		if(operation->operationId == 1){
-			serializedOperationSize = sizeof(uint32_t)*2 + BLOCK_SIZE;
+			serializedOperationSize = sizeof(uint32_t)*2 + BLOCK_SIZE; //write
 		}else if(operation->operationId == 0){
-			serializedOperationSize = sizeof(uint32_t)*2;
+			serializedOperationSize = sizeof(uint32_t)*2; //read
 		}else{ // check status operation
 			serializedOperationSize = sizeof(int);
 		}
@@ -1829,6 +1834,7 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	//check if there's enough space in system (filesize * 2), else abort
 	char *fileName = basename(sourceFilePath);
 	int totalFileSize = 2 * fileSize;
+	int myAmountOfBlocks = fs_bytesToMegaBytes(totalFileSize);
 	int amountOfBlocks =
 			(totalFileSize % BLOCK_SIZE) ?
 					(totalFileSize / BLOCK_SIZE) + 2 :
@@ -1927,6 +1933,7 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	uint32_t fragmentacionInterna = 0;
 	uint32_t fragmentacionInternaDelBloque = 0;
 
+	// inicio algo write viejo
 	if(fileType == T_TEXT){
 		while (1){
 			lineSize = strlen(line);
@@ -1980,6 +1987,8 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 
 	log_debug(logger, "keku: %d", debug);
 	fclose(sourceFile);
+
+	//fin algo write viejo
 
 	//wait for receipt confirmation of all packages, update admin structures
 	//list failed packages and resend to 2nd alternative, else abort.
@@ -2302,20 +2311,24 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 		aux = list_get(connectedNodes, i);
 		if(!strcmp(aDataNode.name, aux->name)){
 			operation->operationId = 2; //check status
-			queue_push(aDataNode.operationsQueue,operation);
-			sem_post(aDataNode.threadSemaphore);
-			sem_wait(aDataNode.resultSemaphore);
-			result = queue_pop(aDataNode.resultsQueue);
+			queue_push(aux->operationsQueue,operation);
+			sem_post(aux->threadSemaphore);
+			sem_wait(aux->resultSemaphore);
+			result = queue_pop(aux->resultsQueue);
 			if(*result){
 				free(result);
+				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is already connected", aDataNode.name);
 				return DATANODE_ALREADY_CONNECTED;
 			}else{
 				free(result);
+				fs_removeNodeFromConnectedNodeList(aDataNode);
+				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is not already connected", aDataNode.name);
+
 				return 0; // not connected
 			}
 		}
 	}
-	log_info(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);
+	log_debug(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);
 
 	return 0;
 
@@ -2484,6 +2497,7 @@ ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *file){
 	ipc_struct_fs_get_file_info_response *response = malloc(sizeof(ipc_struct_fs_get_file_info_response));
 
 	response->entriesCount = amountOfBlockTuples;
+	log_debug(logger,"fs_yamaFileBlockTupleResponse: Sent %d entries", response->entriesCount);
 	response->entries = fs_getFileBlockTuples(file);
 
 	return response;
@@ -2990,22 +3004,26 @@ void *fs_readFile(char *filePath){
 	}
 
 	//borrar a la mierda
-	void *buffer = BLOCK_SIZE; // arre
-	void *result = malloc(BLOCK_SIZE * amountOfBlocks);
-	memset(result,0,BLOCK_SIZE * amountOfBlocks);
+	int *blockSizes = fs_getBlockSizesOfFileMetadata(physicalPath, amountOfBlocks);
+	int trueFileSize = fs_sumOfIntArray(blockSizes, amountOfBlocks);
+
+	//void *buffer = BLOCK_SIZE; // arre
+	void *result = malloc(trueFileSize);
+	memset(result,0,trueFileSize);
 
 	// termine de mandar los pedidos ahora a leer
 	iterator = 0;
 	int offset = 0;
+	log_debug(logger,"READ: True File Size of file %s is: [%d]",filePath,trueFileSize);
+
 	while(iterator < amountOfBlocks){
 		target = readOrder[iterator];
-
 		sem_wait(target->resultSemaphore);
 		void *buffer = queue_pop(target->resultsQueue);
-
-		memcpy(result+offset,buffer,BLOCK_SIZE);
+		memcpy(result+offset,buffer,blockSizes[iterator]);
+		offset+= blockSizes[iterator];
+		log_debug(logger,"READ: Had to read: [%d] bytes from block [%d] and read [%d] instead. In result: [%d]  offset: [%d]", blockSizes[iterator],iterator,strlen(buffer), strlen(result), offset);
 		free(buffer);
-		offset+= BLOCK_SIZE;
 		iterator++;
 	}
 	//log_info(logger,"file: %s",result);
@@ -3169,4 +3187,54 @@ int fs_destroyAnArrayOfCharPointers(char **array){
 	return EXIT_SUCCESS;
 
 
+}
+int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode){
+
+	int amountOfNodes = list_size(connectedNodes);
+	int i;
+	t_dataNode *aux = NULL;
+
+	for(i = 0; i < amountOfNodes ; i++){
+		aux = list_get(connectedNodes, i);
+		if(!strcmp(aDataNode.name, aux->name)){
+			log_debug(logger,"fs_removeNodeFromConnectedNodeList: Removing DataNode %s", aDataNode.name);
+			list_remove(connectedNodes,i);
+			return EXIT_SUCCESS;
+		}
+	}
+	log_error(logger, "fs_removeNodeFromConnectedNodeList Node:[%s] to remove not found in list", aDataNode.name);
+
+	return EXIT_FAILURE;
+}
+int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks){
+
+	t_config *metadataFile = config_create(fileMetadataPath);
+
+	int iterator = 0;
+	int *blockSizes = malloc(amountOfBlocks * sizeof(int));
+
+	for(iterator = 0; iterator < amountOfBlocks; iterator++){
+
+		char *blockSizeToRetrieve = string_from_format("BLOQUE%dBYTES",iterator);
+		blockSizes[iterator] =  config_get_int_value(metadataFile, blockSizeToRetrieve);
+		free(blockSizeToRetrieve);
+
+	}
+
+	config_destroy(metadataFile);
+
+	return blockSizes;
+
+
+}
+
+int fs_sumOfIntArray(int *array, int length){
+
+	int i = 0;
+	int sum = 0;
+	for(i = 0; i < length; i++){
+		sum += array[i];
+	}
+
+	return sum;
 }

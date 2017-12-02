@@ -29,8 +29,6 @@
 // 5. esperar confirmación de cada etapa
 // 6. Comunicar a YAMA el resultado de cada etapa
 
-extern t_log *master_log;
-
 typedef struct WorkerRequest {
 	char *nodeID;
 	char *ip;
@@ -38,10 +36,12 @@ typedef struct WorkerRequest {
 	ipc_struct_worker_start_transform_request workerRequest;
 } WorkerRequest;
 
+extern t_log *master_log;
+
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
-	log_debug(master_log, "Connected to worker %s (fd: %d)", request->nodeID, sockfd);
+	log_debug(master_log, "TRANSFORMACIÓN. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_TRANSFORM_REQUEST;
 	send(sockfd, &operation, sizeof(uint32_t), 0);
@@ -63,20 +63,22 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
 
-	log_debug(master_log, "Transform. succeeded: %d (file: %s. fd: %d)", transformSucceeded, request->workerRequest.tempFilePath, sockfd);
-
 	ipc_struct_yama_notify_stage_finish notification;
 	notification.nodeID = strdup(request->nodeID);
 	notification.tempPath = strdup(request->workerRequest.tempFilePath);
 	notification.succeeded = transformSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, &notification);
+	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (file: %s. fd: %d).", transformSucceeded, request->workerRequest.tempFilePath, sockfd);
 
+	close(sockfd);
+
+	free(notification.nodeID);
+	free(notification.tempPath);
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.tempFilePath);
 	free(request->ip);
 	free(request->nodeID);
 	free(request);
-
 	return NULL;
 }
 
