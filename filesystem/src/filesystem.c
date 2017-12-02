@@ -1085,7 +1085,9 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 			queue_push(newDataNode->resultsQueue,result);
 			sem_post(newDataNode->resultSemaphore);
 		}
-
+		if(operation->operationId == 1){
+			free(operation->buffer);
+		}
 		free(operation);
 
 //		sleep(5);
@@ -2143,7 +2145,7 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 	}
 
 	if (output != NULL) {
-		if(fs_isDataNodeAlreadyConnected(*output)){
+		if(fs_checkNodeConnectionStatus(*output)){
 			log_debug(logger, "fs_getDataNodeWithMostFreeSpace: The dataNode with most free space is %s",
 					output->name);
 			return output;
@@ -2305,7 +2307,6 @@ int fs_isNodeFromPreviousSession(t_dataNode aDataNode){
 
 }
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
-
 	int amountOfNodes = list_size(connectedNodes);
 	int i;
 	t_dataNode *aux = NULL;
@@ -2338,7 +2339,40 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 
 
 }
+int fs_checkNodeConnectionStatus(t_dataNode aDataNode){
+	return DATANODE_ALREADY_CONNECTED; //todo: desjarcodear
+	int amountOfNodes = list_size(connectedNodes);
+	int i;
+	t_dataNode *aux = NULL;
+	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
+	int *result;
+	for(i = 0; i < amountOfNodes ; i++){
+		aux = list_get(connectedNodes, i);
+		if(!strcmp(aDataNode.name, aux->name)){
+			operation->operationId = 2; //check status
+			queue_push(aux->operationsQueue,operation);
+			sem_post(aux->threadSemaphore);
+			sem_wait(aux->resultSemaphore);
+			result = queue_pop(aux->resultsQueue);
+			if(*result){
+				free(result);
+				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is already connected", aDataNode.name);
+				return DATANODE_ALREADY_CONNECTED;
+			}else{
+				free(result);
+				fs_removeNodeFromConnectedNodeList(aDataNode);
+				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is not already connected", aDataNode.name);
 
+				return 0; // not connected
+			}
+		}
+	}
+	log_debug(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);
+
+	return 0;
+
+
+}
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath){
 
 
@@ -3000,7 +3034,7 @@ void *fs_readFile(char *filePath){
 		}
 
 		queue_push(target->operationsQueue,operation);
-		sem_post(target->threadSemaphore);
+		//sem_post(target->threadSemaphore);
 		readOrder[iterator] = target;
 
 
@@ -3022,6 +3056,7 @@ void *fs_readFile(char *filePath){
 
 	while(iterator < amountOfBlocks){
 		target = readOrder[iterator];
+		sem_post(target->threadSemaphore);
 		sem_wait(target->resultSemaphore);
 		void *buffer = queue_pop(target->resultsQueue);
 		memcpy(result+offset,buffer,blockSizes[iterator]);
@@ -3068,19 +3103,44 @@ int fs_getFileSize(char *filePath){
 
 	return fileSize;
 }
+
+//int fs_destroyPackageList(t_list **packageList){
+//	int iterator = 0;
+//	int listSize = list_size(*packageList);
+//	int lastDestroyed = 0;
+//
+//	while(iterator < listSize){
+//		t_blockPackage *block = list_remove(*packageList,0);
+//		if(block->blockNumber != lastDestroyed){
+//			free(block->buffer);
+//		}
+//		lastDestroyed = block->blockNumber;
+//		free(block);
+//		iterator++;
+//	}
+//
+//	list_destroy(*packageList);
+//
+//	return EXIT_SUCCESS;
+//
+//}
+
 int fs_destroyPackageList(t_list **packageList){
 	int iterator = 0;
 	int listSize = list_size(*packageList);
-	int lastDestroyed = 0;
+	int lastDestroyed = 1;
+	int destroyTarget = 0;
+	t_blockPackage *block = 0;
 
 	while(iterator < listSize){
-		t_blockPackage *block = list_remove(*packageList,0);
-		if(block->blockNumber != lastDestroyed){
+		block = list_remove(*packageList,0);
+		destroyTarget = block->blockNumber;
+		if(destroyTarget != lastDestroyed){
 			free(block->buffer);
 		}
-		lastDestroyed = block->blockNumber;
 		free(block);
 		iterator++;
+		lastDestroyed = destroyTarget;
 	}
 
 	list_destroy(*packageList);

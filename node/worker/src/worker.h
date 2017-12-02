@@ -44,5 +44,5 @@ int connectToFileSystem();
 int finalFileSize(char * filePath);
 char *worker_utils_readFile(char *path);
 char *scriptTempFileName();
-void registerReceiver(char ** registerToReceive, int sockfd);
+void registerReceiver(char * buffer, int sockfd);
 #endif /* WORKER_H_ */

@@ -64,17 +64,18 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
 
-	ipc_struct_yama_notify_stage_finish notification;
-	notification.nodeID = strdup(request->nodeID);
-	notification.tempPath = strdup(request->workerRequest.tempFilePath);
-	notification.succeeded = transformSucceeded;
+	ipc_struct_yama_notify_stage_finish *notification;
+	notification->nodeID = strdup(request->nodeID);
+	notification->tempPath = strdup(request->workerRequest.tempFilePath);
+	notification->succeeded = transformSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, &notification);
-	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (worker: '%s'; file: %s; fd: %d).", transformSucceeded, request->nodeID, request->workerRequest.tempFilePath, sockfd);
+	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (file: %s. fd: %d).", transformSucceeded, request->workerRequest.tempFilePath, sockfd);
 
 	close(sockfd);
 
 	free(notification.nodeID);
 	free(notification.tempPath);
+	free(notification);
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.tempFilePath);
 	free(request->ip);

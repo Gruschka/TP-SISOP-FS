@@ -60,7 +60,7 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 		}
 	}
 
-	//TODO: ver que no est'e liberanod cualqueir cosa
+	//TODO: ver que no este liberanod cualqueir cosa
 	dictionary_destroy(dictionary);
 	return result;
 }
@@ -123,6 +123,18 @@ uint32_t getJobIDForTempPath(char *tempPath) {
 	return -1;
 }
 
+void setState(uint32_t jobID, yama_job_stage stage, yama_job_status status) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID) {
+			currentEntry->status = status;
+			currentEntry->stage = stage;
+		}
+	}
+}
+
 void markLocalReductionAsFinished(char *tempPath, char *nodeID) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
@@ -177,68 +189,6 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 	return NULL;
 }
 
-void testStateTable() {
-	yama_state_table_entry *first = malloc(sizeof(yama_state_table_entry));
-		yama_state_table_entry *second = malloc(sizeof(yama_state_table_entry));
-
-		first->blockNumber = 1;
-		first->jobID = 1;
-		first->masterID = 1;
-		first->nodeID = "NodeA";
-		first->stage = IN_PROCESS;
-		first->tempPath = "/tmp/1";
-
-		yst_addEntry(first);
-
-		second->blockNumber = 2;
-		second->jobID = 2;
-		second->masterID = 2;
-		second->nodeID = "NodeB";
-		second->stage = IN_PROCESS;
-		second->tempPath = "/tmp/2";
-
-		yst_addEntry(second);
-
-		pthread_mutex_lock(&stateTable_mutex);
-		yama_state_table_entry *found = yst_getEntry(1, 1, "NodeA");
-		pthread_mutex_unlock(&stateTable_mutex);
-
-		log_debug(logger, "Found path: %s", found->tempPath);
-}
-
-void testSerialization() {
-	ipc_struct_start_transform_reduce_response_entry *first = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
-	first->blockID = 1;
-	first->workerIP = "127.0.0.1";
-	first->workerPort = 1111;
-	first->nodeID = 1;
-	first->tempPath = "/tmp/tuvieja";
-	first->usedBytes = 100;
-
-	ipc_struct_start_transform_reduce_response_entry *second = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
-	second->blockID = 2;
-	second->workerIP = "127.0.0.2";
-	second->workerPort = 2222;
-	second->nodeID = 2;
-	second->tempPath = "/tmp/tuviejo";
-	second->usedBytes = 200;
-
-	ipc_struct_start_transform_reduce_response *testResponse = malloc(sizeof(ipc_struct_start_transform_reduce_response));
-	testResponse->entriesCount = 2;
-	ipc_struct_start_transform_reduce_response_entry entries[2] = { *first, *second } ;
-	testResponse->entries = entries;
-
-	SerializationFunction serializationFn = *serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE];
-	DeserializationFunction deserializationFn = *deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE];
-
-	int serializedSize;
-	char *serialized = serializationFn((void *)testResponse, &serializedSize);
-
-	log_debug(logger, "serializedSize: %d", serializedSize);
-	ipc_struct_start_transform_reduce_response *deserialized = deserializationFn((void *)serialized);
-
-	log_debug(logger, "deserialized: count: %d, size: %d", deserialized->entriesCount, deserialized->entriesSize);
-}
 
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
@@ -280,25 +230,6 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 		}
 	}
 	return response;
-}
-
-void testFSConnection() {
-	ipc_struct_fs_get_file_info_response *response = requestInfoToFilesystem("/mnt/FS/metadata/archivos/1/ejemplo.txt");
-	log_debug(logger, "entriesCount: %d", response->entriesCount);
-}
-
-ipc_struct_fs_get_file_info_response_entry *testScheduling_createEntry(char *node1, uint32_t block1, char *node2, uint32_t block2) {
-	ipc_struct_fs_get_file_info_response_entry *entry = malloc(sizeof(ipc_struct_fs_get_file_info_response_entry));
-	entry->blockSize = 50;
-	entry->firstCopyBlockID = block1;
-	entry->secondCopyBlockID = block2;
-	entry->firstCopyNodeID = strdup(node1);
-	entry->secondCopyNodeID = strdup(node2);
-	entry->firstCopyNodeIP = "127.0.0.1";
-	entry->secondCopyNodeIP = "127.0.0.2";
-	entry->firstCopyNodePort = 5001;
-	entry->secondCopyNodePort = 5002;
-	return entry;
 }
 
 ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
@@ -346,67 +277,6 @@ void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_r
 	lastJobID++;
 }
 
-void testScheduling(scheduling_algorithm algorithm) {
-	scheduling_currentAlgorithm = algorithm;
-	ipc_struct_fs_get_file_info_response *testResponse = malloc(sizeof(ipc_struct_fs_get_file_info_response));
-	ipc_struct_fs_get_file_info_response_entry *entry1 = testScheduling_createEntry("NodeA", 1, "NodeB", 1);
-	ipc_struct_fs_get_file_info_response_entry *entry2 = testScheduling_createEntry("NodeB", 3, "NodeC", 2);
-	ipc_struct_fs_get_file_info_response_entry *entry3 = testScheduling_createEntry("NodeD", 1, "NodeE", 1);
-
-	ipc_struct_fs_get_file_info_response_entry entries[3] = { *entry1, *entry2, *entry3 } ;
-	testResponse->entries = entries;
-
-	testResponse->entriesCount = 3;
-	int i;
-	for (i = 0; i < testResponse->entriesCount; i++) {
-		ipc_struct_fs_get_file_info_response_entry *entry = testResponse->entries + i;
-		WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
-		workerInfo->id = strdup(entry->firstCopyNodeID);
-		workerInfo->ip = strdup(entry->firstCopyNodeIP);
-		workerInfo->port = entry->firstCopyNodePort;
-		dictionary_put(workersDict, entry->firstCopyNodeID, workerInfo);
-	}
-
-	Worker *workerA = malloc(sizeof(Worker));
-	workerA->name = "NodeA";
-	workerA->currentLoad = 0;
-	workerA->historicalLoad = 0;
-	Worker *workerB = malloc(sizeof(Worker));
-	workerB->name = "NodeB";
-	workerB->currentLoad = 0;
-	workerB->historicalLoad = 0;
-	Worker *workerC = malloc(sizeof(Worker));
-	workerC->name = "NodeC";
-	workerC->currentLoad = 0;
-	workerC->historicalLoad = 0;
-	Worker *workerD = malloc(sizeof(Worker));
-	workerD->name = "NodeD";
-	workerD->currentLoad = 0;
-	workerD->historicalLoad = 0;
-	Worker *workerE = malloc(sizeof(Worker));
-	workerE->name = "NodeE";
-	workerE->currentLoad = 0;
-	workerE->historicalLoad = 0;
-
-	scheduling_addWorker(workerA);
-	scheduling_addWorker(workerB);
-	scheduling_addWorker(workerC);
-	scheduling_addWorker(workerD);
-	scheduling_addWorker(workerE);
-	ExecutionPlan *executionPlan = getExecutionPlan(testResponse);
-	log_debug(logger, "Execution plan: %d", executionPlan->entriesCount);
-
-	ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
-	printf(response->entriesSize);
-}
-
-void test() {
-//	testStateTable();
-//	testSerialization();
-//	testFSConnection();
-//	testScheduling(W_CLOCK);
-}
-
 void newConnectionHandler(int fd) {
 	log_debug(logger, "New master connection accepted. FD: %d", fd);
 }
@@ -431,6 +301,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
+		log_debug(logger, "transform_finish");
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
@@ -530,11 +401,26 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_yama_notify_stage_finish *globalReductionFinish = ipc_recvMessage(fd, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", globalReductionFinish->nodeID, globalReductionFinish->tempPath, globalReductionFinish->succeeded);
 
+		ipc_struct_master_continueWithFinalStorageRequest *request = malloc(sizeof(ipc_struct_master_continueWithFinalStorageRequest));
+		request->globalReductionTempPath = strdup(globalReductionFinish->tempPath);
+		request->nodeID = strdup(globalReductionFinish->nodeID);
+
+		// Lo marco como terminado
+		setState(getJobIDForTempPath(request->globalReductionTempPath), GLOBAL_REDUCTION, FINISHED_OK);
+
+		WorkerInfo *workerInfo = dictionary_get(workersDict, request->nodeID);
+		request->workerIP = workerInfo->ip;
+		request->workerPort = workerInfo->port;
+
+		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
+
+		free(request);
 		break;
 	}
 	case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
 		ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(fd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
+
 
 		break;
 	}
@@ -577,8 +463,6 @@ int main(int argc, char** argv) {
 	}
 
 	pthread_create(&serverThread, NULL, server_mainThread, NULL);
-
-	test();
 
 	pthread_join(serverThread, NULL);
 	return EXIT_SUCCESS;
