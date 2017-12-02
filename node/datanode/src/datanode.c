@@ -173,6 +173,7 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 			void *blockRead = malloc(BLOCK_SIZE);
 			blockRead = dataNode_getBlock(blockNumber);
 			send(sockfd, blockRead, BLOCK_SIZE, 0);
+			log_debug(logger,"Datanode %s mando %d bytes", myDataNode.config.nodeName, strlen(blockRead));
 			free(blockRead);
 		}else if(operationType == 2){
 			sending = 1;
@@ -202,6 +203,7 @@ void *dataNode_getBlock(int blockNumber) {
 			myDataNode.dataBinMMapedPointer + positionInBytesOfTheBlock,
 			BLOCK_SIZE);
 
+	log_debug(logger,"dataNode %s sent %d bytes from block %d", myDataNode.config.nodeName, strlen(blockInformation),blockNumber);
 	return blockInformation;
 
 }

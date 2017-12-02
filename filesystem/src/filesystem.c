@@ -1081,6 +1081,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 			result = malloc(BLOCK_SIZE);
 			recv(new_socket, result, BLOCK_SIZE,MSG_WAITALL);
 			//todo agregar a la queue de resultados
+			log_debug(logger, "resultsQueue (nodo: %s) pushed: %d bytes", newDataNode->name, strlen(result));
 			queue_push(newDataNode->resultsQueue,result);
 			sem_post(newDataNode->resultSemaphore);
 		}
@@ -1934,10 +1935,10 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	uint32_t fragmentacionInternaDelBloque = 0;
 
 	// inicio algo write viejo
+	int caca = 0;
 	if(fileType == T_TEXT){
 		while (1){
 			lineSize = strlen(line);
-
 			if (lineSize > 0 && lineSize <= remainingSizeInBlock) {
 				//memcpy(block+offset,line,lineSize);
 				strcpy(block+offset,line);
@@ -1947,14 +1948,16 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				remainingSizeToSplit -= lineSize;
 				remainingSizeInBlock -= lineSize;
 
-				fgets(line,BLOCK_SIZE,sourceFile);
+				if (fgets(line,BLOCK_SIZE,sourceFile)==NULL) {
+					line[0] = '\0';
+				}
 				cantidadDeLineasDelBloque++;
 				debug++;
 			} else {
 				bufferSplit = malloc(BLOCK_SIZE);
-				//memset(bufferSplit, 0, BLOCK_SIZE);
-				//memcpy(bufferSplit, block, offset);
-				strcpy(bufferSplit, block);
+//				memset(bufferSplit, 0, BLOCK_SIZE);
+//				memcpy(bufferSplit, block, offset);
+				strncpy(bufferSplit, block, BLOCK_SIZE);
 				t_dataNode *exclude = NULL;
 				for (copy = 0; copy < 2; copy++) {
 					package = malloc(sizeof(t_blockPackage));
@@ -1975,7 +1978,6 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				log_debug(logger, "Bloque nro %d tiene %d lineas. Fragm: %d (Total acum. lineas: %d - Total acum. fragm. interna: %d)", blockNumber, cantidadDeLineasDelBloque, fragmentacionInternaDelBloque, cantidadDeLineasDespachadas, fragmentacionInterna);
 				cantidadDeLineasDelBloque = 0;
 				blockNumber++;
-
 				//memset(block,0,BLOCK_SIZE);
 				offset = 0;
 				remainingSizeInBlock = BLOCK_SIZE;
@@ -2126,13 +2128,13 @@ t_dataNode *fs_getDataNodeWithMostFreeSpace(t_dataNode *excluding) {
 
 	for (i = 0; i < listSize; i++) {
 		aux = list_get(connectedNodes, i);
-		if (aux->freeBlocks > maxFreeSpace) {
-			if (excluding != NULL) {
-				if (strcmp(aux->name, excluding->name)) {
+		if (aux->freeBlocks > maxFreeSpace) { //Si el nodo de la lista tiene mas bloques libres que maxfreespace
+			if (excluding != NULL) { //Si hay que excluir un nodo
+				if (strcmp(aux->name, excluding->name)) { //Si el nodo que agarre es distinto al que hay que excluir
 					maxFreeSpace = aux->freeBlocks;
 					output = aux;
 				}
-			} else {
+			} else {//Si no hay que excluir un nodo
 				maxFreeSpace = aux->freeBlocks;
 				output = aux;
 			}
