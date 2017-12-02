@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <commons/config.h>
 #include <commons/log.h>
+#include <semaphore.h>
 
 #include <string.h>
 #include <ipc/ipc.h>
@@ -80,6 +81,7 @@
 // TODO: logs
 
 int yamaSocket;
+sem_t yamaSocketSem;
 
 t_log *master_log;
 char *transformScript;
@@ -90,6 +92,8 @@ int main(int argc, char **argv) {
 		printf("El proceso master debe recibir 4 argumentos.");
 		return EXIT_FAILURE;
 	}
+
+	sem_init(&yamaSocketSem, 0, 1);
 
 	// Levanto los argumentos
 	char *transformScriptPath = argv[1];

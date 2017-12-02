@@ -68,8 +68,10 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	notification->nodeID = strdup(request->nodeID);
 	notification->tempPath = strdup(request->workerRequest.tempFilePath);
 	notification->succeeded = transformSucceeded;
+	sem_wait(&yamaSocketSem);
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notification);
 	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (worker: '%s'; file: %s; fd: %d).", transformSucceeded, request->nodeID, request->workerRequest.tempFilePath, sockfd);
+	sem_post(&yamaSocketSem);
 
 	close(sockfd);
 
