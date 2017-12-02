@@ -230,11 +230,11 @@ void connectionHandler(int client_sock){
 				break;
 			}
 			case WORKER_START_LOCAL_REDUCTION_REQUEST:{
-				log_debug(logger, "Local Reduction Stage");
+
+				log_debug(logger, "Local Reduction Stage \n");
 
 
 				ipc_struct_worker_start_local_reduce_request request;
-				recv(client_sock, &(request.transformTempEntriesCount), sizeof(uint32_t), 0);
 				recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 
 				request.scriptContent = malloc(request.scriptContentLength + 1);
@@ -256,7 +256,8 @@ void connectionHandler(int client_sock){
 					break;
 				}
 				int i =0;//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
-				t_list * fileList = NULL;
+				t_list * fileList = list_create();
+				recv(client_sock, &(request.transformTempEntriesCount), sizeof(uint32_t), 0);
 				for(i = 0; i < request.transformTempEntriesCount; i++ ){
 					log_debug(logger, "Estoy adentro del for y el entry es %d \n", request.transformTempEntriesCount);
 					fileNode * fileToReduce = malloc(sizeof(fileNode));
@@ -274,12 +275,15 @@ void connectionHandler(int client_sock){
 				char * reduceTempFilePath = malloc(request.reduceTempPathLen +1);
 				memcpy(reduceTempFilePath, request.reduceTempPath, request.reduceTempPathLen);
 				reduceTempFilePath[request.reduceTempPathLen] = '\0';
-				pairingFiles(fileList, reduceTempFilePath);
+				log_debug(logger, "tempFile: %s", reduceTempFilePath);
+				char * pairingResult = scriptTempFileName();
+				log_debug(logger, "\n El resultado del apareo se guarda aca : %s \n", pairingResult);
+				pairingFiles(fileList, pairingResult);
 
 				char *template = "cat %s | %s > %s";
-				int templateSize = snprintf(NULL, 0, template, request.reduceTempPath, scriptPath, request.reduceTempPath);
+				int templateSize = snprintf(NULL, 0, template, pairingResult, scriptPath, request.reduceTempPath);
 				char *buffer = malloc(templateSize + 1);
-				sprintf(buffer, template, request.reduceTempPath, scriptPath, request.reduceTempPath);
+				sprintf(buffer, template, pairingResult, scriptPath, request.reduceTempPath);
 				buffer[templateSize] = '\0';
 				log_debug(logger, "\n %s \n", buffer);
 				int checkCode = system(buffer);
@@ -304,13 +308,14 @@ void connectionHandler(int client_sock){
 				send(client_sock, &response_operation, sizeof(uint32_t), 0);
 				send(client_sock, &(reduction_response.succeeded), sizeof(int), 0);
 				free(reduceTempFilePath);
+				//remove(pairingResult);
 				remove(scriptPath);
 				free(scriptPath);
 				break;
 			}
 			case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
 				log_debug(logger, "Global Reduction Stage");
-				t_list * workerList = NULL;
+				t_list * workerList = list_create();
 				int i = 0;
 				uint32_t sockFs;
 				ipc_struct_worker_start_global_reduce_request request;
@@ -484,59 +489,50 @@ void connectionHandler(int client_sock){
 
 // Apareo de Archivos
 void pairingFiles(t_list *listToPair, char* resultName){
-	int i, lower, registerPosition = 0;
-	int eofCounter = 0;
-	char *lowerString = malloc(256);
+	int maxLineSize = 1024 * 1024;
 
-	fileNode *fileToOpen;
-	FILE *pairingResultFile;
-	pairingResultFile = fopen(resultName, "w");
-	int listSize = list_size(listToPair);
-	char * fileRegister [listSize];
-	FILE* filesArray[listSize];
-	for(i=0; i < listSize; i++){
-		fileToOpen = list_get(listToPair, i);
-		filesArray[i]= fopen(fileToOpen->filePath, "r");
-		fileRegister[i] = malloc(256);
-		fgets(fileRegister[i], 256, filesArray[i]);
+	int filesCount = list_size(listToPair);
+	char *filesCursors[filesCount];
+	FILE *filesArray[filesCount];
+	int i;
+	for(i = 0; i < filesCount; i++){
+		fileNode *fileToOpen = list_get(listToPair, i);
+		filesArray[i] = fopen(fileToOpen->filePath, "r");
+		filesCursors[i] = malloc(maxLineSize);
+		fgets(filesCursors[i], maxLineSize, filesArray[i]);
 	}
-	strcpy(lowerString, fileRegister[0]);
-	FILE *registerFromFile = filesArray[0];
-	i = 0;
-	while(eofCounter < listSize){
-		if(fileRegister[i] != NULL){
-			lower = strcmp(lowerString, fileRegister[i]);
-			if(lower > 0){
-				strcpy(lowerString, fileRegister[i]);
-				registerFromFile = filesArray[i];
-				registerPosition = i;
+
+	char *lowerString = malloc(maxLineSize);
+	FILE *pairingResultFile = fopen(resultName, "w");
+
+	int pairedFilesCount = 0;
+	while (pairedFilesCount < filesCount) {
+		memset(lowerString, 'z', maxLineSize);
+
+		int fileIndex;
+
+		for (i = 0; i < filesCount; i++) {
+			if (filesCursors[i] != NULL && strcmp(lowerString, filesCursors[i]) > 0) {
+				strcpy(lowerString, filesCursors[i]);
+				fileIndex = i;
 			}
 		}
-		if(i == (listSize - 1)){
-			fputs(lowerString, pairingResultFile);
 
-			if (fgets(fileRegister[registerPosition], 256, registerFromFile) == NULL){
-				eofCounter ++;
-//				memset(fileRegister[registerPosition], 'z', 256);
-				fileRegister[registerPosition] = NULL;
-				memset(lowerString, 'z', 256);
+		fputs(lowerString, pairingResultFile);
 
-			}
-			else{
-				strcpy(lowerString, fileRegister[registerPosition]);
-			}
-			i = 0;
-		}
-		else{
-			i++;
+		if (fgets(filesCursors[fileIndex], maxLineSize, filesArray[fileIndex]) == NULL) {
+			filesCursors[fileIndex] = NULL;
+			pairedFilesCount++;
 		}
 	}
-	for(i=0; i < listSize; i++){
+
+	for (i = 0; i < filesCount; i++) {
+		free(filesCursors[i]);
 		fclose(filesArray[i]);
 	}
+
 	fclose(pairingResultFile);
-
-
+	free(lowerString);
 }
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
