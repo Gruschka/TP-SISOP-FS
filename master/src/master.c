@@ -23,6 +23,8 @@
 #include "utils.h"
 #include "yama_socket.h"
 
+#include <unistd.h>
+
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
 // sobre el cual quiero operar.
@@ -170,5 +172,6 @@ int main(int argc, char **argv) {
 	}
 
 	Exit:
+	close(yamaSocket);
 	return EXIT_SUCCESS;
 }

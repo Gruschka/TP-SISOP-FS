@@ -81,9 +81,10 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, &notification);
 	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
 
+	close(sockfd);
+
 	free(notification.nodeID);
 	free(notification.tempPath);
-
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.transformTempEntries);
 	free(request->workerRequest.reduceTempPath);

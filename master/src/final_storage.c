@@ -62,9 +62,10 @@ void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFina
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_FINAL_STORAGE_FINISH, &notification);
 	log_debug(master_log, "ALMACENADO FINAL. Éxito: %d (file: %s. fd: %d).", storageSucceeded, yamaRequest->globalReductionTempPath, sockfd);
 
+	close(sockfd);
+
 	free(notification.nodeID);
 	free(notification.tempPath);
-
 	free(yamaRequest->nodeID);
 	free(yamaRequest->workerIP);
 	free(yamaRequest->globalReductionTempPath);

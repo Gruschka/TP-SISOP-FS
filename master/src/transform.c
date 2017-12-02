@@ -70,15 +70,15 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, &notification);
 	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (file: %s. fd: %d).", transformSucceeded, request->workerRequest.tempFilePath, sockfd);
 
+	close(sockfd);
+
 	free(notification.nodeID);
 	free(notification.tempPath);
-
 	free(request->workerRequest.scriptContent);
 	free(request->workerRequest.tempFilePath);
 	free(request->ip);
 	free(request->nodeID);
 	free(request);
-
 	return NULL;
 }
 

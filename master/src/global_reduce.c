@@ -94,9 +94,10 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, &notification);
 	log_debug(master_log, "REDUCCIÓN GLOBAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, workerInChargeEntry->globalReduceTempPath, sockfd);
 
+	close(sockfd);
+
 	free(notification.nodeID);
 	free(notification.tempPath);
-
 	free(yamaRequest->entries);
 	free(yamaRequest);
 	free(globalReduceScript);
