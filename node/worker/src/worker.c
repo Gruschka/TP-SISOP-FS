@@ -46,12 +46,10 @@
 
 t_log *logger;
 worker_configuration configuration;
-t_list * pruebasApareo;
-
 
 
 int main() {
-	char * logFile = tmpnam(NULL);
+	char * logFile = "/home/utnso/logFile";
 	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
 	loadConfiguration();
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
@@ -59,27 +57,6 @@ int main() {
 			return EXIT_FAILURE;
 		}
 	createServer();
-
-
-	//Esto para test de apareo local
-//	fileNode * testLocal1 = malloc(sizeof(fileNode));
-//	fileNode * testLocal2 = malloc(sizeof(fileNode));
-//	fileNode * testLocal3 = malloc(sizeof(fileNode));
-//	fileNode * testLocal4 = malloc(sizeof(fileNode));
-//	testLocal1->filePath = malloc (strlen("/home/utnso/LocalTest1"));
-//	testLocal2->filePath = malloc (strlen("/home/utnso/LocalTest2"));
-//	testLocal3->filePath = malloc (strlen("/home/utnso/LocalTest3"));
-//	testLocal4->filePath = malloc (strlen("/home/utnso/LocalTest4"));
-//	strcpy(testLocal1->filePath, "/home/utnso/LocalTest1");
-//	strcpy(testLocal2->filePath, "/home/utnso/LocalTest2");
-//	strcpy(testLocal3->filePath, "/home/utnso/LocalTest3");
-//
-//	strcpy(testLocal4->filePath, "/home/utnso/LocalTest4");
-//	list_add(fileList, testLocal1);
-//	list_add(fileList, testLocal2);
-//	list_add(fileList, testLocal3);
-//	list_add(fileList, testLocal4);
-//	pairingFiles(fileList, "PairTest");
 
 	return EXIT_SUCCESS;
 }
@@ -537,9 +514,10 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	int i, lower, eofCounter, registerLength, registerPosition = 0;
+	int maxLineSize = 1024 * 1024;
 	int requestCode = REGISTER_REQUEST;
 	int closeCode = FILE_CLOSE_REQUEST;
-	char * lowerString = malloc(256);
+	char * lowerString = malloc(maxLineSize);
 
 	FILE * pairingResultFile;
 	pairingResultFile = fopen(resultName, "w");
@@ -548,7 +526,7 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	fileGlobalNode * fileToOpen;
 	for(i=0; i<listSize; i++){
 		fileToOpen = list_get(listToPair, i);
-		fileRegister[i] = malloc(256);
+		fileRegister[i] = malloc(maxLineSize);
 		send(fileToOpen->sockfd, &requestCode, sizeof(int), 0);
 		recv(fileToOpen->sockfd, &registerLength, sizeof(int), 0);
 		recv(fileToOpen->sockfd, fileRegister[i], registerLength, 0);
@@ -572,9 +550,8 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 			recv(workerToRequest->sockfd, fileRegister[registerPosition], registerLength, 0);
 			if (strcmp(fileRegister[registerPosition], "NULL") == 0){
 				eofCounter ++;
-				//				memset(fileRegister[registerPosition], 'z', 256);
 				fileRegister[registerPosition] = NULL;
-				memset(lowerString, 'z', 256);
+				memset(lowerString, 255, maxLineSize);
 
 			}
 			else{
@@ -593,9 +570,6 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 		}
 	fclose(pairingResultFile);
 	free(lowerString);
-
-
-
 
 }
 
