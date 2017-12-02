@@ -507,7 +507,7 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 	int pairedFilesCount = 0;
 	while (pairedFilesCount < filesCount) {
-		memset(lowerString, 'z', maxLineSize);
+		memset(lowerString, 255, maxLineSize);
 
 		int fileIndex;
 
