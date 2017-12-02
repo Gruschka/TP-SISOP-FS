@@ -77,7 +77,6 @@ void main() {
 
 	//fs_restorePreviousStatus();
 
-	//t_fileBlockTuple *test = fs_getFileBlockTuple("/mnt/FS/metadata/archivos/1/ejemplo.txt");
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
@@ -802,9 +801,8 @@ void fs_waitForYama() {
 		ipc_sendMessage(new_socket, FS_GET_FILE_INFO_RESPONSE, response);
 		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
 		log_debug(logger,"YAMA Request Answered");
+		fs_destroyNodeTupleArray(response->entries, length);
 
-//		fs_destroyNodeTupleArray(response->entries, length);
-//		sleep(5);
 	}
 
 }
@@ -1123,27 +1121,31 @@ void fs_waitForWorkers(){
 			perror("listen");
 			exit(-1);
 		}
+
+		log_debug(logger,"YAMAFS: Waiting for Worker");
 		if ((new_socket = accept(server_fd, (struct sockaddr *) &address,
 				(socklen_t*) &addrlen)) < 0) {
 			perror("accept");
 			exit(-1);
 		}
+		log_debug(logger,"YAMAFS:  New worker connection received with socket %d",new_socket);
 
 		while (1) {
-			printf("Hello message sent\n");
-
+			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
 			ipc_struct_worker_file_to_yama *sendFile = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_YAMA);
+			log_debug(logger,"YAMAFS: Received request to store file in YAMA from Worker / Path:%s",sendFile->pathName);
 			t_directory *destinationDirectory = fs_directoryExists(sendFile->pathName);
 			if (!destinationDirectory) {
 				log_error(logger, "fs_waitForWorkers: destination directory doesnt exist");
 			}
-			fs_createTempFileFromWorker(sendFile->pathName);
 			char *fileName = basename(sendFile->pathName);
 			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
+			fs_createTempFileFromWorker(pathInLocalFS, sendFile->file);
 			fs_cpfrom(pathInLocalFS,sendFile->pathName,'-t');
 			remove(pathInLocalFS);
 			free(pathInLocalFS);
-//			sleep(5);
+
+
 		}
 
 
@@ -3224,20 +3226,18 @@ int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *t
 
 	return copies;
 }
-int fs_createTempFileFromWorker(char *filePath){
+int fs_createTempFileFromWorker(char *filePath, char* fileContent){
 
-	char *fileName = basename(filePath);
-	char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
 
-	FILE * file = fopen(pathInLocalFS, "w+");
+	FILE * tempFile = fopen(filePath, "w+");
+	fputs(fileContent, tempFile);
 
-	free(pathInLocalFS);
-
-	if(file == NULL){
+	if(tempFile == NULL){
 		log_error(logger,"fs_createTempFileFromWorker: could not create temp file");
 		return EXIT_FAILURE;
 	}
 
+	close(tempFile);
 	return EXIT_SUCCESS;
 
 }
