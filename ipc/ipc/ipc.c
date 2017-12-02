@@ -63,7 +63,7 @@ int ipc_sendMessage(int sockfd, int type, void *content) {
 	memmove(buffer, &header, sizeof(ipc_struct_header));
 	memcpy(buffer + sizeof(ipc_struct_header), serialized, *size);
 
-	result = send(sockfd, buffer, sizeof(ipc_struct_header) + *size, MSG_NOSIGNAL);
+	result = send(sockfd, buffer, sizeof(ipc_struct_header) + *size, 0);
 
 	free(serialized);
 	free(size);
