@@ -277,7 +277,7 @@ void *deserializeMasterContinueWithGlobalReductionRequest(char *buffer) {
 		entriesOffset += tmpGlobalReducePathLen + 1;
 		offset += tmpGlobalReducePathLen + 1;
 
-		memcpy(&(currentEntry->isWorkerInCharge), buffer + offset, sizeof(uint32_t)); //workerPort
+		memcpy(&(currentEntry->isWorkerInCharge), buffer + offset, sizeof(uint32_t)); //workerInCharge
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
 
@@ -598,7 +598,12 @@ char *serializeMasterContinueWithLocalReductionRequest(void *data, int *size) {
 // MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST
 
 uint32_t getMasterContinueWithGlobalReductionRequestEntrySize(ipc_struct_master_continueWithGlobalReductionRequestEntry *entry) {
-	return sizeof(uint32_t) + strlen(entry->workerIP) + 1 + sizeof(uint32_t) + strlen(entry->localReduceTempPath) + 1 + strlen(entry->globalReduceTempPath) + 1 + sizeof(uint32_t);
+	return 	strlen(entry->nodeID) + 1 +
+			strlen(entry->workerIP) + 1 +
+			sizeof(uint32_t) +
+			strlen(entry->localReduceTempPath) + 1 +
+			strlen(entry->globalReduceTempPath) + 1 +
+			sizeof(uint32_t);
 }
 
 uint32_t getMasterContinueWithGlobalReductionRequestEntriesSize(ipc_struct_master_continueWithGlobalReductionRequest *request) {

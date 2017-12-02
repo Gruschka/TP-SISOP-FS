@@ -1029,7 +1029,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 			offset+=sizeof(uint32_t);
 		}
 
-		//read
+		//write
 		if(operation->operationId == 1){
 			memcpy(serializedOperation+offset,operation->buffer,BLOCK_SIZE);
 		}
@@ -1939,10 +1939,11 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 			lineSize = strlen(line);
 
 			if (lineSize > 0 && lineSize <= remainingSizeInBlock) {
-				memcpy(block+offset,line,lineSize);
+				//memcpy(block+offset,line,lineSize);
+				strcpy(block+offset,line);
 				offset += lineSize;
 
-				memset(line, 0, BLOCK_SIZE);
+				//memset(line, 0, BLOCK_SIZE);
 				remainingSizeToSplit -= lineSize;
 				remainingSizeInBlock -= lineSize;
 
@@ -1951,8 +1952,9 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				debug++;
 			} else {
 				bufferSplit = malloc(BLOCK_SIZE);
-				memset(bufferSplit, 0, BLOCK_SIZE);
-				memcpy(bufferSplit, block, offset);
+				//memset(bufferSplit, 0, BLOCK_SIZE);
+				//memcpy(bufferSplit, block, offset);
+				strcpy(bufferSplit, block);
 				t_dataNode *exclude = NULL;
 				for (copy = 0; copy < 2; copy++) {
 					package = malloc(sizeof(t_blockPackage));
@@ -1974,7 +1976,7 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 				cantidadDeLineasDelBloque = 0;
 				blockNumber++;
 
-				memset(block,0,BLOCK_SIZE);
+				//memset(block,0,BLOCK_SIZE);
 				offset = 0;
 				remainingSizeInBlock = BLOCK_SIZE;
 
