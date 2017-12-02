@@ -13,6 +13,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -67,10 +68,13 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 		int localReduceTempPathLen = strlen(entry->localReduceTempPath);
 		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), 0);
 		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, 0);
-		free(entry->nodeID);
-		free(entry->workerIP);
-		free(entry->localReduceTempPath);
-		free(entry->globalReduceTempPath);
+
+		if (entry->isWorkerInCharge == 0) {
+			free(entry->nodeID);
+			free(entry->workerIP);
+			free(entry->localReduceTempPath);
+			free(entry->globalReduceTempPath);
+		}
 	}
 
 	int globalReduceTempPathLen = strlen(workerInChargeEntry->globalReduceTempPath);
@@ -96,6 +100,10 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 
 	close(sockfd);
 
+	free(workerInChargeEntry->nodeID);
+	free(workerInChargeEntry->workerIP);
+	free(workerInChargeEntry->localReduceTempPath);
+	free(workerInChargeEntry->globalReduceTempPath);
 	free(notification.nodeID);
 	free(notification.tempPath);
 	free(yamaRequest->entries);

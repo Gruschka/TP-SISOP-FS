@@ -13,6 +13,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
