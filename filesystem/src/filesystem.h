@@ -174,6 +174,9 @@ void *fs_downloadBlock(t_dataNode *target, int blockNumber);
 int fs_uploadBlock(t_dataNode *target, char *blockNumber, void *buffer);
 int fs_getAvailableCopiesFromTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
 int fs_createTempFileFromWorker(char *filePath);
+int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode);
+int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks);
+int fs_sumOfIntArray(int *array, int length);
 
 //Console commands
 int fs_format();
