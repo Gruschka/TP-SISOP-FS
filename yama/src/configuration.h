@@ -17,6 +17,7 @@ typedef struct configuration {
 	int schedulingDelay;
 	uint32_t baseAvailability;
 	scheduling_algorithm balancingAlgorithm;
+	char *serverPort;
 } yama_configuration;
 
 yama_configuration fetchConfiguration(char *filePath);

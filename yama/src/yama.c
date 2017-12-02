@@ -45,6 +45,23 @@ void dumpEntry(yama_state_table_entry *entry, uint32_t i) {
 	log_debug(logger, "%d -> %d | %d | %s | %d | %d | %s | %d", i, entry->jobID, entry->masterID, entry->nodeID, entry->blockNumber, entry->stage, entry->tempPath, entry->status);
 }
 
+t_list *getEntriesMatchingJobID(uint32_t jobID) {
+	t_list *result = list_create();
+	t_dictionary *dictionary = dictionary_create();
+
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID && !dictionary_has_key(dictionary, currentEntry->nodeID)) {
+			dictionary_put(dictionary, currentEntry->nodeID, 1);
+			list_add(result, currentEntry);
+		}
+	}
+
+	return result;
+}
+
 t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	t_list *result = list_create();
 
@@ -60,6 +77,19 @@ t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	}
 
 	return result;
+}
+
+int localReductionIsFinished(uint32_t jobID) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID && currentEntry->stage == LOCAL_REDUCTION) {
+			if (currentEntry->status != FINISHED_OK) return 0;
+		}
+	}
+
+	return 1;
 }
 
 int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
@@ -88,6 +118,17 @@ uint32_t getJobIDForTempPath(char *tempPath) {
 	}
 
 	return -1;
+}
+
+void markLocalReductionAsFinished(char *tempPath, char *nodeID) {
+	int i;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (stringsAreEqual(currentEntry->tempPath, tempPath) && stringsAreEqual(currentEntry->nodeID, nodeID)) {
+			currentEntry->status = FINISHED_OK;
+		}
+	}
 }
 
 yama_state_table_entry *getEntry(char *nodeID, char *tempPath) {
@@ -283,7 +324,7 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 	return response;
 }
 
-void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response) {
+void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response, int fd) {
 	int idx;
 	for (idx = 0; idx < response->entriesCount; idx++) {
 		yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
@@ -291,7 +332,7 @@ void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_r
 
 		entry->jobID = lastJobID + 1;
 		entry->blockNumber = responseEntry->blockID;
-		entry->masterID = 1;
+		entry->masterID = fd;
 		entry->nodeID = strdup(responseEntry->nodeID);
 		entry->stage = TRANSFORMATION;
 		entry->status = IN_PROCESS;
@@ -381,7 +422,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
-		trackTransformationResponseInStateTable(response);
+		trackTransformationResponseInStateTable(response, fd);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
 		break;
@@ -409,21 +450,27 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 			request->entries = malloc(sizeof(ipc_struct_master_continueWithLocalReductionRequestEntry) * request->entriesCount);
 
 			int i;
+			char *localReduceTempPath = tempFileName();
 			for (i = 0; i < request->entriesCount; i++) {
 				yama_state_table_entry *entry = list_get(entriesToReduce, i);
 				ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
 				dumpEntry(entry, i);
-				currentEntry->localReduceTempPath = tempFileName();
+				currentEntry->localReduceTempPath = strdup(localReduceTempPath);
 				currentEntry->transformTempPath = strdup(entry->tempPath);
 				WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
 				currentEntry->workerIP = strdup(workerInfo->ip);
 				currentEntry->workerPort = workerInfo->port;
 				currentEntry->nodeID = strdup(entry->nodeID);
+
+				entry->stage = LOCAL_REDUCTION;
+				entry->status = IN_PROCESS;
+				entry->tempPath = currentEntry->localReduceTempPath;
 			}
 
 			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
 			list_destroy(entriesToReduce);
 			free(request);
+			free(localReduceTempPath);
 		}
 
 		break;
@@ -431,6 +478,49 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 	case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
 		ipc_struct_yama_notify_stage_finish *localReductionFinish = ipc_recvMessage(fd, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
+
+		uint32_t jobID = getJobIDForTempPath(localReductionFinish->tempPath);
+
+		// lo marco como finalizado
+		// todo ver el succeeded
+//		yama_state_table_entry *ystEntry = getEntry(localReductionFinish->nodeID, localReductionFinish->tempPath);
+		markLocalReductionAsFinished(localReductionFinish->tempPath, localReductionFinish->nodeID);
+
+		if (localReductionIsFinished(jobID)) {
+			// elegir el nodo menos cargado
+			t_list *entriesToReduce = getEntriesMatchingJobID(jobID);
+			log_debug(logger, "Terminaron todas las reducciones locales (cantidad: %d) para el job %d", list_size(entriesToReduce), jobID);
+			ipc_struct_master_continueWithGlobalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest));
+			request->entriesCount = list_size(entriesToReduce);
+			request->entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequestEntry) * request->entriesCount);
+
+			char *globalReduceTempPath = tempFileName();
+			int i;
+			for (i = 0; i < request->entriesCount; i++) {
+				yama_state_table_entry *entry = list_get(entriesToReduce, i);
+				ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
+				dumpEntry(entry, i);
+				currentEntry->localReduceTempPath = strdup(entry->tempPath);
+				currentEntry->globalReduceTempPath = strdup(globalReduceTempPath);
+				WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
+				currentEntry->workerIP = strdup(workerInfo->ip);
+				currentEntry->workerPort = workerInfo->port;
+				currentEntry->nodeID = strdup(entry->nodeID);
+				currentEntry->isWorkerInCharge = stringsAreEqual(currentEntry->nodeID, localReductionFinish->nodeID);
+
+				// lo actualizo en la tabla de estados
+				entry->stage = GLOBAL_REDUCTION;
+				entry->status = IN_PROCESS;
+				entry->tempPath = currentEntry->globalReduceTempPath;
+			}
+
+			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST, request);
+			list_destroy(entriesToReduce);
+			free(request);
+			free(globalReduceTempPath);
+		}
+
+		free(localReductionFinish);
 		break;
 	}
 	case YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH: {
@@ -453,7 +543,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 void *server_mainThread() {
 	log_debug(logger, "Waiting for masters");
-	ipc_createEpollServer("8888", newConnectionHandler, incomingDataHandler, disconnectionHandler);
+	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
 
