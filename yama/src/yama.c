@@ -317,6 +317,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
+		break;
 		//succeeded me lo paso por los huevos
 		// bueno, esta bien
 		// TODO: replanificar
@@ -445,7 +446,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Waiting for masters");
+	log_debug(logger, "Waiting for masters on port %d", configuration.serverPort);
 	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
