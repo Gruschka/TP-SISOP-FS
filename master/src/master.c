@@ -113,22 +113,30 @@ void test() {
 	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
 	log_debug(master_log, "Conectado a YAMA correctamente.");
 
+	pthread_t *threads = malloc(sizeof(pthread_t) * 60);
 	int i;
 	for (i = 0; i < 60; i++) {
 		ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+
 		char *nodeID = malloc(3);
 		sprintf(nodeID, "%d", i);
 		notification->nodeID = nodeID;
 		notification->succeeded = 1;
 		notification->tempPath = nodeID;
 
-		pthread_t thread;
-		pthread_create(&thread, NULL, testThread, notification);
+
+		pthread_create(threads + i, NULL, testThread, notification);
+	}
+
+	for (i = 0; i < 60; i++) {
+		pthread_t *thread = threads + i;
+		pthread_join(*thread, NULL);
 	}
 }
 
 int main(int argc, char **argv) {
 	test();
+
 	return EXIT_SUCCESS;
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
