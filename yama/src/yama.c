@@ -189,7 +189,6 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 	return NULL;
 }
 
-
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = filePath;
@@ -232,6 +231,17 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	return response;
 }
 
+void dumpExecutionPlan(ExecutionPlan *executionPlan) {
+	log_debug(logger, "ExecutionPlan:");
+	log_debug(logger, "i | blockID | workerID");
+
+	int i;
+	for (i = 0; i < list_size(executionPlan->entries); i++) {
+		ExecutionPlanEntry *entry = executionPlan->entries + i;
+		log_debug(logger, "%d |   %d   |   %s  ", i, entry->blockID, entry->workerID);
+	}
+}
+
 ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
 	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 
@@ -251,8 +261,6 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
 		responseEntry->workerPort = workerInfo->port;
-
-		log_debug(logger, "[ExecutionPlan] i: %d. blockID: %d. workerID: %s", i, epEntry->blockID, epEntry->workerID);
 	}
 
 	return response;
@@ -295,9 +303,13 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+		dumpExecutionPlan(executionPlan);
 		trackTransformationResponseInStateTable(response, fd);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
+		free(response);
+		free(executionPlan);
+		free(fileInfo);
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
@@ -415,6 +427,8 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
 
 		free(request);
+		free(workerInfo);
+		free(globalReductionFinish);
 		break;
 	}
 	case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
