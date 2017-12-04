@@ -81,7 +81,7 @@
 // TODO: métricas
 // TODO: logs
 
-int yamaSocket;
+int yamaSocket, totalBytesSent = 0;
 sem_t yamaSocketSem;
 
 t_log *master_log;
@@ -91,12 +91,15 @@ char *reduceScript;
 
 void *testThread(void *notification) {
 	ipc_struct_yama_notify_stage_finish *notif = (ipc_struct_yama_notify_stage_finish *)notification;
-	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notif);
+	sem_wait(&yamaSocketSem);
+	totalBytesSent += ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notif);
 	log_debug(master_log, "sendMessage: %s", notif->nodeID);
+	sem_post(&yamaSocketSem);
 	return NULL;
 }
 
 void test() {
+	sem_init(&yamaSocketSem, 0, 1);
 	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
 	// Inicializo IPC
 	log_debug(master_log, "Inicializando librería IPC.");
@@ -136,14 +139,14 @@ void test() {
 
 int main(int argc, char **argv) {
 	test();
-
+	printf("totalBytesSent: %d", totalBytesSent);
+	fflush(stdout);
+	while(1) {}
 	return EXIT_SUCCESS;
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
 		return EXIT_FAILURE;
 	}
-
-	sem_init(&yamaSocketSem, 0, 1);
 
 	// Levanto los argumentos
 	char *transformScriptPath = argv[1];
