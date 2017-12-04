@@ -294,6 +294,8 @@ void disconnectionHandler(int fd) {
 	log_debug(logger, "Master disconnected. FD: %d", fd);
 }
 
+int i = 0;
+
 void incomingDataHandler(int fd, ipc_struct_header header) {
 	switch (header.type) {
 	case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
@@ -314,11 +316,8 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
-		log_debug(logger, "transform_finish");
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
-		int bytes_available;
-		ioctl(fd, FIONREAD, &bytes_available);
-		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d. pending bytes: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded, bytes_available);
+		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
 		break;
 		//succeeded me lo paso por los huevos

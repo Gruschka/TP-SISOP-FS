@@ -26,6 +26,7 @@
 #include "yama_socket.h"
 
 #include <unistd.h>
+#include <commons/collections/queue.h>
 
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
@@ -82,29 +83,37 @@
 // TODO: logs
 
 int yamaSocket, totalBytesSent = 0;
-sem_t yamaSocketSem;
+pthread_mutex_t yamaSocketMutex;
+sem_t produced;
+t_queue *queue;
+pthread_t sendingThread;
 
 t_log *master_log;
 char *transformScript;
 char *reduceScript;
 
 
-void *testThread(void *notification) {
-	ipc_struct_yama_notify_stage_finish *notif = (ipc_struct_yama_notify_stage_finish *)notification;
-	sem_wait(&yamaSocketSem);
-	totalBytesSent += ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notif);
-	log_debug(master_log, "sendMessage: %s", notif->nodeID);
-	sem_post(&yamaSocketSem);
-	return NULL;
+void *sendingThread_main() {
+	while (1) {
+		sem_wait(&produced);
+		pthread_mutex_lock(&yamaSocketMutex);
+		ipc_struct_yama_notify_stage_finish *notif = queue_pop(queue);
+		totalBytesSent += ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notif);
+		log_debug(master_log, "sendMessage: %s", notif->nodeID);
+		pthread_mutex_unlock(&yamaSocketMutex);
+	}
 }
 
 void test() {
-	sem_init(&yamaSocketSem, 0, 1);
+	sem_init(&produced, 0, 0);
+	pthread_mutex_init(&yamaSocketMutex, NULL);
+	queue = queue_create();
 	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
 	// Inicializo IPC
 	log_debug(master_log, "Inicializando librería IPC.");
 	serialization_initialize();
 
+	pthread_create(&sendingThread, NULL, sendingThread_main, NULL);
 	// Levanto la config
 	log_debug(master_log, "Levantando archivo de configuración.");
 	t_config *config = config_create("conf/master.conf");
@@ -116,9 +125,8 @@ void test() {
 	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
 	log_debug(master_log, "Conectado a YAMA correctamente.");
 
-	pthread_t *threads = malloc(sizeof(pthread_t) * 60);
 	int i;
-	for (i = 0; i < 60; i++) {
+	for (i = 0; i < 2000; i++) {
 		ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
 
 		char *nodeID = malloc(3);
@@ -127,20 +135,14 @@ void test() {
 		notification->succeeded = 1;
 		notification->tempPath = nodeID;
 
-
-		pthread_create(threads + i, NULL, testThread, notification);
-	}
-
-	for (i = 0; i < 60; i++) {
-		pthread_t *thread = threads + i;
-		pthread_join(*thread, NULL);
+		log_debug(master_log, "pushee");
+		queue_push(queue, notification);
+		sem_post(&produced);
 	}
 }
 
 int main(int argc, char **argv) {
 	test();
-	printf("totalBytesSent: %d", totalBytesSent);
-	fflush(stdout);
 	while(1) {}
 	return EXIT_SUCCESS;
 	if (argc != 5) {
