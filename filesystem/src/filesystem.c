@@ -458,17 +458,19 @@ int fs_mkdir(char *directoryPath) {
 				// se aborta la creacion
 				log_error(logger,
 						"fs_mkdir: parent directory for directory to create doesnt exist");
+				fs_destroyAnArrayOfCharPointers(splitDirectory);
 				return EXIT_FAILURE;
 			}
 		} else {
 			if (iterator == amountOfDirectories) {
 				// dir exists, abort
 				log_error(logger, "fs_mkdir: directory already exists");
+				fs_destroyAnArrayOfCharPointers(splitDirectory);
 				return EXIT_FAILURE;
 			}
 		}
 	}
-
+	fs_destroyAnArrayOfCharPointers(splitDirectory);
 	return EXIT_SUCCESS;
 
 }
@@ -860,7 +862,7 @@ int fs_isStable() {
 				nodeName = nodeBlockTupleAsArray[0];
 			}
 			//si tenes el nodo y el nodo tiene el bloque esta OK, me chupa un huevo la data
-			if (!fs_checkNodeBlockTupleConsistency(nodeName,
+			if(!fs_checkNodeBlockTupleConsistency(nodeName,
 					blockNumber)) {
 				free(blockToSearch);
 				iterator++;
@@ -868,15 +870,23 @@ int fs_isStable() {
 			} else {
 				if (!copy) {
 					copy = 1;
+					free(blockToSearch);
 				} else {
 					//no pudo armar el bloque
 					log_debug(logger, "fs_isStable:consistency error for file %s", buffer);
 					log_debug(logger, "fs_isStable:missing block no. %s", blockToSearch);
 					config_destroy(fileMetadata);
 					free(fullFilePath);
+					free(blockToSearch);
+					if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
+					if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
+					free(nodeBlockTupleAsArray);
 					return EXIT_FAILURE;
 				}
 			}
+			if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
+			if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
+			free(nodeBlockTupleAsArray);
 		}
 		config_destroy(fileMetadata);
 		free(fullFilePath);
@@ -1261,11 +1271,14 @@ int fs_openOrCreateNodeTableFile(char *directory) {
 }
 int fs_updateNodeTable(t_dataNode aDataNode) {
 
+	//leaks en 1269 1368 1374 1385 1386 1375 1369
+
 	//Crea archivo config para levantar la node table
 	nodeTableConfig = config_create(myFS.nodeTablePath);
 
 	char *listaNodosOriginal = config_get_string_value(nodeTableConfig,
 			"NODOS"); //"[Nodo1, Nodo2]"
+
 	char **listaNodosArray = string_get_string_as_array(listaNodosOriginal); //["Nodo1,","Nodo2"]
 
 	int isAlreadyInTable = 0;
@@ -1359,21 +1372,17 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	/*************** ACTUALIZA INFORMACION DE BLOQUES DEL NODO EN NODE TABLE ***************/
 
-	char *nombreAux1 = malloc(sizeof(aDataNode.name)); //le reserva espacio para nombre + total o libre
-	strcpy(nombreAux1, aDataNode.name);
+	char *nombreAux1 = strdup(aDataNode.name);
+	char *nombreAux2 = strdup(aDataNode.name);
 
-	char *nombreAux2 = malloc(sizeof(aDataNode.name)); //le reserva espacio para nombre + total o libre
-	strcpy(nombreAux2, aDataNode.name);
 	//Crea el string Nodo+Libre=
-	char *libres = malloc(strlen(nombreAux1) + strlen("Libre="));
-	strcpy(libres, "Libre=");
-	libres = strcat(nombreAux1, libres);
+	char *libres = malloc(strlen(nombreAux1) + strlen("Libre=") + 1);
+	sprintf(libres, "%s%s", nombreAux1, "Libre=");
 	char *bloquesLibresFinal = string_from_format("%d", aDataNode.freeBlocks); //Pasa la cantidad de bloques libres a string
 
 	//Crea el string Nodo+Total=
 	char *total = malloc(strlen(nombreAux2) + strlen("Total="));
-	strcpy(total, "Total=");
-	total = strcat(nombreAux2, total);
+	sprintf(total, "%s%s", nombreAux2, "Total=");
 	char *bloquesTotalesFinal = string_from_format("%d",
 			aDataNode.amountOfBlocks); //Pasa la cantidad de bloques libres a string
 
@@ -1409,7 +1418,9 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 
 	}
 
-
+	fs_destroyAnArrayOfCharPointers(listaNodosArray);
+	free(nombreAux1);
+	free(nombreAux2);
 	free(total);
 	free(libres);
 	free(bloquesLibresFinal);
@@ -1444,6 +1455,7 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 
 		log_debug(logger, "Bitmap of datanode %s opened sucessfully",
 				aDataNode->name);
+		free(bitmapFullPath);
 
 		return EXIT_SUCCESS;
 
@@ -1464,6 +1476,7 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 		if (mmapResult == EXIT_FAILURE) {
 			log_error(logger, "fs_openOrCreateBitmap: Maping  of datanode %s  bitmap to memory failed",
 					aDataNode->name);
+			free(bitmapFullPath);
 
 			return EXIT_FAILURE;
 		}
@@ -1472,7 +1485,7 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 				aDataNode->bitmapMapedPointer, aDataNode->amountOfBlocks / 8,
 				LSB_FIRST);
 		log_debug(logger, "fs_openOrCreateBitmap: bitmap created with parameters");
-
+		free(bitmapFullPath);
 		return EXIT_SUCCESS;
 
 	}
@@ -1480,6 +1493,7 @@ int fs_openOrCreateBitmap(t_FS FS, t_dataNode *aDataNode) {
 	log_error(logger, "fs_openOrCreateBitmap: Bitmap of datanode %s could not be opened or created",
 			aDataNode->name);
 
+	free(bitmapFullPath);
 	return EXIT_FAILURE;
 
 }
@@ -1775,6 +1789,7 @@ t_directory *fs_directoryExists(char *directory) {
 			//no existe child para ese parent
 			log_error(logger,
 					"fs_directoryExists: parent directory for directory to create doesnt exist");
+			fs_destroyAnArrayOfCharPointers(splitDirectory);
 			return NULL;
 		} else {
 			iterator++;
@@ -1782,11 +1797,12 @@ t_directory *fs_directoryExists(char *directory) {
 			if (iterator == amountOfDirectories) {
 				// dir exists, abort
 				//log_error(logger,"directory already exists puto");
+				fs_destroyAnArrayOfCharPointers(splitDirectory);
 				return directoryReference;
 			}
 		}
 	}
-
+	fs_destroyAnArrayOfCharPointers(splitDirectory);
 	return NULL;
 }
 int fs_directoryIsParent(t_directory *directory) {
@@ -2381,11 +2397,11 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 	FILE * fileToOpen = fopen(filePath,"r");
 		if(fileToOpen == NULL){
 			log_error(logger,"fs_getFileBlockTuples: File %s does not exist",filePath);
-			close(fileToOpen);
+			fclose(fileToOpen);
 			return EXIT_FAILURE;
 		}
 
-	close(fileToOpen);
+	fclose(fileToOpen);
 
 
 
@@ -2451,6 +2467,10 @@ ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath
 				currentTuple->secondCopyNodePort = aux->workerPortno;
 			}
 
+			if (nodeBlockTupleAsArray[0]) free(nodeBlockTupleAsArray[0]);
+			if (nodeBlockTupleAsArray[1]) free(nodeBlockTupleAsArray[1]);
+			free(nodeBlockTupleAsArray);
+
 			copy = 1;
 			free(blockToSearch);
 			config_destroy(fileConfig);
@@ -2469,11 +2489,11 @@ int fs_getAmountOfBlocksAndCopiesOfAFile(char *file){
 	FILE * fileToOpen = fopen(file,"r");
 		if(fileToOpen == NULL){
 			log_error(logger,"fs_getAmountOfBlocksAndCopiesOfAFile: File %s does not exist",file);
-			close(fileToOpen);
+			fclose(fileToOpen);
 			return EXIT_FAILURE;
 		}
 
-	close(fileToOpen);
+	fclose(fileToOpen);
 
 	t_config *fileConfig = config_create(file);
 
@@ -2690,11 +2710,11 @@ int fs_getNumberOfBlocksOfAFile(char *file){
 	FILE * fileToOpen = fopen(file,"r");
 		if(fileToOpen == NULL){
 			log_error(logger,"fs_getNumberOfBlocksOfAFile: File %s does not exist",file);
-			close(fileToOpen);
+			fclose(fileToOpen);
 			return EXIT_FAILURE;
 		}
 
-	close(fileToOpen);
+	fclose(fileToOpen);
 
 	t_config *fileConfig = config_create(file);
 
@@ -2759,7 +2779,7 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 	int i = 0;
 
 	for(i = 0; i < arrayLength ; i++){
-		log_debug(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
+//		log_debug(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
 		free(tuple[i].firstCopyNodeID);
 		free(tuple[i].secondCopyNodeID);
 		free(tuple[i].firstCopyNodeIP);
@@ -2813,6 +2833,7 @@ char *fs_isAFile(char *path){
 		free(splitPath[iterator]);
 		iterator++;
 	}
+	free(splitPath);
 	free(parentPath);
 	return physicalPath;
 }
@@ -3237,7 +3258,7 @@ int fs_createTempFileFromWorker(char *filePath, char* fileContent){
 		return EXIT_FAILURE;
 	}
 
-	close(tempFile);
+	fclose(tempFile);
 	return EXIT_SUCCESS;
 
 }
@@ -3246,8 +3267,9 @@ int fs_destroyAnArrayOfCharPointers(char **array){
 	int length = fs_amountOfElementsInArray(array);
 	int i = 0;
 	for(i = 0; i < length; i++){
-		if(array[i] != NULL) free(array[i]);
+		free(array[i]);
 	}
+	free(array);
 	return EXIT_SUCCESS;
 
 
