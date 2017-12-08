@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -85,35 +86,48 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 }
 
 void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript) {
-	int i = 0;
-	while (i < yamaResponse->entriesCount) {
-		ipc_struct_start_transform_reduce_response_entry *entry = yamaResponse->entries + i;
+	int maxBatchSize = 20;
+	int numberOfBatches = floor(yamaResponse->entriesCount / maxBatchSize) + 1;
+	int numberOfTasksInFinalBatch = yamaResponse->entriesCount % maxBatchSize;
 
-		ipc_struct_worker_start_transform_request workerRequest;
-		workerRequest.scriptContentLength = strlen(transformScript);
-		workerRequest.scriptContent = strdup(transformScript);
-		workerRequest.block = entry->blockID;
-		workerRequest.usedBytes = entry->usedBytes;
-		workerRequest.tempFilePathLength = strlen(entry->tempPath);
-		workerRequest.tempFilePath = strdup(entry->tempPath);
+	int i;
+	for (i = 0; i < numberOfBatches; i++) {
+		int isLastBatch = i == (numberOfBatches - 1);
+		int numberOfTasksToRun = isLastBatch ? numberOfTasksInFinalBatch : maxBatchSize;
 
-		WorkerRequest *request = malloc(sizeof(WorkerRequest));
-		request->nodeID = strdup(entry->nodeID);
-		request->ip = strdup(entry->workerIP);
-		request->port = entry->workerPort;
-		request->workerRequest = workerRequest;
+		pthread_t threads[maxBatchSize];
+		int j;
+		for (j = 0; j < numberOfTasksToRun; j++) {
+			int taskIndex = (i * maxBatchSize) + j;
+			ipc_struct_start_transform_reduce_response_entry *entry = yamaResponse->entries + taskIndex;
 
-		// Creamos un hilo por cada worker
-		pthread_t thread;
-		if (pthread_create(&thread, NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
-			//FIXME: (Fede) acá hay error
+			ipc_struct_worker_start_transform_request workerRequest;
+			workerRequest.scriptContentLength = strlen(transformScript);
+			workerRequest.scriptContent = strdup(transformScript);
+			workerRequest.block = entry->blockID;
+			workerRequest.usedBytes = entry->usedBytes;
+			workerRequest.tempFilePathLength = strlen(entry->tempPath);
+			workerRequest.tempFilePath = strdup(entry->tempPath);
+
+			WorkerRequest *request = malloc(sizeof(WorkerRequest));
+			request->nodeID = strdup(entry->nodeID);
+			request->ip = strdup(entry->workerIP);
+			request->port = entry->workerPort;
+			request->workerRequest = workerRequest;
+
+			// Creamos un hilo por cada worker
+			if (pthread_create(&(threads[j]), NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
+				//FIXME: (Fede) acá hay error
+			}
+
+			free(entry->tempPath);
+			free(entry->workerIP);
+			free(entry->nodeID);
 		}
 
-		free(entry->tempPath);
-		free(entry->workerIP);
-		free(entry->nodeID);
-
-		i++;
+		for (j = 0; j < numberOfTasksToRun; j++) {
+			pthread_join(threads[j], NULL);
+		}
 	}
 
 	free(yamaResponse->entries);
