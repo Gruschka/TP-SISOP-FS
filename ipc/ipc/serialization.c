@@ -66,6 +66,7 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->firstCopyNodeID, tmp, tmpLen + 1); //firstCopyNodeID
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
+		free(tmp);
 
 		tmp = strdup(buffer + offset);
 		tmpLen = strlen(tmp);
@@ -73,6 +74,7 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->firstCopyNodeIP, tmp, tmpLen + 1); //firstCopyNodeIP
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
+		free(tmp);
 
 		memcpy(&(currentEntry->firstCopyNodePort), buffer + offset, sizeof(uint32_t)); //firstCopyNodePort
 		entriesOffset += sizeof(uint32_t);
@@ -88,6 +90,7 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->secondCopyNodeID, tmp, tmpLen + 1); //secondCopyNodeID
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
+		free(tmp);
 
 		tmp = strdup(buffer + offset);
 		tmpLen = strlen(tmp);
@@ -95,6 +98,7 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(currentEntry->secondCopyNodeIP, tmp, tmpLen + 1); //secondCopyNodeIP
 		entriesOffset += tmpLen + 1;
 		offset += tmpLen + 1;
+		free(tmp);
 
 		memcpy(&(currentEntry->secondCopyNodePort), buffer + offset, sizeof(uint32_t)); //secondCopyNodePort
 		entriesOffset += sizeof(uint32_t);
@@ -107,7 +111,6 @@ void *deserializeFSGetFileInfoResponse(char *buffer) {
 		memcpy(&(currentEntry->blockSize), buffer + offset, sizeof(uint32_t)); //blockSize
 		entriesOffset += sizeof(uint32_t);
 		offset += sizeof(uint32_t);
-		free(tmp);
 	}
 
 	response->entries = entries;
