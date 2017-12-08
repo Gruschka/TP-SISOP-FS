@@ -314,13 +314,9 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
-		log_debug(logger, "transform_finish");
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
-		int bytes_available;
-		ioctl(fd, FIONREAD, &bytes_available);
-		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d. pending bytes: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded, bytes_available);
+		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
-		break;
 		//succeeded me lo paso por los huevos
 		// bueno, esta bien
 		// TODO: replanificar
@@ -462,8 +458,8 @@ void initialize() {
 	nodesList = list_create();
 	workersDict = dictionary_create();
 	mastersDict = dictionary_create();
-//	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-//	log_debug(logger, "Connected to FS");
+	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	log_debug(logger, "Connected to FS");
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }

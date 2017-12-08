@@ -47,11 +47,10 @@
 t_log *logger;
 worker_configuration configuration;
 
-
-int main() {
+int main(int argc, char **argv) {
 	char * logFile = "/home/utnso/logFile";
 	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
-	loadConfiguration();
+	loadConfiguration(argc > 1 ? argv[1] : NULL);
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
@@ -62,14 +61,14 @@ int main() {
 }
 
 
-void loadConfiguration() {
-	configuration = fetchConfiguration("../conf/nodeConf.txt");
+void loadConfiguration(char *configFile) {
+	configuration = fetchConfiguration(configFile != NULL ? configFile : "../conf/nodeConf.txt");
 }
 
 void signalHandler(int signo) {
 	if (signo == SIGUSR1) {
 		logDebug("SIGUSR1 - Reloading configuration");
-		loadConfiguration();
+		loadConfiguration(NULL);
 	}
 }
 
@@ -424,11 +423,15 @@ void connectionHandler(int client_sock){
 
 			char *registerToSend = malloc(maxLineSize);
 			while (1) {
-//				log_debug(logger, "Esperando pedido...");
-				int clientCode = 0;
-				recv(client_sock, &clientCode, sizeof(int), 0);
+				log_debug(logger, "Esperando pedido...");
+				int clientCode = 666, receivedBytes;
+				receivedBytes = recv(client_sock, &clientCode, sizeof(int), 0);
+
+				if (receivedBytes != sizeof(int)) {
+					log_error(logger, "Recibi bytes de menos (%d)", receivedBytes);
+				}
 				if (clientCode == REGISTER_REQUEST) {
-//					log_debug(logger, "Se recibio REGISTER_REQUEST.");
+					log_debug(logger, "Se recibio REGISTER_REQUEST.");
 					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
 						strcpy(registerToSend, "NULL");
 						int registerSize = strlen(registerToSend);
@@ -438,13 +441,14 @@ void connectionHandler(int client_sock){
 						break;
 					} else {
 						int registerSize = strlen(registerToSend);
-//						log_debug(logger,"Linea: %s \n", registerToSend);
+						log_debug(logger,"Linea: %s \n", registerToSend);
 						send(client_sock, &registerSize, sizeof(int), 0);
 						send(client_sock, registerToSend, registerSize + 1, 0);
 					}
 
 				} else {
-					log_error(logger, "Hubo un problema.");
+					log_error(logger, "Hubo un problema. clientCode: %d", clientCode);
+					exit(1);
 				}
 			}
 			free(registerToSend);
@@ -583,19 +587,19 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 void registerReceiver(char *buffer, int sockfd) {
-//	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
+	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
 	int requestCode = REGISTER_REQUEST;
-//	log_debug(logger, "workerFD: %d \n", sockfd);
+	log_debug(logger, "workerFD: %d \n", sockfd);
 	send(sockfd, &requestCode, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando registerLength.");
+	log_debug(logger, "Esperando registerLength.");
 	int registerLength = 0;
 	recv(sockfd, &registerLength, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando buffer.");
+	log_debug(logger, "Esperando buffer.");
 	recv(sockfd, buffer, registerLength + 1, 0);
 
-//	log_debug(logger, "Se recibio lectura sin problemas.");
+	log_debug(logger, "Se recibio lectura sin problemas.");
 	return;
 }
 
