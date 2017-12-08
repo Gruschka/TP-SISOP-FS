@@ -153,6 +153,8 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 		if (pthread_create(&thread, NULL, master_transform_connectToWorkerAndMakeRequest, request)) {
 			//FIXME: (Fede) acá hay error
 		}
+
+
 	}
 
 	free(currentNodeID);

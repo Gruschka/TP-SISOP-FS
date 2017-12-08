@@ -11,6 +11,5 @@
 #include <semaphore.h>
 
 extern int yamaSocket;
-extern sem_t yamaSocketSem;
 
 #endif /* YAMA_SOCKET_H_ */
