@@ -27,7 +27,6 @@
 
 #include <unistd.h>
 
-#define THREADSTACK  65536
 // Setup
 // Al iniciar, comunicarse con YAMA e indicarle el archivo
 // sobre el cual quiero operar.
