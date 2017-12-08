@@ -17,6 +17,7 @@
 
 #define MAXEVENTS 64
 
+
 int ipc_getNextOperationId(int socket) {
 	char type;
 	char buffer[sizeof(char)];
@@ -177,142 +178,76 @@ int create_and_bind (char *port) {
   return sfd;
 }
 
+bool is_connected(int socket) {
+	char buffer[1];
+	return recv(socket, buffer, sizeof buffer, MSG_PEEK) > 0;
+}
+
 int ipc_createEpollServer(char *port, EpollConnectionEventHandler newConnectionHandler, EpollIncomingDataEventHandler incomingDataHandler, EpollDisconnectionEventHandler disconnectionHandler) {
-  int sfd, s;
-  int efd;
-  struct epoll_event event;
-  struct epoll_event *events;
+	int listeningSocket;
 
-  sfd = create_and_bind (port);
-  if (sfd == -1) return -1;
+	listeningSocket = create_and_bind (port);
 
-  s = make_socket_non_blocking (sfd);
-  if (s == -1) return -1;
+	if (listeningSocket == -1) return -1;
 
-  s = listen (sfd, SOMAXCONN);
-  if (s == -1) { return -1; }
+	if (make_socket_non_blocking (listeningSocket) == -1) return -1;
 
-  efd = epoll_create1 (0);
-  if (efd == -1)
-    {
-      perror ("epoll_create");
-      abort ();
-    }
+	if (listen (listeningSocket, SOMAXCONN) == -1) { return -1; }
 
-  event.data.fd = sfd;
-  event.events = EPOLLIN | EPOLLET;
-  s = epoll_ctl (efd, EPOLL_CTL_ADD, sfd, &event);
-  if (s == -1)
-    {
-      perror ("epoll_ctl");
-      abort ();
-    }
+	int i, new_fd, max_fd = listeningSocket;
+	fd_set master, read_fds;
 
-  /* Buffer where events are returned */
-  events = calloc (MAXEVENTS, sizeof event);
+	FD_ZERO(&master);
+	FD_ZERO(&read_fds);
+	FD_SET(listeningSocket, &master);
 
-  /* The event loop */
-  while (1)
-    {
-      int n, i;
+	while (1) {
+		read_fds = master;
 
-      n = epoll_wait (efd, events, MAXEVENTS, -1);
-      for (i = 0; i < n; i++)
-	{
-	  if ((events[i].events & EPOLLERR) ||
-              (events[i].events & EPOLLHUP) ||
-              (!(events[i].events & EPOLLIN)))
-	    {
-              /* An error has occured on this fd, or the socket is not
-                 ready for reading (why were we notified then?) */
-	      fprintf (stderr, "epoll error\n");
-	      close (events[i].data.fd);
-	      continue;
-	    }
+		if (select(max_fd + 1, &read_fds, NULL, NULL, NULL) == -1) {
+			printf("error en el select");
+			fflush(stdout);
+			exit(1);
+		}
 
-	  else if (sfd == events[i].data.fd)
-	    {
-              /* We have a notification on the listening socket, which
-                 means one or more incoming connections. */
-              while (1)
-                {
-                  struct sockaddr in_addr;
-                  socklen_t in_len;
-                  int infd;
-                  char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
+		for(i = 0 ; i <= max_fd ; i++) {
+			if (FD_ISSET(i, &read_fds)) // buscar los seteados
+			{
+				if (i == listeningSocket)
+				{
+					new_fd = accept(listeningSocket,NULL,0); // si es el escucha se tiene un nuevofd
+					newConnectionHandler(new_fd);
+					FD_SET(new_fd, &master);
 
-                  in_len = sizeof in_addr;
-                  infd = accept (sfd, &in_addr, &in_len);
-                  if (infd == -1)
-                    {
-                      if ((errno == EAGAIN) ||
-                          (errno == EWOULDBLOCK))
-                        {
-                          /* We have processed all incoming
-                             connections. */
-                          break;
-                        }
-                      else
-                        {
-                          perror ("accept");
-                          break;
-                        }
-                    }
+					if (new_fd > max_fd) // chequear si el nuevo fd es mas grande que el maximo
+					{
+						max_fd = new_fd;
+					}
+				}
 
-                  s = getnameinfo (&in_addr, in_len,
-                                   hbuf, sizeof hbuf,
-                                   sbuf, sizeof sbuf,
-                                   NI_NUMERICHOST | NI_NUMERICSERV);
+				if(i != listeningSocket) // si no son los socket especiales es un mensaje...
+				{
+					if(is_connected(i))  	//si el socket sigue estando conectado
+					{
+						ipc_struct_header *header = malloc(sizeof(ipc_struct_header));
+						int receivedBytes = recv(i, header, sizeof(ipc_struct_header), MSG_PEEK);
 
-                  /* Make the incoming socket non-blocking and add it to the
-                     list of fds to monitor. */
-                  s = make_socket_non_blocking (infd);
-                  if (s == -1)
-                    abort ();
+						if (receivedBytes == sizeof(ipc_struct_header)) {
+							incomingDataHandler(i, *header);
+							free(header);
+						} else {
+							printf("error en el read");
+							fflush(stdout);
+						}
+					} else { //se desconecto
+						close(i);
+						disconnectionHandler(i);
+						FD_CLR(i, &master);
+					}
+				}
+			} // fin actividad en socket
+		} // fin for
+	}
 
-                  event.data.fd = infd;
-                  event.events = EPOLLIN | EPOLLET;
-                  s = epoll_ctl (efd, EPOLL_CTL_ADD, infd, &event);
-                  newConnectionHandler(infd);
-                  if (s == -1)
-                    {
-                      perror ("epoll_ctl");
-                      abort ();
-                    }
-                }
-              continue;
-            }
-          else
-            {
-              /* We have data on the fd waiting to be read. Read and
-                 display it. We must read whatever data is available
-                 completely, as we are running in edge-triggered mode
-                 and won't get a notification again for the same
-                 data. */
-              void *buffer = malloc(sizeof(ipc_struct_header));
-              ssize_t count;
-              count = recv(events[i].data.fd, buffer, sizeof(ipc_struct_header), MSG_PEEK);
-
-              if (count == sizeof(ipc_struct_header)) {
-            	  ipc_struct_header *header = malloc(sizeof(ipc_struct_header));
-            	  memcpy(header, buffer, sizeof(ipc_struct_header));
-            	  incomingDataHandler(events[i].data.fd, *header);
-            	  free(header);
-              } else if (count == 0) {
-            	  disconnectionHandler(events[i].data.fd);
-              } else {
-            	  // Manejar error
-            	  printf("manejar");
-              }
-
-              free(buffer);
-            }
-        }
-    }
-
-  free (events);
-
-  close (sfd);
-
-  return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }

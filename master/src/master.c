@@ -12,6 +12,7 @@
 #include <commons/config.h>
 #include <commons/log.h>
 #include <semaphore.h>
+#include <pthread.h>
 
 #include <string.h>
 #include <ipc/ipc.h>
@@ -80,20 +81,72 @@
 // TODO: métricas
 // TODO: logs
 
-int yamaSocket;
+int yamaSocket, totalBytesSent = 0;
 sem_t yamaSocketSem;
 
 t_log *master_log;
 char *transformScript;
 char *reduceScript;
 
+
+void *testThread(void *notification) {
+	ipc_struct_yama_notify_stage_finish *notif = (ipc_struct_yama_notify_stage_finish *)notification;
+	sem_wait(&yamaSocketSem);
+	totalBytesSent += ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notif);
+	log_debug(master_log, "sendMessage: %s", notif->nodeID);
+	sem_post(&yamaSocketSem);
+	return NULL;
+}
+
+void test() {
+	sem_init(&yamaSocketSem, 0, 1);
+	master_log = log_create("log.txt", "master", 1, LOG_LEVEL_DEBUG);
+	// Inicializo IPC
+	log_debug(master_log, "Inicializando librería IPC.");
+	serialization_initialize();
+
+	// Levanto la config
+	log_debug(master_log, "Levantando archivo de configuración.");
+	t_config *config = config_create("conf/master.conf");
+	int yamaPort = config_get_int_value(config, "YAMA_PUERTO");
+	char *yamaIP = strdup(config_get_string_value(config, "YAMA_IP"));
+	config_destroy(config);
+
+	log_debug(master_log, "Conectando con YAMA...");
+	yamaSocket = ipc_createAndConnect(yamaPort, yamaIP);
+	log_debug(master_log, "Conectado a YAMA correctamente.");
+
+	pthread_t *threads = malloc(sizeof(pthread_t) * 60);
+	int i;
+	for (i = 0; i < 60; i++) {
+		ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
+
+		char *nodeID = malloc(3);
+		sprintf(nodeID, "%d", i);
+		notification->nodeID = nodeID;
+		notification->succeeded = 1;
+		notification->tempPath = nodeID;
+
+
+		pthread_create(threads + i, NULL, testThread, notification);
+	}
+
+	for (i = 0; i < 60; i++) {
+		pthread_t *thread = threads + i;
+		pthread_join(*thread, NULL);
+	}
+}
+
 int main(int argc, char **argv) {
+	test();
+	printf("totalBytesSent: %d", totalBytesSent);
+	fflush(stdout);
+	while(1) {}
+	return EXIT_SUCCESS;
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
 		return EXIT_FAILURE;
 	}
-
-	sem_init(&yamaSocketSem, 0, 1);
 
 	// Levanto los argumentos
 	char *transformScriptPath = argv[1];

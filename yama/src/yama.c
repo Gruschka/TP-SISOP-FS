@@ -15,6 +15,7 @@
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
 #include <arpa/inet.h>
+#include <sys/ioctl.h>
 #include <string.h>
 #include "yama.h"
 #include "configuration.h"
@@ -189,7 +190,6 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 	return NULL;
 }
 
-
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = filePath;
@@ -232,6 +232,17 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	return response;
 }
 
+void dumpExecutionPlan(ExecutionPlan *executionPlan) {
+	log_debug(logger, "ExecutionPlan:");
+	log_debug(logger, "i | blockID | workerID");
+
+	int i;
+	for (i = 0; i < list_size(executionPlan->entries); i++) {
+		ExecutionPlanEntry *entry = executionPlan->entries + i;
+		log_debug(logger, "%d |   %d   |   %s  ", i, entry->blockID, entry->workerID);
+	}
+}
+
 ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
 	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 
@@ -251,8 +262,6 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
 		responseEntry->workerPort = workerInfo->port;
-
-		log_debug(logger, "[ExecutionPlan] i: %d. blockID: %d. workerID: %s", i, epEntry->blockID, epEntry->workerID);
 	}
 
 	return response;
@@ -295,16 +304,23 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+		dumpExecutionPlan(executionPlan);
 		trackTransformationResponseInStateTable(response, fd);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
+		free(response);
+		free(executionPlan);
+		free(fileInfo);
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
 		log_debug(logger, "transform_finish");
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
-		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
+		int bytes_available;
+		ioctl(fd, FIONREAD, &bytes_available);
+		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d. pending bytes: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded, bytes_available);
 
+		break;
 		//succeeded me lo paso por los huevos
 		// bueno, esta bien
 		// TODO: replanificar
@@ -415,6 +431,8 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
 
 		free(request);
+		free(workerInfo);
+		free(globalReductionFinish);
 		break;
 	}
 	case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
@@ -431,7 +449,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Waiting for masters");
+	log_debug(logger, "Waiting for masters on port %d", configuration.serverPort);
 	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
@@ -444,8 +462,8 @@ void initialize() {
 	nodesList = list_create();
 	workersDict = dictionary_create();
 	mastersDict = dictionary_create();
-	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-	log_debug(logger, "Connected to FS");
+//	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+//	log_debug(logger, "Connected to FS");
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
