@@ -108,7 +108,10 @@ int localReductionIsFinished(uint32_t jobID) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (currentEntry->jobID == jobID && currentEntry->stage == LOCAL_REDUCTION) {
-			if (currentEntry->status != FINISHED_OK) return 0;
+			if (currentEntry->status != FINISHED_OK) {
+				pthread_mutex_unlock(&stateTable_mutex);
+				return 0;
+			}
 		}
 	}
 
@@ -124,6 +127,7 @@ int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 
 		if (currentEntry->jobID == jobID && currentEntry->stage == stage && stringsAreEqual(currentEntry->nodeID, nodeID)){
 			if(currentEntry->status != FINISHED_OK) {
+				pthread_mutex_unlock(&stateTable_mutex);
 				return 0;
 			}
 		}
@@ -140,6 +144,7 @@ uint32_t getJobIDForTempPath(char *tempPath) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (stringsAreEqual(tempPath, currentEntry->tempPath)) {
+			pthread_mutex_unlock(&stateTable_mutex);
 			return currentEntry->jobID;
 		}
 	}
@@ -182,6 +187,7 @@ yama_state_table_entry *getEntry(char *nodeID, char *tempPath) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (stringsAreEqual(currentEntry->nodeID, nodeID) && stringsAreEqual(currentEntry->tempPath, tempPath)) {
+			pthread_mutex_unlock(&stateTable_mutex);
 			return currentEntry;
 		}
 	}
@@ -371,6 +377,19 @@ void freeFileInfoResponse(ipc_struct_fs_get_file_info_response *response) {
 	free(response);
 }
 
+void freeContinueWithGlobalReductionRequest(ipc_struct_master_continueWithGlobalReductionRequest *request) {
+	int i = 0;
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
+		free(currentEntry->globalReduceTempPath);
+		free(currentEntry->localReduceTempPath);
+		free(currentEntry->nodeID);
+		free(currentEntry->workerIP);
+	}
+	free(request->entries);
+	free(request);
+}
+
 void incomingDataHandler(int fd, ipc_struct_header header) {
 	switch (header.type) {
 	case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
@@ -436,6 +455,10 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 			free(localReduceTempPath);
 		}
 
+		free(transformFinish->nodeID);
+		free(transformFinish->tempPath);
+		free(transformFinish);
+
 		break;
 	}
 	case YAMA_NOTIFY_LOCAL_REDUCTION_FINISH: {
@@ -479,10 +502,12 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST, request);
 			list_destroy(entriesToReduce);
-			free(request);
+			freeContinueWithGlobalReductionRequest(request);
 			free(globalReduceTempPath);
 		}
 
+		free(localReductionFinish->nodeID);
+		free(localReductionFinish->tempPath);
 		free(localReductionFinish);
 		break;
 	}
@@ -503,8 +528,15 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
 
+		free(request->globalReductionTempPath);
+		free(request->nodeID);
+		free(request->workerIP);
 		free(request);
+		free(workerInfo->id);
+		free(workerInfo->ip);
 		free(workerInfo);
+		free(globalReductionFinish->nodeID);
+		free(globalReductionFinish->tempPath);
 		free(globalReductionFinish);
 		break;
 	}
