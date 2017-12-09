@@ -75,8 +75,11 @@ int fs_console_validateOp(char * newLine) {
     char **parameter_list = string_split(newLine," ");
     int sizeof_parameter_list = cantidadDe(parameter_list);
 
-	char *operation = malloc(sizeof(parameter_list[0]));
-	memset(operation, 0, sizeof(parameter_list[0]));
+//	char *operation = malloc(sizeof(parameter_list[0]));
+//	memset(operation, 0, sizeof(parameter_list[0]));
+//	strcpy(operation, parameter_list[0]);
+
+	char *operation = malloc(strlen(parameter_list[0])+1);
 	strcpy(operation, parameter_list[0]);
 	//operation = fs_console_getOpFromInput(newLine);
 

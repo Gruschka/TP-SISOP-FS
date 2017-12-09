@@ -501,6 +501,7 @@ int fs_mkdir(char *directoryPath) {
 				// se aborta la creacion
 				log_error(logger,
 						"fs_mkdir: parent directory for directory to create doesnt exist");
+				free(root);
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
 				return EXIT_FAILURE;
 			}
@@ -508,12 +509,14 @@ int fs_mkdir(char *directoryPath) {
 			if (iterator == amountOfDirectories) {
 				// dir exists, abort
 				log_error(logger, "fs_mkdir: directory already exists");
+				free(root);
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
 				return EXIT_FAILURE;
 			}
 		}
 	}
 	fs_destroyAnArrayOfCharPointers(splitDirectory);
+	free(root);
 	return EXIT_SUCCESS;
 
 }
@@ -1105,6 +1108,7 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 
 			checkStatus = write(new_socket,serializedOperation,serializedOperationSize);
 			checkStatus = write(new_socket,serializedOperation,serializedOperationSize); // porque pue2
+			free(serializedOperation);
 
 			if(checkStatus == -1){
 			    printf("Oh dear, something went wrong with write()! %s\n", strerror(errno));
@@ -1425,7 +1429,7 @@ int fs_updateNodeTable(t_dataNode aDataNode) {
 	char *bloquesLibresFinal = string_from_format("%d", aDataNode.freeBlocks); //Pasa la cantidad de bloques libres a string
 
 	//Crea el string Nodo+Total=
-	char *total = malloc(strlen(nombreAux2) + strlen("Total="));
+	char *total = malloc(strlen(nombreAux2) + strlen("Total=")+1);
 	sprintf(total, "%s%s", nombreAux2, "Total=");
 	char *bloquesTotalesFinal = string_from_format("%d",
 			aDataNode.amountOfBlocks); //Pasa la cantidad de bloques libres a string
@@ -2374,27 +2378,11 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 	int amountOfNodes = list_size(connectedNodes);
 	int i;
 	t_dataNode *aux = NULL;
-	t_threadOperation *operation = malloc(sizeof(t_threadOperation));
-	int *result;
 	for(i = 0; i < amountOfNodes ; i++){
 		aux = list_get(connectedNodes, i);
 		if(!strcmp(aDataNode.name, aux->name)){
-			operation->operationId = 2; //check status
-			queue_push(aux->operationsQueue,operation);
-			sem_post(aux->threadSemaphore);
-			sem_wait(aux->resultSemaphore);
-			result = queue_pop(aux->resultsQueue);
-			if(*result){
-				free(result);
-				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is already connected", aDataNode.name);
-				return DATANODE_ALREADY_CONNECTED;
-			}else{
-				free(result);
-				fs_removeNodeFromConnectedNodeList(aDataNode);
-				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is not already connected", aDataNode.name);
-
-				return 0; // not connected
-			}
+			log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is already connected", aDataNode.name);
+			return DATANODE_ALREADY_CONNECTED;
 		}
 	}
 	log_debug(logger, "Node:[%s] isnt already connected to FS", aDataNode.name);
@@ -2702,9 +2690,9 @@ int fs_deleteFileFromIndex(char *path){
 int fs_deleteBlockFromMetadata(char *path,int block, int copy){
 
 	char* inFileName = path;
-	char* outFileName = string_from_format("%s.tmp",path);
-	FILE* inFile = fopen(inFileName, "r");
-	FILE* outFile = fopen(outFileName, "w+");
+	char* outFileName = string_from_format("%s.tmp",path); //freed
+	FILE* inFile = fopen(inFileName, "r"); //closed
+	FILE* outFile = fopen(outFileName, "w+"); //closed
 	char line [1024]; // maybe you have to user better value here
 	memset(line,0,1024);
 	int lineCount = 0;
@@ -2715,7 +2703,7 @@ int fs_deleteBlockFromMetadata(char *path,int block, int copy){
 	}
 
 
-	char *blockAndCopyString = string_from_format("BLOQUE%dCOPIA%d",block,copy);
+	char *blockAndCopyString = string_from_format("BLOQUE%dCOPIA%d",block,copy); //freed
 	int blockAndCopyStringLength = strlen(blockAndCopyString);
 	char *auxiliaryString;
 
@@ -2743,11 +2731,13 @@ int fs_deleteBlockFromMetadata(char *path,int block, int copy){
 	if( !rename(outFileName,inFileName ) )
 	{
 	    log_error(logger,"Rename Error");
+	    free(outFileName);
+		free(blockAndCopyString);
 	    return EXIT_FAILURE;
 	}
 
 	free(blockAndCopyString);
-
+    free(outFileName);
 	return EXIT_SUCCESS;
 }
 
@@ -3139,7 +3129,7 @@ void *fs_readFile(char *filePath){
 		void *buffer = queue_pop(target->resultsQueue);
 		memcpy(result+offset,buffer,blockSizes[iterator]);
 		offset+= blockSizes[iterator];
-		log_debug(logger,"READ: Had to read: [%d] bytes from block [%d] and read [%d] instead. In result: [%d]  offset: [%d]", blockSizes[iterator],iterator,strlen(buffer), strlen(result), offset);
+		//log_debug(logger,"READ: Had to read: [%d] bytes from block [%d] and read [%d] instead. In result: [%d]  offset: [%d]", blockSizes[iterator],iterator,strlen(buffer), strlen(result), offset);
 		free(buffer);
 		iterator++;
 	}
@@ -3245,7 +3235,7 @@ int fs_downloadFile(char *yamaFilePath, char *destDirectory){
 		close(dir);
 		return EXIT_FAILURE;
 	}
-	close(dir);
+	closedir(dir);
 
 	//traigo el contenido
 	char *fileContent = fs_readFile(yamaFilePath);
