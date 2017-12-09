@@ -209,27 +209,39 @@ int fs_rm_dir(char *dirPath) {
 int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) {
 	printf("removing block %d whose copy is block %d from file %s\n",
 			blockNumberToRemove, numberOfCopyBlock, filePath);
-
+	int iterator = 0;
 	// get parent path
-	char **splitPath = string_split(filePath,"/");
+	char **splitPath = string_split(filePath,"/"); //freed
 	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
 	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
 
-	char *parentPath = strdup(filePath);
+	char *parentPath = strdup(filePath); //Freed
 	parentPath[strlen(parentPath)-fileNameLength] = 0;
 
 	//check parent path exists and get parent dir
 	t_directory *parent = fs_directoryExists(parentPath);
 	if(!parent){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
 		log_error(logger,"fs_rm: directory doesnt exist");
 		return EXIT_FAILURE;
 	}
 
 	//check file exists
 	//transform path to physical path
-	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
-	FILE *fileMetadata = fopen(physicalPath,"r+");
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]); //Freed
+	FILE *fileMetadata = fopen(physicalPath,"r+"); //closed
 	if(!fileMetadata){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
 		log_error(logger,"fs_rm: file doesnt exist");
 		return EXIT_FAILURE;
 	}
@@ -239,6 +251,14 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 	ipc_struct_fs_get_file_info_response_entry *blockArray = fs_getFileBlockTuples(physicalPath);
 
 	if(blockNumberToRemove > amountOfBlocks){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
+		fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
 		log_error(logger,"block number to remove does not exist");
 		return EXIT_FAILURE;
 	}
@@ -264,12 +284,34 @@ int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) 
 			fs_cleanBlockFromDataNode(targetDataNode,blockCopyNumber);
 		}
 	}else{
+		iterator = 0;
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		fclose(fileMetadata);
+		free(splitPath);
+		free(physicalPath);
+		free(parentPath);
+		free(dataNode.name);
+		free(dataNodeCopy.name);
+		fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
+
 		log_error(logger,"not enough copies of the block to perform rm operation");
 		return EXIT_FAILURE;
 	}
 
 	fs_deleteBlockFromMetadata(physicalPath,blockNumberToRemove,numberOfCopyBlock);
-
+	iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+	fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
+	fclose(fileMetadata);
+	free(splitPath);
+	free(physicalPath);
+	free(parentPath);
 	free(dataNode.name);
 	free(dataNodeCopy.name);
 
@@ -410,18 +452,16 @@ int fs_cat(char *filePath) {
 }
 int fs_mkdir(char *directoryPath) {
 
-	char *formattedDirectoryPath = fs_removeYamafsFromPath(directoryPath);
-
 	if(myFS.amountOfDirectories == DIRECTORY_TABLE_MAX_AMOUNT){
-		log_error(logger,"fs_mkdir: Directory table max amount reached. Aborting mkdir for directory %s", formattedDirectoryPath);
+		log_error(logger,"fs_mkdir: Directory table max amount reached. Aborting mkdir for directory %s", directoryPath);
 		return EXIT_FAILURE;
 	}
 
-	log_info(logger,"fs_mkdir: Creating directory c %s\n", formattedDirectoryPath);
+	log_info(logger,"fs_mkdir: Creating directory c %s\n", directoryPath);
 
-	if(!fs_directoryStartsWithSlash(formattedDirectoryPath)){
+	if(!fs_directoryStartsWithSlash(directoryPath)){
 		log_error(logger,"fs_mkdir: Directory must start with '/'");
-		free(formattedDirectoryPath);
+		free(directoryPath);
 		return EXIT_FAILURE;
 	}
 
@@ -430,7 +470,7 @@ int fs_mkdir(char *directoryPath) {
 	strcpy(root->name, "root");
 	root->parent = -1;
 
-	char **splitDirectory = string_split(formattedDirectoryPath, "/");
+	char **splitDirectory = string_split(directoryPath, "/");
 	int amountOfDirectories = fs_amountOfElementsInArray(splitDirectory);
 
 	int iterator = 0;
@@ -462,7 +502,6 @@ int fs_mkdir(char *directoryPath) {
 				log_error(logger,
 						"fs_mkdir: parent directory for directory to create doesnt exist");
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
-				free(formattedDirectoryPath);
 				return EXIT_FAILURE;
 			}
 		} else {
@@ -470,13 +509,11 @@ int fs_mkdir(char *directoryPath) {
 				// dir exists, abort
 				log_error(logger, "fs_mkdir: directory already exists");
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
-				free(formattedDirectoryPath);
 				return EXIT_FAILURE;
 			}
 		}
 	}
 	fs_destroyAnArrayOfCharPointers(splitDirectory);
-	free(formattedDirectoryPath);
 	return EXIT_SUCCESS;
 
 }
@@ -603,6 +640,7 @@ int fs_md5(char *filePath) {
 	system(command);
 
 	free(command);
+	free(result);
 	return 0;
 
 }
@@ -2788,10 +2826,15 @@ void fs_destroyNodeTupleArray(ipc_struct_fs_get_file_info_response_entry *tuple,
 
 	for(i = 0; i < arrayLength ; i++){
 //		log_debug(logger,"fs_FreeTuple: Freeing tuple: [%s - %d] | [%s  - %d]",tuple[i].firstCopyNodeID, tuple[i].firstCopyBlockID, tuple[i].secondCopyNodeID, tuple[i].secondCopyBlockID);
-		free(tuple[i].firstCopyNodeID);
-		free(tuple[i].secondCopyNodeID);
-		free(tuple[i].firstCopyNodeIP);
-		free(tuple[i].secondCopyNodeIP);
+		if(tuple[i].firstCopyNodeID != NULL){
+			free(tuple[i].firstCopyNodeID);
+			free(tuple[i].firstCopyNodeIP);
+		}
+
+		if(tuple[i].secondCopyNodeID != NULL){
+			free(tuple[i].secondCopyNodeID);
+			free(tuple[i].secondCopyNodeIP);
+		}
 	}
 
 	free(tuple);
@@ -2849,7 +2892,7 @@ char *fs_isAFile(char *path){
 char *fs_isFileContainedBy(char *filePhysicalPath, t_directory *parent){
 	char **splitPath = string_split(filePhysicalPath,"/");
 	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
-	int parentIndex = strlen(splitPath[splitPathElementCount-2]);
+	int parentIndex = atoi(splitPath[splitPathElementCount-2]);
 	int returnValue = 0;
 
 	if(parentIndex == parent->index){
@@ -3037,6 +3080,7 @@ void *fs_readFile(char *filePath){
 	t_threadOperation *operation;
 	t_dataNode **readOrder = malloc(sizeof(t_dataNode*)*amountOfBlocks);
 
+
 	while(iterator<amountOfBlocks){
 		if(blockArray[iterator].firstCopyNodeID != NULL){
 			first = fs_getNodeFromNodeName(blockArray[iterator].firstCopyNodeID);
@@ -3052,6 +3096,9 @@ void *fs_readFile(char *filePath){
 		target = fs_pickNodeToSendRead(first,copy);
 
 		if(target == NULL){
+			free(readOrder);
+			free(physicalPath);
+			fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
 			log_error(logger,"no nodes to send read operation");
 			return NULL;
 		}
@@ -3097,6 +3144,9 @@ void *fs_readFile(char *filePath){
 		iterator++;
 	}
 	//log_info(logger,"file: %s",result);
+	free(physicalPath);
+	fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
+	free(readOrder);
 	return result;
 }
 int fs_createBitmapsOfAllConnectedNodes(){
