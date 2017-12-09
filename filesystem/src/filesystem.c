@@ -410,15 +410,18 @@ int fs_cat(char *filePath) {
 }
 int fs_mkdir(char *directoryPath) {
 
+	char *formattedDirectoryPath = fs_removeYamafsFromPath(directoryPath);
+
 	if(myFS.amountOfDirectories == DIRECTORY_TABLE_MAX_AMOUNT){
-		log_error(logger,"fs_mkdir: Directory table max amount reached. Aborting mkdir for directory %s", directoryPath);
+		log_error(logger,"fs_mkdir: Directory table max amount reached. Aborting mkdir for directory %s", formattedDirectoryPath);
 		return EXIT_FAILURE;
 	}
 
-	log_info(logger,"fs_mkdir: Creating directory c %s\n", directoryPath);
+	log_info(logger,"fs_mkdir: Creating directory c %s\n", formattedDirectoryPath);
 
-	if(!fs_directoryStartsWithSlash(directoryPath)){
+	if(!fs_directoryStartsWithSlash(formattedDirectoryPath)){
 		log_error(logger,"fs_mkdir: Directory must start with '/'");
+		free(formattedDirectoryPath);
 		return EXIT_FAILURE;
 	}
 
@@ -427,7 +430,7 @@ int fs_mkdir(char *directoryPath) {
 	strcpy(root->name, "root");
 	root->parent = -1;
 
-	char **splitDirectory = string_split(directoryPath, "/");
+	char **splitDirectory = string_split(formattedDirectoryPath, "/");
 	int amountOfDirectories = fs_amountOfElementsInArray(splitDirectory);
 
 	int iterator = 0;
@@ -459,6 +462,7 @@ int fs_mkdir(char *directoryPath) {
 				log_error(logger,
 						"fs_mkdir: parent directory for directory to create doesnt exist");
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
+				free(formattedDirectoryPath);
 				return EXIT_FAILURE;
 			}
 		} else {
@@ -466,11 +470,13 @@ int fs_mkdir(char *directoryPath) {
 				// dir exists, abort
 				log_error(logger, "fs_mkdir: directory already exists");
 				fs_destroyAnArrayOfCharPointers(splitDirectory);
+				free(formattedDirectoryPath);
 				return EXIT_FAILURE;
 			}
 		}
 	}
 	fs_destroyAnArrayOfCharPointers(splitDirectory);
+	free(formattedDirectoryPath);
 	return EXIT_SUCCESS;
 
 }
@@ -2084,9 +2090,11 @@ int fs_storeFile(char *fullFilePath, char *sourceFilePath, t_fileType fileType,
 	config_save(metadataFileConfig);
 	config_destroy(metadataFileConfig);
 	fclose(metadataFile);
+	free(fileSizeString);
 	iterator = 0;
 	fs_destroyPackageList(&packageList);
 	free(filePathWithName);
+	free(fileMetadataDirectory);
 	free(filePathWithNameAndNewline);
 	return EXIT_SUCCESS;
 
@@ -3323,4 +3331,13 @@ int fs_sumOfIntArray(int *array, int length){
 	}
 
 	return sum;
+}
+
+char *fs_removeYamafsFromPath(char *path){
+	int yamaFsLength = strlen("yamafs:");
+	char *strCopy = malloc(strlen(path)-yamaFsLength+1);
+
+	strcpy(strCopy,path+yamaFsLength);
+	return strCopy;
+
 }

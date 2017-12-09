@@ -179,6 +179,8 @@ int fs_createTempFileFromWorker(char *filePath, char *filecontent);
 int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode);
 int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks);
 int fs_sumOfIntArray(int *array, int length);
+char *fs_removeYamafsFromPath(char *path);
+
 
 //Console commands
 int fs_format();
