@@ -170,7 +170,7 @@ void dataNode_connectToFileSystem(t_dataNode dataNode) {
 			dataNode_setBlock(blockNumber,operationBuffer);
 		}else if(operationType == 0){
 			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
-			void *blockRead = malloc(BLOCK_SIZE);
+			void *blockRead;
 			blockRead = dataNode_getBlock(blockNumber);
 			send(sockfd, blockRead, BLOCK_SIZE, 0);
 			log_debug(logger,"Datanode %s mando %d bytes", myDataNode.config.nodeName, strlen(blockRead));

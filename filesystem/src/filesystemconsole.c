@@ -21,6 +21,7 @@ char* fs_console_getOpFromInput(char *userInput);
 void fs_console_launch();
 int fs_console_validateOp(char * newLine);
 char *fs_console_getNParameterFromUserInput(int paramNumber, char *userInput);
+int fs_console_destroyAnArrayOfCharPointers(char **array);
 
 int fs_console_operationEndedSuccessfully(int);
 t_log *logger;
@@ -52,7 +53,18 @@ void fs_console_launch() {
 
 	}
 }
+int fs_console_destroyAnArrayOfCharPointers(char **array){
 
+	int length = fs_amountOfElementsInArray(array);
+	int i = 0;
+	for(i = 0; i < length; i++){
+		free(array[i]);
+	}
+	free(array);
+	return EXIT_SUCCESS;
+
+
+}
 int fs_console_validateOp(char * newLine) {
 
 	if(strlen(newLine) == 0){
@@ -60,11 +72,14 @@ int fs_console_validateOp(char * newLine) {
 		return EXIT_FAILURE;
 	}
 
-    char** parameter_list = string_split(newLine," ");
+    char **parameter_list = string_split(newLine," ");
     int sizeof_parameter_list = cantidadDe(parameter_list);
 
-	char *operation = malloc(sizeof(parameter_list[0]));
-	memset(operation, 0, sizeof(parameter_list[0]));
+//	char *operation = malloc(sizeof(parameter_list[0]));
+//	memset(operation, 0, sizeof(parameter_list[0]));
+//	strcpy(operation, parameter_list[0]);
+
+	char *operation = malloc(strlen(parameter_list[0])+1);
 	strcpy(operation, parameter_list[0]);
 	//operation = fs_console_getOpFromInput(newLine);
 
@@ -203,8 +218,7 @@ int fs_console_validateOp(char * newLine) {
 
 
 	free(operation);
-	free(parameter_list);
-
+	fs_console_destroyAnArrayOfCharPointers(parameter_list);
 	return 1;
 
 }
