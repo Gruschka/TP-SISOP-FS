@@ -146,7 +146,7 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
 int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
-int fs_checNodeConnectionStatus(t_dataNode aDataNode);
+int fs_checkNodeConnectionStatus(t_dataNode aDataNode);
 
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath);
 ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePath);
@@ -179,6 +179,8 @@ int fs_createTempFileFromWorker(char *filePath, char *filecontent);
 int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode);
 int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks);
 int fs_sumOfIntArray(int *array, int length);
+char *fs_removeYamafsFromPath(char *path);
+
 
 //Console commands
 int fs_format();
