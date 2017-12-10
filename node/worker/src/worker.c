@@ -56,9 +56,20 @@ int main() {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
+		//Esto para test de apareo local
+		t_list * fileList = list_create();
+	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
+	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
+	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
+	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
+	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
+	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
+	 	list_add(fileList, testLocal1);
+	 	list_add(fileList, testLocal2);
 
+	 	pairingFiles(fileList, "/home/utnso/PairTest");
 
-	//createServer();
+	//createServer();s
 
 	return EXIT_SUCCESS;
 }
@@ -549,8 +560,17 @@ void pairingFiles(t_list *listToPair, char* resultName){
 		fflush(pairingResultFile);
 
 		if (fgets(filesCursors[fileIndex], maxLineSize, filesArray[fileIndex]) == NULL) {
-			filesCursors[fileIndex] = "NULL";
-			memset(lowerString, 255, maxLineSize - 1);
+			strcpy(filesCursors[fileIndex], "NULL");
+			log_debug(logger, "Llegue al final del archivo: %d", fileIndex);
+			int j;
+			for (j = 0; j < filesCount; j++) {
+				char *nextRegister = filesCursors[j];
+				if (strcmp(nextRegister, "NULL") != 0) {
+					fileIndex = j;
+					strcpy(lowerString, nextRegister);
+					break;
+				}
+			}
 			lowerString[maxLineSize - 1] = '\0';
 			pairedFilesCount++;
 		} else {
@@ -611,7 +631,6 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 					break;
 				}
 			}
-			lowerString[maxLineSize - 1] = '\0';
 			pairedFilesCount++;
 		} else {
 			strcpy(lowerString, filesCursors[fileIndex]);
