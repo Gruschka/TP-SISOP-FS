@@ -60,13 +60,20 @@ int main() {
 //		t_list * fileList = list_create();
 //	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
 //	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
+//	 	fileNode * testLocal3 = malloc(sizeof(fileNode));
+//	 	fileNode * testLocal4 = malloc(sizeof(fileNode));
 //	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
 //	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
+//	 	testLocal3->filePath = malloc (strlen("/home/utnso/Prueba3"));
+//	 	testLocal4->filePath = malloc (strlen("/home/utnso/Prueba4"));
 //	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
 //	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
+//	 	strcpy(testLocal3->filePath, "/home/utnso/Prueba3");
+//	 	strcpy(testLocal4->filePath, "/home/utnso/Prueba4");
 //	 	list_add(fileList, testLocal1);
 //	 	list_add(fileList, testLocal2);
-//
+//	 	list_add(fileList, testLocal3);
+//	 	list_add(fileList, testLocal4);
 //	 	pairingFiles(fileList, "/home/utnso/PairTest");
 
 	createServer();
