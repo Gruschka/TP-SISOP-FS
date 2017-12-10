@@ -57,19 +57,19 @@ int main() {
 			return EXIT_FAILURE;
 		}
 		//Esto para test de apareo local
-		t_list * fileList = list_create();
-	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
-	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
-	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
-	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
-	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
-	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
-	 	list_add(fileList, testLocal1);
-	 	list_add(fileList, testLocal2);
+//		t_list * fileList = list_create();
+//	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
+//	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
+//	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
+//	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
+//	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
+//	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
+//	 	list_add(fileList, testLocal1);
+//	 	list_add(fileList, testLocal2);
+//
+//	 	pairingFiles(fileList, "/home/utnso/PairTest");
 
-	 	pairingFiles(fileList, "/home/utnso/PairTest");
-
-	//createServer();s
+	createServer();
 
 	return EXIT_SUCCESS;
 }
@@ -122,55 +122,54 @@ void *createServer() {
 	c = sizeof(struct sockaddr_in);
 
 
-	//Esto es para probar Apareo Global
-	if ((strcmp(configuration.NodeName, "Nodo1")) == 0){
-		fileGlobalNode * worker2 = malloc(sizeof(fileGlobalNode));
-		worker2->port = 5100;
-		worker2->sockfd = connectToWorker("127.0.0.1", worker2->port);
-		int slaveWorker = SLAVE_WORKER;
-		send(worker2->sockfd, &slaveWorker, sizeof(int), 0);
-		worker2->workerNameLength = strlen("Nodo2");
-		worker2->workerName = malloc(worker2->workerNameLength);
-		strcpy(worker2->workerName, "Nodo2");
-		worker2->filePathLength = strlen("/home/utnso/Prueba1");
-		worker2->filePath = malloc(worker2->filePathLength);
-		strcpy(worker2->filePath, "/home/utnso/Prueba1");
-		send(worker2->sockfd, &(worker2->filePathLength), sizeof(int), 0);
-		send(worker2->sockfd, worker2->filePath, worker2->filePathLength,0);
+//	//Esto es para probar Apareo Global
+//	if ((strcmp(configuration.NodeName, "Nodo1")) == 0){
+//		fileGlobalNode * worker2 = malloc(sizeof(fileGlobalNode));
+//		worker2->port = 5100;
+//		worker2->sockfd = connectToWorker("127.0.0.1", worker2->port);
+//		int slaveWorker = SLAVE_WORKER;
+//		send(worker2->sockfd, &slaveWorker, sizeof(int), 0);
+//		worker2->workerNameLength = strlen("Nodo2");
+//		worker2->workerName = malloc(worker2->workerNameLength);
+//		strcpy(worker2->workerName, "Nodo2");
+//		worker2->filePathLength = strlen("/home/utnso/Prueba1");
+//		worker2->filePath = malloc(worker2->filePathLength);
+//		strcpy(worker2->filePath, "/home/utnso/Prueba1");
+//		send(worker2->sockfd, &(worker2->filePathLength), sizeof(int), 0);
+//		send(worker2->sockfd, worker2->filePath, worker2->filePathLength,0);
+//
+//
+//		fileGlobalNode * worker3 = malloc(sizeof(fileGlobalNode));
+//		worker3->port = 5300;
+//		worker3->sockfd = connectToWorker("127.0.0.1", worker3->port);
+//		send(worker3->sockfd, &slaveWorker, sizeof(int), 0);
+//		worker3->workerNameLength = strlen("Nodo3");
+//		worker3->workerName = malloc(worker2->workerNameLength);
+//		strcpy(worker3->workerName, "Nodo3");
+//		worker3->filePathLength = strlen("/home/utnso/Prueba2");
+//		worker3->filePath = malloc(worker2->filePathLength);
+//		strcpy(worker3->filePath, "/home/utnso/Prueba2");
+//		send(worker3->sockfd, &(worker3->filePathLength), sizeof(int), 0);
+//		send(worker3->sockfd, worker3->filePath, worker3->filePathLength,0);
+//
+//
+//		t_list * listaApareoGlobal = list_create();
+//		list_add(listaApareoGlobal, worker2);
+//		list_add(listaApareoGlobal, worker3);
+//		pairingGlobalFiles(listaApareoGlobal, "/home/utnso/resultadoPruebaGlobal");
+//
+//	} else {
 
-
-		fileGlobalNode * worker3 = malloc(sizeof(fileGlobalNode));
-		worker3->port = 5300;
-		worker3->sockfd = connectToWorker("127.0.0.1", worker3->port);
-		send(worker3->sockfd, &slaveWorker, sizeof(int), 0);
-		worker3->workerNameLength = strlen("Nodo3");
-		worker3->workerName = malloc(worker2->workerNameLength);
-		strcpy(worker3->workerName, "Nodo3");
-		worker3->filePathLength = strlen("/home/utnso/Prueba2");
-		worker3->filePath = malloc(worker2->filePathLength);
-		strcpy(worker3->filePath, "/home/utnso/Prueba2");
-		send(worker3->sockfd, &(worker3->filePathLength), sizeof(int), 0);
-		send(worker3->sockfd, worker3->filePath, worker3->filePathLength,0);
-
-
-		t_list * listaApareoGlobal = list_create();
-		list_add(listaApareoGlobal, worker2);
-		list_add(listaApareoGlobal, worker3);
-		pairingGlobalFiles(listaApareoGlobal, "/home/utnso/resultadoPruebaGlobal");
-
-	} else {
-
-		while (1) {
-			int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-			if (client_sock >= 0) {
-				log_debug(logger, "Connection accepted");
-	//			close(client_sock);
-				connectionHandler(client_sock);
+	while (1) {
+		int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+		if (client_sock >= 0) {
+		log_debug(logger, "Connection accepted");
+		connectionHandler(client_sock);
 			} else {
 				log_error(logger, "Couldn't accept connection.");
 			}
-		}
 	}
+
 	return NULL;
 }
 
@@ -329,7 +328,6 @@ void connectionHandler(int client_sock){
 			uint32_t response_operation = WORKER_START_LOCAL_REDUCTION_RESPONSE;
 			send(client_sock, &response_operation, sizeof(uint32_t), 0);
 			send(client_sock, &(reduction_response.succeeded), sizeof(int), 0);
-			//remove(pairingResult);
 			remove(scriptPath);
 			free(scriptPath);
 			free(pairingResult);
@@ -397,18 +395,18 @@ void connectionHandler(int client_sock){
 			request.globalTempPath = malloc(request.globalTempPathLen + 1);
 			recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), 0);
 			char * pairingResult = scriptTempFileName();
-			log_debug(logger, "\n El resultado del apareo se guarda aca : %s \n", pairingResult);
+			log_debug(logger, "\n The Global Pairing Result is saved at : %s \n", pairingResult);
 			pairingGlobalFiles(workerList, pairingResult);
 
 			char * template = "cat %s | %s > %s";
-			log_debug(logger, "temp: %s, script: %s , resultado: %s \n", pairingResult, scriptPath, request.globalTempPath);
+			log_debug(logger, "temp: %s, script: %s , result: %s \n", pairingResult, scriptPath, request.globalTempPath);
 			int templateSize = snprintf(NULL, 0, template, pairingResult, scriptPath, request.globalTempPath);
 			char *buffer = malloc(templateSize + 1);
 			sprintf(buffer, template, pairingResult, scriptPath, request.globalTempPath);
 			buffer[templateSize] = '\0';
 
 			int checkCode = system(buffer);
-			log_debug(logger, "\n %s \n", buffer);
+			log_debug(logger, "%s \n", buffer);
 
 			if(checkCode != 0){
 				reduction_response.succeeded = 0;
@@ -420,7 +418,7 @@ void connectionHandler(int client_sock){
 			uint32_t response_operation = WORKER_START_GLOBAL_REDUCTION_RESPONSE;
 			send(client_sock, &response_operation, sizeof(int), 0);
 			send(client_sock, &(reduction_response), sizeof(uint32_t), 0);
-			// Liberp memoria que utilizo la lista de workers
+			// Libero memoria que utilizo la lista de workers
 			for (i = 0; i < request.workersEntriesCount; i++){
 				fileGlobalNode * workerToFree;
 				workerToFree = list_get(workerList, i);
@@ -465,7 +463,7 @@ void connectionHandler(int client_sock){
 			char *temporalName = malloc(temporalNameLength + 1);
 			recv(client_sock, temporalName, temporalNameLength, 0);
 			temporalName[temporalNameLength] = '\0';
-			log_debug(logger, "el archivo es: %s", temporalName);
+			log_debug(logger, "The File is: %s", temporalName);
 			FILE * fileToOpen = fopen(temporalName, "r");
 			if(fileToOpen == NULL){
 				log_error(logger, "Couldn't open file");
@@ -482,7 +480,7 @@ void connectionHandler(int client_sock){
 					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
 																																																																																																																																																																																																																																																																																																																																																																								strcpy(registerToSend, "NULL");
 						int registerSize = strlen(registerToSend);
-						log_debug(logger, "Termino un archivo \n");
+						log_debug(logger, "The file is ended \n");
 						send(client_sock, &registerSize, sizeof(int), 0);
 						send(client_sock, registerToSend, registerSize + 1, 0);
 						break;
@@ -494,7 +492,7 @@ void connectionHandler(int client_sock){
 					}
 
 				} else {
-					log_error(logger, "Hubo un problema.");
+					log_error(logger, "An Error has ocurred.");
 					break;
 				}
 			}
@@ -509,16 +507,16 @@ void connectionHandler(int client_sock){
 		}
 		}
 
-		log_debug(logger, "Finalizara fork con pid = %d.", getpid());
+		log_debug(logger, "Finishing fork with pid = %d.", getpid());
 		close(client_sock);
 		exit(EXIT_SUCCESS);
 	} else if (pid > 0) {
-		log_debug(logger, "Se creo fork con pid = %d.", pid);
+		log_debug(logger, "Created fork with pid = %d.", pid);
 		close(client_sock);
 //		int status;
 //		waitpid(pid, &status, 0);
 	} else {
-		log_error(logger, "Fallo la creacion de fork.");
+		log_error(logger, "Fork creation failed.");
 		close(client_sock);
 	}
 
@@ -561,7 +559,7 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 		if (fgets(filesCursors[fileIndex], maxLineSize, filesArray[fileIndex]) == NULL) {
 			strcpy(filesCursors[fileIndex], "NULL");
-			log_debug(logger, "Llegue al final del archivo: %d", fileIndex);
+			log_debug(logger, "The file number: %d has ended.", fileIndex);
 			int j;
 			for (j = 0; j < filesCount; j++) {
 				char *nextRegister = filesCursors[j];
@@ -589,7 +587,7 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	int maxLineSize = 1024 * 1024;
-	log_debug(logger, "Estoy Adentro del Algoritmo Globlal");
+	log_debug(logger, "Starting Global Pairing");
 	int filesCount = list_size(listToPair);
 	char *filesCursors[filesCount];
 	int i;
@@ -597,7 +595,7 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 		fileGlobalNode *workerToRequest = list_get(listToPair, i);
 		filesCursors[i] = malloc(maxLineSize);
 		registerReceiver(filesCursors[i], workerToRequest->sockfd);
-		log_debug(logger, "Linea: %s \n", filesCursors[i]);
+		//log_debug(logger, "Linea: %s \n", filesCursors[i]);
 	}
 
 	char *lowerString = malloc(maxLineSize);
@@ -620,7 +618,7 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 
 		registerReceiver(filesCursors[fileIndex], workerToRequest->sockfd);
 		if (strcmp(filesCursors[fileIndex], "NULL") == 0) {
-			log_debug(logger, "Llegue al final del archivo del nodo: %s", workerToRequest->workerName);
+			log_debug(logger, "File from node: %s has ended", workerToRequest->workerName);
 			int j;
 			for (j = 0; j < filesCount; j++) {
 				char *nextRegister = filesCursors[j];
