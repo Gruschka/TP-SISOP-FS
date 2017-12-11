@@ -6,6 +6,7 @@
  */
 #include "scheduling.h"
 
+#include <commons/log.h>
 #include <commons/collections/list.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -19,6 +20,7 @@ pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
 Worker *maximumAvailabilityWorker = NULL;
 uint32_t maximumAvailabilityWorkerIdx = 0;
+extern t_log *logger;
 
 static void *circularlist_get(t_list *list, uint32_t index);
 
@@ -115,7 +117,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 		BlockInfo *blockInfo = response->entries + i;
 
 		int assigned = 0;
-
+		log_debug(logger, "Scheduling block no. %d. 1st copy: %s. 2nd copy: %s", i, blockInfo->firstCopyNodeID, blockInfo->secondCopyNodeID);
 		while (!assigned) { // toda la vueltita bb
 			//TODO Si se encuentra, se deberá reducir en 1 el valor de disponibilidad
 			// y avanzar el Clock al siguiente Worker.
@@ -125,9 +127,11 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 
 			clock = circularlist_get(workersList, offset + moves);
 			Copy copy = workerContainsBlock(clock, blockInfo);
+			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
 
 			if (copy == NONE) { // no tiene el bloque, sigo avanzando
 				moves++;
+				log_debug(logger, "No tiene el bloque, sigo avanzando");
 			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
 				clock->availability--;
 				clock = circularlist_get(workersList, offset + moves); moves++;
@@ -141,6 +145,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			}
 
 			if (moves % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
+				log_debug(logger, "[scheduling] Di toda la vuelta y no lo encontre. Agregando 1 de disp a todos los workers");
 				int i;
 				for (i = 0; i < workersList_count; i++) {
 					Worker *worker = circularlist_get(workersList, i);

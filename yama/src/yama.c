@@ -14,6 +14,7 @@
 #include <commons/collections/dictionary.h>
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
+#include <signal.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <string.h>
@@ -21,7 +22,6 @@
 #include "configuration.h"
 #include "scheduling.h"
 
-//TODO: Setear id de master como el fd de su conexion
 //TODO: Cerrar scheduling
 //TODO: Revisar leaks
 //TODO: Deshardcodear puerto
@@ -559,7 +559,17 @@ void *server_mainThread() {
 	return NULL;
 }
 
+void sigint_handler() {
+	log_debug(logger, "Received signal: SIGINT");
+	close(fsFd);
+	log_debug(logger, "Closed filesystem connection");
+	destroyStateTable();
+
+	exit(0);
+}
+
 void initialize() {
+	signal(SIGINT, sigint_handler);
 	serialization_initialize();
 	scheduling_initialize();
 
