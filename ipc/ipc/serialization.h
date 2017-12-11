@@ -30,7 +30,7 @@ typedef enum ipc_operation {
 	WORKER_START_GLOBAL_REDUCTION_RESPONSE,
 	WORKER_START_FINAL_STORAGE_REQUEST,
 	WORKER_START_FINAL_STORAGE_RESPONSE,
-	WORKER_SEND_FILE_TO_YAMA,
+	WORKER_SEND_FILE_TO_FS,
 	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
@@ -205,8 +205,9 @@ typedef struct {
 
 typedef struct {
 	char *pathName;
-	char *file;
-}__attribute__((packed)) ipc_struct_worker_file_to_yama;
+	uint32_t bufferSize;
+	void *buffer;
+}__attribute__((packed)) ipc_struct_worker_file_to_fs;
 
 void serialization_initialize();
 

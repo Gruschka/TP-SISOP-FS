@@ -555,7 +555,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 void *server_mainThread() {
 	log_debug(logger, "Waiting for masters on port %s", configuration.serverPort);
-	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
+	ipc_createSelectServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
 

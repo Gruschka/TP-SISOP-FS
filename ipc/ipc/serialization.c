@@ -26,9 +26,9 @@ void *deserializeFSGetFileInfoRequest(char *buffer) {
 	return request;
 }
 
-void *deserializeSendFileToYama(char *buffer) {
+void *deserializeSendFileToFS(void *buffer) {
 	char *tmp; int tmpLen;
-	ipc_struct_worker_file_to_yama *sendFile = malloc(sizeof(ipc_struct_worker_file_to_yama));
+	ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
 	int offset = 0;
 
 	tmp = strdup(buffer + offset);
@@ -36,12 +36,13 @@ void *deserializeSendFileToYama(char *buffer) {
 	sendFile->pathName = malloc(tmpLen + 1);
 	memcpy(sendFile->pathName, tmp, tmpLen + 1); //pathName
 	offset += tmpLen + 1;
+	free(tmp);
 
-	tmp = strdup(buffer + offset);
-	tmpLen = strlen(tmp);
-	sendFile->file = malloc(tmpLen + 1);
-	memcpy(sendFile->file, tmp, tmpLen + 1); //pathName
-	offset += tmpLen + 1;
+	memcpy(&(sendFile->bufferSize), buffer + offset, sizeof(uint32_t)); //bufferSize
+	offset += sizeof(uint32_t);
+
+	sendFile->buffer = malloc(sendFile->bufferSize);
+	memcpy(sendFile->buffer, buffer + offset, tmpLen + 1); //buffer
 
 	return sendFile;
 }
@@ -724,20 +725,22 @@ char *serializeYamaNotifyStageFinish(void *data, int *size) {
 	return buffer;
 }
 
-char *serializeSendFileToYama(void *data, int *size) {
+char *serializeSendFileToFS(void *data, int *size) {
 	int offset = 0;
-	ipc_struct_worker_file_to_yama *sendFile = data;
+	ipc_struct_worker_file_to_fs *sendFile = data;
 	char *buffer;
 
-	buffer = malloc(*size = strlen(sendFile->file) + strlen(sendFile->pathName) + 2);
+	buffer = malloc(*size = strlen(sendFile->pathName) + 1 + sendFile->bufferSize + sizeof(void *));
 	memcpy(buffer + offset, sendFile->pathName, strlen(sendFile->pathName)); //pathName
 	offset += strlen(sendFile->pathName);
 	buffer[offset] = '\0';
 	offset += 1;
-	memcpy(buffer + offset, sendFile->file, strlen(sendFile->file)); //file
-	offset += strlen(sendFile->file);
-	buffer[offset] = '\0';
-	offset += 1;
+
+	memcpy(buffer + offset, &(sendFile->bufferSize), sizeof(uint32_t)); //bufferSize
+	offset += sizeof(uint32_t);
+
+	memcpy(buffer + offset, sendFile->buffer, sendFile->bufferSize); //buffer
+	offset += sendFile->bufferSize;
 
 	return buffer;
 }
@@ -755,6 +758,7 @@ void initializeSerialization() {
 	serializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = serializeMasterContinueWithLocalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = serializeMasterContinueWithFinalStorageRequest;
+	serializationArray[WORKER_SEND_FILE_TO_FS] = serializeSendFileToFS;
 }
 
 void initializeDeserialization () {
@@ -770,6 +774,7 @@ void initializeDeserialization () {
 	deserializationArray[MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST] = deserializeMasterContinueWithLocalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = deserializeMasterContinueWithFinalStorageRequest;
+	deserializationArray[WORKER_SEND_FILE_TO_FS] = deserializeSendFileToFS;
 }
 
 void serialization_initialize() {

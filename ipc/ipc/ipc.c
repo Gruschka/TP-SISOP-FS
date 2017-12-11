@@ -183,7 +183,7 @@ bool is_connected(int socket) {
 	return recv(socket, buffer, sizeof buffer, MSG_PEEK) > 0;
 }
 
-int ipc_createEpollServer(char *port, EpollConnectionEventHandler newConnectionHandler, EpollIncomingDataEventHandler incomingDataHandler, EpollDisconnectionEventHandler disconnectionHandler) {
+int ipc_createSelectServer(char *port, ConnectionEventHandler newConnectionHandler, IncomingDataEventHandler incomingDataHandler, DisconnectionEventHandler disconnectionHandler) {
 	int listeningSocket;
 
 	listeningSocket = create_and_bind (port);
