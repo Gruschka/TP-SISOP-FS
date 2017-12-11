@@ -47,11 +47,10 @@
 t_log *logger;
 worker_configuration configuration;
 
-
-int main() {
+int main(int argc, char **argv) {
 	char * logFile = "/home/utnso/logFile";
 	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
-	loadConfiguration();
+	loadConfiguration(argc > 1 ? argv[1] : NULL);
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logger, "Couldn't register signal handler");
 			return EXIT_FAILURE;
@@ -60,13 +59,20 @@ int main() {
 //		t_list * fileList = list_create();
 //	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
 //	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
+//	 	fileNode * testLocal3 = malloc(sizeof(fileNode));
+//	 	fileNode * testLocal4 = malloc(sizeof(fileNode));
 //	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
 //	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
+//	 	testLocal3->filePath = malloc (strlen("/home/utnso/Prueba3"));
+//	 	testLocal4->filePath = malloc (strlen("/home/utnso/Prueba4"));
 //	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
 //	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
+//	 	strcpy(testLocal3->filePath, "/home/utnso/Prueba3");
+//	 	strcpy(testLocal4->filePath, "/home/utnso/Prueba4");
 //	 	list_add(fileList, testLocal1);
 //	 	list_add(fileList, testLocal2);
-//
+//	 	list_add(fileList, testLocal3);
+//	 	list_add(fileList, testLocal4);
 //	 	pairingFiles(fileList, "/home/utnso/PairTest");
 
 	createServer();
@@ -75,14 +81,14 @@ int main() {
 }
 
 
-void loadConfiguration() {
-	configuration = fetchConfiguration("../conf/nodeConf.txt");
+void loadConfiguration(char *configFile) {
+	configuration = fetchConfiguration(configFile != NULL ? configFile : "../conf/nodeConf.txt");
 }
 
 void signalHandler(int signo) {
 	if (signo == SIGUSR1) {
 		logDebug("SIGUSR1 - Reloading configuration");
-		loadConfiguration();
+		loadConfiguration(NULL);
 	}
 }
 
@@ -472,11 +478,15 @@ void connectionHandler(int client_sock){
 
 			char *registerToSend = malloc(maxLineSize);
 			while (1) {
-//				log_debug(logger, "Esperando pedido...");
-				int clientCode = 0;
-				recv(client_sock, &clientCode, sizeof(int), 0);
+				log_debug(logger, "Esperando pedido...");
+				int clientCode = 666, receivedBytes;
+				receivedBytes = recv(client_sock, &clientCode, sizeof(int), 0);
+
+				if (receivedBytes != sizeof(int)) {
+					log_error(logger, "Recibi bytes de menos (%d)", receivedBytes);
+				}
 				if (clientCode == REGISTER_REQUEST) {
-//					log_debug(logger, "Se recibio REGISTER_REQUEST.");
+					log_debug(logger, "Se recibio REGISTER_REQUEST.");
 					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
 																																																																																																																																																																																																																																																																																																																																																																								strcpy(registerToSend, "NULL");
 						int registerSize = strlen(registerToSend);
@@ -486,7 +496,7 @@ void connectionHandler(int client_sock){
 						break;
 					} else {
 						int registerSize = strlen(registerToSend);
-//						log_debug(logger,"Linea: %s \n", registerToSend);
+						log_debug(logger,"Linea: %s \n", registerToSend);
 						send(client_sock, &registerSize, sizeof(int), 0);
 						send(client_sock, registerToSend, registerSize + 1, 0);
 					}
@@ -648,19 +658,19 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 void registerReceiver(char *buffer, int sockfd) {
-//	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
+	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
 	int requestCode = REGISTER_REQUEST;
-//	log_debug(logger, "workerFD: %d \n", sockfd);
+	log_debug(logger, "workerFD: %d \n", sockfd);
 	send(sockfd, &requestCode, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando registerLength.");
+	log_debug(logger, "Esperando registerLength.");
 	int registerLength = 0;
 	recv(sockfd, &registerLength, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando buffer.");
+	log_debug(logger, "Esperando buffer.");
 	recv(sockfd, buffer, registerLength + 1, 0);
 
-//	log_debug(logger, "Se recibio lectura sin problemas.");
+	log_debug(logger, "Se recibio lectura sin problemas.");
 	return;
 }
 
