@@ -45,4 +45,5 @@ int finalFileSize(char * filePath);
 char *worker_utils_readFile(char *path);
 char *scriptTempFileName();
 void registerReceiver(char * buffer, int sockfd);
+int worker_utils_readFileSize(char *path);
 #endif /* WORKER_H_ */
