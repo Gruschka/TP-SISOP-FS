@@ -14,6 +14,7 @@
 #include <commons/collections/dictionary.h>
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
+#include <signal.h>
 #include <arpa/inet.h>
 #include <sys/ioctl.h>
 #include <string.h>
@@ -21,7 +22,6 @@
 #include "configuration.h"
 #include "scheduling.h"
 
-//TODO: Setear id de master como el fd de su conexion
 //TODO: Cerrar scheduling
 //TODO: Revisar leaks
 //TODO: Deshardcodear puerto
@@ -40,6 +40,19 @@ pthread_t serverThread;
 uint32_t lastJobID = 0;
 int fsFd;
 
+void destroyStateTable() {
+	pthread_mutex_lock(&stateTable_mutex);
+	int i = 0;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *entry = list_get(stateTable, i);
+		free(entry->nodeID);
+		free(entry->tempPath);
+		free(entry);
+	}
+	list_destroy(stateTable);
+	pthread_mutex_unlock(&stateTable_mutex);
+}
+
 int stringsAreEqual(char *str1, char *str2);
 
 void dumpEntry(yama_state_table_entry *entry, uint32_t i) {
@@ -51,6 +64,8 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 	t_list *result = list_create();
 	t_dictionary *dictionary = dictionary_create();
 
+	pthread_mutex_lock(&stateTable_mutex);
+
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
@@ -60,6 +75,7 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 			list_add(result, currentEntry);
 		}
 	}
+	pthread_mutex_unlock(&stateTable_mutex);
 
 	//TODO: ver que no este liberanod cualqueir cosa
 	dictionary_destroy(dictionary);
@@ -68,6 +84,7 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 
 t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 	t_list *result = list_create();
+	pthread_mutex_lock(&stateTable_mutex);
 
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
@@ -79,52 +96,65 @@ t_list *getEntriesMatching(uint32_t jobID, char *nodeID, yama_job_stage stage) {
 				currentEntry->stage == stage)
 			list_add(result, currentEntry);
 	}
+	pthread_mutex_unlock(&stateTable_mutex);
 
 	return result;
 }
 
 int localReductionIsFinished(uint32_t jobID) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (currentEntry->jobID == jobID && currentEntry->stage == LOCAL_REDUCTION) {
-			if (currentEntry->status != FINISHED_OK) return 0;
+			if (currentEntry->status != FINISHED_OK) {
+				pthread_mutex_unlock(&stateTable_mutex);
+				return 0;
+			}
 		}
 	}
 
+	pthread_mutex_unlock(&stateTable_mutex);
 	return 1;
 }
 
 int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (currentEntry->jobID == jobID && currentEntry->stage == stage && stringsAreEqual(currentEntry->nodeID, nodeID)){
 			if(currentEntry->status != FINISHED_OK) {
+				pthread_mutex_unlock(&stateTable_mutex);
 				return 0;
 			}
 		}
 	}
 
+	pthread_mutex_unlock(&stateTable_mutex);
 	return 1;
 }
 
 uint32_t getJobIDForTempPath(char *tempPath) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (stringsAreEqual(tempPath, currentEntry->tempPath)) {
+			pthread_mutex_unlock(&stateTable_mutex);
 			return currentEntry->jobID;
 		}
 	}
 
+	pthread_mutex_unlock(&stateTable_mutex);
 	return -1;
 }
 
 void setState(uint32_t jobID, yama_job_stage stage, yama_job_status status) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
@@ -134,9 +164,11 @@ void setState(uint32_t jobID, yama_job_stage stage, yama_job_status status) {
 			currentEntry->stage = stage;
 		}
 	}
+	pthread_mutex_unlock(&stateTable_mutex);
 }
 
 void markLocalReductionAsFinished(char *tempPath, char *nodeID) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
@@ -145,17 +177,21 @@ void markLocalReductionAsFinished(char *tempPath, char *nodeID) {
 			currentEntry->status = FINISHED_OK;
 		}
 	}
+	pthread_mutex_unlock(&stateTable_mutex);
 }
 
 yama_state_table_entry *getEntry(char *nodeID, char *tempPath) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (stringsAreEqual(currentEntry->nodeID, nodeID) && stringsAreEqual(currentEntry->tempPath, tempPath)) {
+			pthread_mutex_unlock(&stateTable_mutex);
 			return currentEntry;
 		}
 	}
+	pthread_mutex_unlock(&stateTable_mutex);
 
 	return NULL;
 }
@@ -181,6 +217,7 @@ void yst_addEntry(yama_state_table_entry *entry) {
 
 
 yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *nodeID) {
+	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currEntry = list_get(stateTable, i);
@@ -188,14 +225,17 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 	}
 
 	return NULL;
+	pthread_mutex_unlock(&stateTable_mutex);
 }
 
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = filePath;
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
+	free(request->filePath);
+	free(request);
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
-	printf("File %s has %d blocks", filePath, response->entriesCount);
+	log_debug(logger, "[FS_GET_FILE_INFO_RESPONSE] File %s has %d blocks", filePath, response->entriesCount);
 
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
@@ -213,6 +253,10 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 			worker->name = strdup(entry->firstCopyNodeID);
 			scheduling_addWorker(worker);
 			dictionary_put(workersDict, entry->firstCopyNodeID, firstWorkerInfo);
+		} else {
+			free(firstWorkerInfo->id);
+			free(firstWorkerInfo->ip);
+			free(firstWorkerInfo);
 		}
 
 		WorkerInfo *secondWorkerInfo = malloc(sizeof(WorkerInfo));
@@ -227,6 +271,10 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 			worker->name = strdup(entry->secondCopyNodeID);
 			scheduling_addWorker(worker);
 			dictionary_put(workersDict, entry->secondCopyNodeID, secondWorkerInfo);
+		} else {
+			free(secondWorkerInfo->id);
+			free(secondWorkerInfo->ip);
+			free(secondWorkerInfo);
 		}
 	}
 	return response;
@@ -237,7 +285,7 @@ void dumpExecutionPlan(ExecutionPlan *executionPlan) {
 	log_debug(logger, "i | blockID | workerID");
 
 	int i;
-	for (i = 0; i < list_size(executionPlan->entries); i++) {
+	for (i = 0; i < executionPlan->entriesCount; i++) {
 		ExecutionPlanEntry *entry = executionPlan->entries + i;
 		log_debug(logger, "%d |   %d   |   %s  ", i, entry->blockID, entry->workerID);
 	}
@@ -256,7 +304,7 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 
 		responseEntry->blockID = epEntry->blockID;
 		responseEntry->usedBytes = epEntry->usedBytes;
-		responseEntry->nodeID = epEntry->workerID;
+		responseEntry->nodeID = strdup(epEntry->workerID);
 		responseEntry->tempPath = tempFileName();
 
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
@@ -294,6 +342,54 @@ void disconnectionHandler(int fd) {
 	log_debug(logger, "Master disconnected. FD: %d", fd);
 }
 
+void freeStartTransformReduceResponse(ipc_struct_start_transform_reduce_response *response) {
+	int i = 0;
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_start_transform_reduce_response_entry *currentEntry = response->entries + i;
+		free(currentEntry->nodeID);
+		free(currentEntry->tempPath);
+		free(currentEntry->workerIP);
+	}
+	free(response->entries);
+	free(response);
+}
+
+void freeExecutionPlan(ExecutionPlan *executionPlan) {
+	int i = 0;
+	for (i = 0; i < executionPlan->entriesCount; i++) {
+		ExecutionPlanEntry *currentEntry = executionPlan->entries + i;
+		free(currentEntry->workerID);
+	}
+	free(executionPlan->entries);
+	free(executionPlan);
+}
+
+void freeFileInfoResponse(ipc_struct_fs_get_file_info_response *response) {
+	int i = 0;
+	for (i = 0; i < response->entriesCount; i++) {
+		ipc_struct_fs_get_file_info_response_entry *currentEntry = response->entries + i;
+		free(currentEntry->firstCopyNodeID);
+		free(currentEntry->firstCopyNodeIP);
+		free(currentEntry->secondCopyNodeID);
+		free(currentEntry->secondCopyNodeIP);
+	}
+	free(response->entries);
+	free(response);
+}
+
+void freeContinueWithGlobalReductionRequest(ipc_struct_master_continueWithGlobalReductionRequest *request) {
+	int i = 0;
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
+		free(currentEntry->globalReduceTempPath);
+		free(currentEntry->localReduceTempPath);
+		free(currentEntry->nodeID);
+		free(currentEntry->workerIP);
+	}
+	free(request->entries);
+	free(request);
+}
+
 void incomingDataHandler(int fd, ipc_struct_header header) {
 	switch (header.type) {
 	case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
@@ -308,19 +404,15 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		trackTransformationResponseInStateTable(response, fd);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
-		free(response);
-		free(executionPlan);
-		free(fileInfo);
+		freeStartTransformReduceResponse(response);
+		freeExecutionPlan(executionPlan);
+		freeFileInfoResponse(fileInfo);
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
-		log_debug(logger, "transform_finish");
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
-		int bytes_available;
-		ioctl(fd, FIONREAD, &bytes_available);
-		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d. pending bytes: %d", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded, bytes_available);
+		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
-		break;
 		//succeeded me lo paso por los huevos
 		// bueno, esta bien
 		// TODO: replanificar
@@ -362,6 +454,10 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 			free(request);
 			free(localReduceTempPath);
 		}
+
+		free(transformFinish->nodeID);
+		free(transformFinish->tempPath);
+		free(transformFinish);
 
 		break;
 	}
@@ -406,10 +502,12 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST, request);
 			list_destroy(entriesToReduce);
-			free(request);
+			freeContinueWithGlobalReductionRequest(request);
 			free(globalReduceTempPath);
 		}
 
+		free(localReductionFinish->nodeID);
+		free(localReductionFinish->tempPath);
 		free(localReductionFinish);
 		break;
 	}
@@ -430,8 +528,15 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
 
+		free(request->globalReductionTempPath);
+		free(request->nodeID);
+		free(request->workerIP);
 		free(request);
+		free(workerInfo->id);
+		free(workerInfo->ip);
 		free(workerInfo);
+		free(globalReductionFinish->nodeID);
+		free(globalReductionFinish->tempPath);
 		free(globalReductionFinish);
 		break;
 	}
@@ -449,12 +554,22 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 }
 
 void *server_mainThread() {
-	log_debug(logger, "Waiting for masters on port %d", configuration.serverPort);
+	log_debug(logger, "Waiting for masters on port %s", configuration.serverPort);
 	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
 
+void sigint_handler() {
+	log_debug(logger, "Received signal: SIGINT");
+	close(fsFd);
+	log_debug(logger, "Closed filesystem connection");
+	destroyStateTable();
+
+	exit(0);
+}
+
 void initialize() {
+	signal(SIGINT, sigint_handler);
 	serialization_initialize();
 	scheduling_initialize();
 
@@ -462,8 +577,8 @@ void initialize() {
 	nodesList = list_create();
 	workersDict = dictionary_create();
 	mastersDict = dictionary_create();
-//	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
-//	log_debug(logger, "Connected to FS");
+	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
+	log_debug(logger, "Connected to FS");
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }

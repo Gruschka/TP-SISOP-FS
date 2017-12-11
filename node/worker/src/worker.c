@@ -47,11 +47,10 @@
 t_log *logFileNodo;
 worker_configuration configuration;
 
-
-int main() {
-	char * logFile = "/home/utnso/logFile1";
-	logFileNodo = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
-	loadConfiguration();
+int main(int argc, char **argv) {
+	char * logFile = "/home/utnso/logFile";
+	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+	loadConfiguration(argc > 1 ? argv[1] : NULL);
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logFileNodo, "Couldn't register signal handler");
 			return EXIT_FAILURE;
@@ -82,14 +81,14 @@ int main() {
 }
 
 
-void loadConfiguration() {
-	configuration = fetchConfiguration("../conf/nodeConf.txt");
+void loadConfiguration(char *configFile) {
+	configuration = fetchConfiguration(configFile != NULL ? configFile : "../conf/nodeConf.txt");
 }
 
 void signalHandler(int signo) {
 	if (signo == SIGUSR1) {
 		logDebug("SIGUSR1 - Reloading configuration");
-		loadConfiguration();
+		loadConfiguration(NULL);
 	}
 }
 
@@ -699,19 +698,19 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 void registerReceiver(char *buffer, int sockfd) {
-//	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
+	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
 	int requestCode = REGISTER_REQUEST;
-//	log_debug(logger, "workerFD: %d \n", sockfd);
+	log_debug(logger, "workerFD: %d \n", sockfd);
 	send(sockfd, &requestCode, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando registerLength.");
+	log_debug(logger, "Esperando registerLength.");
 	int registerLength = 0;
 	recv(sockfd, &registerLength, sizeof(int), 0);
 
-//	log_debug(logger, "Esperando buffer.");
+	log_debug(logger, "Esperando buffer.");
 	recv(sockfd, buffer, registerLength + 1, 0);
 
-//	log_debug(logger, "Se recibio lectura sin problemas.");
+	log_debug(logger, "Se recibio lectura sin problemas.");
 	return;
 }
 
