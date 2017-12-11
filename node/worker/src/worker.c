@@ -49,7 +49,7 @@ worker_configuration configuration;
 
 int main(int argc, char **argv) {
 	char * logFile = "/home/utnso/logFile";
-	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+	logFileNodo = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
 	loadConfiguration(argc > 1 ? argv[1] : NULL);
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 			log_error(logFileNodo, "Couldn't register signal handler");
@@ -698,19 +698,19 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 }
 
 void registerReceiver(char *buffer, int sockfd) {
-	log_debug(logger, "Se pedira un REGISTER_REQUEST.");
+	log_debug(logFileNodo, "Se pedira un REGISTER_REQUEST.");
 	int requestCode = REGISTER_REQUEST;
-	log_debug(logger, "workerFD: %d \n", sockfd);
+	log_debug(logFileNodo, "workerFD: %d \n", sockfd);
 	send(sockfd, &requestCode, sizeof(int), 0);
 
-	log_debug(logger, "Esperando registerLength.");
+	log_debug(logFileNodo, "Esperando registerLength.");
 	int registerLength = 0;
 	recv(sockfd, &registerLength, sizeof(int), 0);
 
-	log_debug(logger, "Esperando buffer.");
+	log_debug(logFileNodo, "Esperando buffer.");
 	recv(sockfd, buffer, registerLength + 1, 0);
 
-	log_debug(logger, "Se recibio lectura sin problemas.");
+	log_debug(logFileNodo, "Se recibio lectura sin problemas.");
 	return;
 }
 
