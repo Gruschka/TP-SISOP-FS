@@ -151,7 +151,8 @@ void master_requestWorkersLocalReduce(ipc_struct_master_continueWithLocalReducti
 	 	// Creamos un hilo por cada worker
 		pthread_t thread;
 		if (pthread_create(&thread, NULL, master_transform_connectToWorkerAndMakeRequest, request)) {
-			//FIXME: (Fede) acá hay error
+			log_error(master_log, "Falló la creación de thread en etapa de reducción local.");
+			exit(EXIT_FAILURE);
 		}
 
 

@@ -117,7 +117,8 @@ void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *
 
 			// Creamos un hilo por cada worker
 			if (pthread_create(&(threads[j]), NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
-				//FIXME: (Fede) acá hay error
+				log_error(master_log, "Falló la creación de thread en etapa de transformación.");
+				exit(EXIT_FAILURE);
 			}
 
 			free(entry->tempPath);
