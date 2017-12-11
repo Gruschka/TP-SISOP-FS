@@ -44,16 +44,16 @@
 #define REGISTER_REQUEST 15
 #define FILE_CLOSE_REQUEST 16
 
-t_log *logger;
+t_log *logFileNodo;
 worker_configuration configuration;
 
 
 int main() {
-	char * logFile = "/home/utnso/logFile";
-	logger = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+	char * logFile = "/home/utnso/logFile1";
+	logFileNodo = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
 	loadConfiguration();
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
-			log_error(logger, "Couldn't register signal handler");
+			log_error(logFileNodo, "Couldn't register signal handler");
 			return EXIT_FAILURE;
 		}
 		//Esto para test de apareo local
@@ -94,7 +94,7 @@ void signalHandler(int signo) {
 }
 
 void logDebug(char *message) {
-	log_debug(logger, message);
+	log_debug(logFileNodo, message);
 }
 
 void *createServer() {
@@ -105,9 +105,9 @@ void *createServer() {
 	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
 	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption, sizeof(iSetOption));
 	if (socket_desc == -1) {
-		log_error(logger, "Couldn't create socket.");
+		log_error(logFileNodo, "Couldn't create socket.");
 	}
-	log_debug(logger, "Socket correctly created");
+	log_debug(logFileNodo, "Socket correctly created");
 
 	// Prepare the sockaddr_in structure
 	server.sin_family = AF_INET;
@@ -116,7 +116,7 @@ void *createServer() {
 
 	// Bind
 	if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
-		log_error(logger, "Couldn't Bind.");
+		log_error(logFileNodo, "Couldn't Bind.");
 		printf("\n\n %d", errno);
 		return NULL;
 	}
@@ -125,7 +125,7 @@ void *createServer() {
 	listen(socket_desc, SOMAXCONN);
 
 	// Accept and incoming connection
-	log_debug(logger, "Waiting for incoming connections...");
+	log_debug(logFileNodo, "Waiting for incoming connections...");
 	c = sizeof(struct sockaddr_in);
 
 
@@ -167,15 +167,15 @@ void *createServer() {
 //
 //	} else {
 
-	while (1) {
-		int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
-		if (client_sock >= 0) {
-		log_debug(logger, "Connection accepted");
-		connectionHandler(client_sock);
-			} else {
-				log_error(logger, "Couldn't accept connection.");
-			}
-	}
+		while (1) {
+			int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
+			if (client_sock >= 0) {
+			log_debug(logFileNodo, "Connection accepted");
+			connectionHandler(client_sock);
+				} else {
+					log_error(logFileNodo, "Couldn't accept connection.");
+				}
+		}
 
 	return NULL;
 }
@@ -194,7 +194,7 @@ void connectionHandler(int client_sock){
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
 		switch (operation) {
 		case WORKER_START_TRANSFORM_REQUEST:{
-			log_debug(logger, "Transformation Stage");
+			log_debug(logFileNodo, "Transformation Stage");
 
 			ipc_struct_worker_start_transform_request request;
 
@@ -235,18 +235,17 @@ void connectionHandler(int client_sock){
 			sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
 			buffer[templateSize] = '\0';
 
+			log_debug(logFileNodo, "\n Transforming Block: %d \n", request.block);
+			log_debug(logFileNodo, "\n %s \n", buffer);
+			//int checkCode = system(buffer);
 			int checkCode = 0;
-			log_debug(logger, "\n Transforming Block: %d \n", request.block);
-			log_debug(logger, "\n %s \n", buffer);
-			checkCode = system(buffer);
-
 			ipc_struct_worker_start_transform_response transform_response;
 			if(checkCode!= 0){
-				log_debug(logger, "FAIL \n");
+				log_debug(logFileNodo, "FAIL \n");
 				transform_response.succeeded = 0;
 			}
 			else{
-				log_debug(logger, "SUCCESS \n");
+				log_debug(logFileNodo, "SUCCESS \n");
 				transform_response.succeeded = 1;
 			}
 
@@ -262,8 +261,10 @@ void connectionHandler(int client_sock){
 			break;
 		}
 		case WORKER_START_LOCAL_REDUCTION_REQUEST:{
-
-			log_debug(logger, "Local Reduction Stage \n");
+			t_log  *logFileNodo;
+			char * loggerNodo = "/home/utnso/logFileNodo2";
+			logFileNodo = log_create(loggerNodo, "WORKER", 1, LOG_LEVEL_DEBUG);
+			log_debug(logFileNodo, "Local Reduction Stage \n");
 
 
 			ipc_struct_worker_start_local_reduce_request request;
@@ -275,7 +276,7 @@ void connectionHandler(int client_sock){
 			int chmodNumber;
 			chmodNumber = strtol(chmode, 0, 8);
 			char * scriptPath = scriptTempFileName();
-			log_debug(logger, "\n %s \n", scriptPath);
+			log_debug(logFileNodo, "\n %s \n", scriptPath);
 			FILE *scriptFile = fopen(scriptPath, "w");
 			if (scriptFile == NULL) {
 				exit(-1); //fixme: ola q ace
@@ -289,13 +290,21 @@ void connectionHandler(int client_sock){
 			int i =0;//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 			t_list * fileList = list_create();
 			recv(client_sock, &(request.transformTempEntriesCount), sizeof(uint32_t), 0);
+			request.transformTempEntriesCount = 2;
 			for(i = 0; i < request.transformTempEntriesCount; i++ ){
-				log_debug(logger, "Estoy adentro del for y el entry es %d \n", request.transformTempEntriesCount);
+				//log_debug(logger, "Estoy adentro del for y el entry es %d \n", request.transformTempEntriesCount);
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
 				recv(client_sock, &(fileToReduce->filePathLength), sizeof(uint32_t), 0);
 				fileToReduce->filePath = malloc(fileToReduce->filePathLength +1);
 				recv(client_sock, fileToReduce->filePath, (fileToReduce->filePathLength + 1), 0);
-				log_debug(logger, "El path es %s ", fileToReduce->filePath);
+
+				//Prueba
+				if(i == 0){
+					strcpy(fileToReduce->filePath, "/tmp/8Y8TzC");
+				} else {
+					strcpy(fileToReduce->filePath, "/tmp/sxaKGE");
+				}
+				log_debug(logFileNodo, "El path es %s ", fileToReduce->filePath);
 				list_add(fileList, fileToReduce);
 			}
 
@@ -303,9 +312,9 @@ void connectionHandler(int client_sock){
 
 			request.reduceTempPath = malloc(request.reduceTempPathLen +1);
 			recv(client_sock, request.reduceTempPath, (request.reduceTempPathLen +1), 0);
-			log_debug(logger, "tempFile: %s", request.reduceTempPath);
+			log_debug(logFileNodo, "tempFile: %s", request.reduceTempPath);
 			char * pairingResult = scriptTempFileName();
-			log_debug(logger, "El resultado del apareo se guarda aca : %s \n", pairingResult);
+			log_debug(logFileNodo, "El resultado del apareo se guarda aca : %s \n", pairingResult);
 			pairingFiles(fileList, pairingResult);
 
 			char *template = "cat %s | %s > %s";
@@ -313,8 +322,9 @@ void connectionHandler(int client_sock){
 			char *buffer = malloc(templateSize + 1);
 			sprintf(buffer, template, pairingResult, scriptPath, request.reduceTempPath);
 			buffer[templateSize] = '\0';
-			log_debug(logger, "\n %s \n", buffer);
-			int checkCode = system(buffer);
+			log_debug(logFileNodo, "\n %s \n", buffer);
+			//int checkCode = system(buffer);
+			int checkCode = 0;
 			ipc_struct_worker_start_local_reduce_response reduction_response;
 			if(checkCode != 0){
 				reduction_response.succeeded = 0;
@@ -341,7 +351,7 @@ void connectionHandler(int client_sock){
 			break;
 		}
 		case WORKER_START_GLOBAL_REDUCTION_REQUEST:{
-			log_debug(logger, "Global Reduction Stage");
+			log_debug(logFileNodo, "Global Reduction Stage");
 			int i = 0;
 
 			ipc_struct_worker_start_global_reduce_request request;
@@ -353,7 +363,7 @@ void connectionHandler(int client_sock){
 			int chmodNumber;
 			chmodNumber = strtol(chmode, 0, 8);
 			char * scriptPath = scriptTempFileName();
-			log_debug(logger, "scriptPath: %s \n", scriptPath);
+			log_debug(logFileNodo, "scriptPath: %s \n", scriptPath);
 			FILE *scriptFile = fopen(scriptPath, "w");
 			if (scriptFile == NULL) {
 				exit(-1); //fixme: ola q ace
@@ -368,6 +378,7 @@ void connectionHandler(int client_sock){
 			ipc_struct_worker_start_global_reduce_response reduction_response;
 			//Recepcion y conexion a los workers
 			t_list * workerList = list_create();
+			t_list *fileList = list_create();
 			for(i=0; i < request.workersEntriesCount; i++){
 				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
 				recv(client_sock, &(workerToRequest->workerNameLength), sizeof(uint32_t),0);
@@ -383,9 +394,9 @@ void connectionHandler(int client_sock){
 				recv(client_sock, workerToRequest->filePath, (workerToRequest->filePathLength + 1), 0);
 				workerToRequest->filePath[workerToRequest->filePathLength] = '\0';
 				workerToRequest->sockfd = connectToWorker(workerToRequest->workerIp, workerToRequest->port);
-				log_debug(logger, "workerID: %s sockFD: %d \n", workerToRequest->workerName, workerToRequest->sockfd);
+				log_debug(logFileNodo, "workerID: %s sockFD: %d \n", workerToRequest->workerName, workerToRequest->sockfd);
 				if(workerToRequest->sockfd == -1){
-					log_debug(logger, "Failed connecting to a Worker. Aborting!");
+					log_debug(logFileNodo, "Failed connecting to a Worker. Aborting!");
 					reduction_response.succeeded = 0;
 					send(client_sock, &(reduction_response.succeeded), sizeof(uint32_t), 0);
 					break;
@@ -393,8 +404,29 @@ void connectionHandler(int client_sock){
 				list_add(workerList, workerToRequest);
 				uint32_t operation_code = SLAVE_WORKER;
 				send(workerToRequest->sockfd, &(operation_code), sizeof(uint32_t), 0);
+				if(i == 0){
+					strcpy(workerToRequest->filePath, "/tmp/8Y8TzC");
+				} else{
+					strcpy(workerToRequest->filePath, "/tmp/sxaKGE");
+				}
 				send(workerToRequest->sockfd, &(workerToRequest->filePathLength), sizeof(int), 0);
 				send(workerToRequest->sockfd, workerToRequest->filePath, workerToRequest->filePathLength,0);
+
+				//Prueba
+				fileNode * testLocal1 = malloc(sizeof(fileNode));
+				int fileSize;
+				recv(workerToRequest->sockfd, &fileSize, sizeof(int),MSG_WAITALL);
+				log_debug(logFileNodo, "Size: %d", fileSize);
+				char * file = malloc(fileSize);
+				recv(workerToRequest->sockfd, file, fileSize, MSG_WAITALL);
+				char * fileName = scriptTempFileName();
+				testLocal1->filePath = malloc (strlen(fileName));
+				strcpy(testLocal1->filePath, fileName);
+				log_debug(logFileNodo, "Archivo: %s", fileName);
+				FILE * openFile = fopen(fileName, "w");
+				fputs(file, openFile);
+				fclose(openFile);
+				list_add(fileList, testLocal1);
 
 			}
 			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
@@ -402,18 +434,22 @@ void connectionHandler(int client_sock){
 			request.globalTempPath = malloc(request.globalTempPathLen + 1);
 			recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), 0);
 			char * pairingResult = scriptTempFileName();
-			log_debug(logger, "\n The Global Pairing Result is saved at : %s \n", pairingResult);
-			pairingGlobalFiles(workerList, pairingResult);
+			log_debug(logFileNodo, "\n The Global Pairing Result is saved at : %s \n", pairingResult);
+
+
+			pairingFiles(fileList, "/home/utnso/pruebaConArchivosEnBuffer");
+//			pairingGlobalFiles(workerList, pairingResult);
 
 			char * template = "cat %s | %s > %s";
-			log_debug(logger, "temp: %s, script: %s , result: %s \n", pairingResult, scriptPath, request.globalTempPath);
+			log_debug(logFileNodo, "temp: %s, script: %s , result: %s \n", pairingResult, scriptPath, request.globalTempPath);
 			int templateSize = snprintf(NULL, 0, template, pairingResult, scriptPath, request.globalTempPath);
 			char *buffer = malloc(templateSize + 1);
 			sprintf(buffer, template, pairingResult, scriptPath, request.globalTempPath);
 			buffer[templateSize] = '\0';
 
-			int checkCode = system(buffer);
-			log_debug(logger, "%s \n", buffer);
+			//int checkCode = system(buffer);
+			int checkCode = 0;
+			log_debug(logFileNodo, "%s \n", buffer);
 
 			if(checkCode != 0){
 				reduction_response.succeeded = 0;
@@ -462,7 +498,7 @@ void connectionHandler(int client_sock){
 			break;
 		}
 		case SLAVE_WORKER:{
-			log_debug(logger, "Slave Worker Stage");
+			log_debug(logFileNodo, "Slave Worker Stage \n");
 			int maxLineSize = 1024*1024;
 			uint32_t temporalNameLength;
 			recv(client_sock, &temporalNameLength, sizeof(int), 0);
@@ -470,60 +506,68 @@ void connectionHandler(int client_sock){
 			char *temporalName = malloc(temporalNameLength + 1);
 			recv(client_sock, temporalName, temporalNameLength, 0);
 			temporalName[temporalNameLength] = '\0';
-			log_debug(logger, "The File is: %s", temporalName);
-			FILE * fileToOpen = fopen(temporalName, "r");
-			if(fileToOpen == NULL){
-				log_error(logger, "Couldn't open file");
-				break;
-			}
-
-			char *registerToSend = malloc(maxLineSize);
-			while (1) {
-//				log_debug(logger, "Esperando pedido...");
-				int clientCode = 0;
-				recv(client_sock, &clientCode, sizeof(int), 0);
-				if (clientCode == REGISTER_REQUEST) {
-//					log_debug(logger, "Se recibio REGISTER_REQUEST.");
-					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
-																																																																																																																																																																																																																																																																																																																																																																								strcpy(registerToSend, "NULL");
-						int registerSize = strlen(registerToSend);
-						log_debug(logger, "The file is ended \n");
-						send(client_sock, &registerSize, sizeof(int), 0);
-						send(client_sock, registerToSend, registerSize + 1, 0);
-						break;
-					} else {
-						int registerSize = strlen(registerToSend);
-//						log_debug(logger,"Linea: %s \n", registerToSend);
-						send(client_sock, &registerSize, sizeof(int), 0);
-						send(client_sock, registerToSend, registerSize + 1, 0);
-					}
-
-				} else {
-					log_error(logger, "An Error has ocurred.");
-					break;
-				}
-			}
-			free(registerToSend);
-			fclose(fileToOpen);
+			log_debug(logFileNodo, "The File is: %s \n", temporalName);
+			//int fileSize = worker_utils_readFileSize(temporalName);
+			//char *file = malloc(fileSize + 1);
+			//memcpy(file, worker_utils_readFile(temporalName), (fileSize));
+			char *file = worker_utils_readFile(temporalName);
+			int fileSize = strlen(file);
+			log_debug(logFileNodo, "Size (SLAVE WORKER) : %d \n", fileSize);
+			send(client_sock, &fileSize, sizeof(int), 0);
+			send(client_sock, file, (fileSize + 1), 0);
+//			FILE * fileToOpen = fopen(temporalName, "r");
+//			if(fileToOpen == NULL){
+//				log_error(logFileNodo, "Couldn't open file");
+//				break;
+//			}
+//
+//			char *registerToSend = malloc(maxLineSize);
+//			while (1) {
+////				log_debug(logger, "Esperando pedido...");
+//				int clientCode = 0;
+//				recv(client_sock, &clientCode, sizeof(int), 0);
+//				if (clientCode == REGISTER_REQUEST) {
+////					log_debug(logger, "Se recibio REGISTER_REQUEST.");
+//					if (fgets(registerToSend, maxLineSize, fileToOpen) == NULL) {
+//																																																																																																																																																																																																																																																																																																																																																																								strcpy(registerToSend, "NULL");
+//						int registerSize = strlen(registerToSend);
+//						log_debug(logFileNodo, "The file is ended \n");
+//						send(client_sock, &registerSize, sizeof(int), 0);
+//						send(client_sock, registerToSend, registerSize + 1, 0);
+//						break;
+//					} else {
+//						int registerSize = strlen(registerToSend);
+////						log_debug(logger,"Linea: %s \n", registerToSend);
+//						send(client_sock, &registerSize, sizeof(int), 0);
+//						send(client_sock, registerToSend, registerSize + 1, 0);
+//					}
+//
+//				} else {
+//					log_error(logFileNodo, "An Error has ocurred.");
+//					break;
+//				}
+//			}
+//			free(registerToSend);
+			//fclose(fileToOpen);
 			free(temporalName);
 			break;
 		}
 		default: {
-			log_error(logger, "Operation couldn't be identified");
+			log_error(logFileNodo, "Operation couldn't be identified");
 			break;
 		}
 		}
 
-		log_debug(logger, "Finishing fork with pid = %d.", getpid());
+		log_debug(logFileNodo, "Finishing fork with pid = %d.", getpid());
 		close(client_sock);
 		exit(EXIT_SUCCESS);
 	} else if (pid > 0) {
-		log_debug(logger, "Created fork with pid = %d.", pid);
+		log_debug(logFileNodo, "Created fork with pid = %d.", pid);
 		close(client_sock);
 //		int status;
 //		waitpid(pid, &status, 0);
 	} else {
-		log_error(logger, "Fork creation failed.");
+		log_error(logFileNodo, "Fork creation failed.");
 		close(client_sock);
 	}
 
@@ -566,7 +610,7 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 		if (fgets(filesCursors[fileIndex], maxLineSize, filesArray[fileIndex]) == NULL) {
 			strcpy(filesCursors[fileIndex], "NULL");
-			log_debug(logger, "The file number: %d has ended.", fileIndex);
+			log_debug(logFileNodo, "The file number: %d has ended.", fileIndex);
 			int j;
 			for (j = 0; j < filesCount; j++) {
 				char *nextRegister = filesCursors[j];
@@ -594,7 +638,7 @@ void pairingFiles(t_list *listToPair, char* resultName){
 
 void pairingGlobalFiles(t_list *listToPair, char* resultName){
 	int maxLineSize = 1024 * 1024;
-	log_debug(logger, "Starting Global Pairing");
+	log_debug(logFileNodo, "Starting Global Pairing");
 	int filesCount = list_size(listToPair);
 	char *filesCursors[filesCount];
 	int i;
@@ -625,7 +669,7 @@ void pairingGlobalFiles(t_list *listToPair, char* resultName){
 
 		registerReceiver(filesCursors[fileIndex], workerToRequest->sockfd);
 		if (strcmp(filesCursors[fileIndex], "NULL") == 0) {
-			log_debug(logger, "File from node: %s has ended", workerToRequest->workerName);
+			log_debug(logFileNodo, "File from node: %s has ended", workerToRequest->workerName);
 			int j;
 			for (j = 0; j < filesCount; j++) {
 				char *nextRegister = filesCursors[j];
@@ -755,6 +799,32 @@ char *worker_utils_readFile(char *path) {
 	fclose(fp);
 
 	return buffer;
+}
+
+
+int worker_utils_readFileSize(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
+
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
+
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
+
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+
+	/* copy the file into the buffer // AND HANDSHAKE */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return lSize;
 }
 
 char *scriptTempFileName() {
