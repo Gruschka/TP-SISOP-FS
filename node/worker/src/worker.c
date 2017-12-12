@@ -466,17 +466,16 @@ void connectionHandler(int client_sock){
 			recv(client_sock, fileFinalName, fileFinalNameLength, 0);
 			char *fileContent = worker_utils_readFile(request.globalTempPath);
 			uint32_t fileLength = strlen(fileContent);
-			ipc_struct_worker_file_to_yama *sendFile = malloc(sizeof(ipc_struct_worker_file_to_yama));
-			sendFile->file = malloc(fileLength);
-			memcpy(sendFile->file, fileContent, fileLength);
-			sendFile->pathName = malloc(fileFinalNameLength);
-			memcpy(sendFile->pathName, fileFinalName, fileFinalNameLength);
+			ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
+			sendFile->buffer = fileContent;
+			sendFile->pathName = fileFinalName;
+			sendFile->bufferSize = fileLength;
 			uint32_t sockFs = connectToFileSystem();
-			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_YAMA, sendFile);
+			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, sendFile);
 
 			free(buffer); // Template de System
 			free(fileContent); // Archivo que envio a FS
-			free(sendFile->file);
+			free(sendFile->buffer);
 			free(sendFile->pathName);
 			free(sendFile);
 			free(request.globalTempPath);
