@@ -337,11 +337,12 @@ void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_r
 	lastJobID++;
 }
 
-void newConnectionHandler(int fd) {
-	log_debug(logger, "New master connection accepted. FD: %d", fd);
+void newConnectionHandler(int fd, char *ipAddress) {
+	log_debug(logger, "New master connection accepted. FD: %d. IP: %s", fd, ipAddress);
+	free(ipAddress);
 }
 
-void disconnectionHandler(int fd) {
+void disconnectionHandler(int fd, char *ipAddress) {
 	log_debug(logger, "Master disconnected. FD: %d", fd);
 }
 

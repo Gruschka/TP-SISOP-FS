@@ -732,13 +732,16 @@ void fs_listenToDataNodesThread() {
 	//Create thread
 	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
 }
-void fs_dataNode_newConnectionHandler(int fd){
-	log_debug(logger,"fs_dataNode_newConnectionHandler in fd %d", fd);
+void fs_dataNode_newConnectionHandler(int fd, char *ip){
+	log_debug(logger,"fs_dataNode_newConnectionHandler in fd %d. ip: %s", fd, ip);
+
+	//TODO: ver que hacer con esta ip
+	free(ip);
 }
 void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 	log_debug(logger,"fs_dataNode_incomingDataHandler in fd %d", fd);
 }
-void fs_dataNode_disconnectionHandler(int fd){
+void fs_dataNode_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
 }
 void fs_waitForDataNodes_select(){
@@ -785,7 +788,6 @@ void fs_waitForDataNodes() {
 
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
-
 		t_nodeConnection *connection = malloc(sizeof(t_nodeConnection));
 		connection->ipAddress = string_from_format("%s",inet_ntoa(address.sin_addr));
 		connection->socketfd = new_dataNode_socket;

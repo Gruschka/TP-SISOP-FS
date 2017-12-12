@@ -153,7 +153,7 @@ int create_and_bind (char *port) {
     {
 	  int iSetOption = 1;
       sfd = socket (rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-      setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (char*)&iSetOption,
+      setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption,
               sizeof(iSetOption));
       if (sfd == -1)
         continue;
@@ -215,8 +215,11 @@ int ipc_createSelectServer(char *port, ConnectionEventHandler newConnectionHandl
 			{
 				if (i == listeningSocket)
 				{
-					new_fd = accept(listeningSocket,NULL,0); // si es el escucha se tiene un nuevofd
-					newConnectionHandler(new_fd);
+					struct sockaddr_in clientaddr;
+					socklen_t clientaddr_size = sizeof(clientaddr);
+					new_fd = accept(listeningSocket, (struct sockaddr*) &clientaddr, &clientaddr_size); // si es el escucha se tiene un nuevofd
+					char *ip = strdup(inet_ntoa(clientaddr.sin_addr));
+					newConnectionHandler(new_fd, ip);
 					FD_SET(new_fd, &master);
 
 					if (new_fd > max_fd) // chequear si el nuevo fd es mas grande que el maximo
@@ -241,7 +244,7 @@ int ipc_createSelectServer(char *port, ConnectionEventHandler newConnectionHandl
 						}
 					} else { //se desconecto
 						close(i);
-						disconnectionHandler(i);
+						disconnectionHandler(i, NULL);
 						FD_CLR(i, &master);
 					}
 				}

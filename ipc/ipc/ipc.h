@@ -10,7 +10,7 @@
 
 #include "serialization.h"
 
-typedef void (*ConnectionEventHandler)(int fd);
+typedef void (*ConnectionEventHandler)(int fd, char *ip);
 typedef ConnectionEventHandler DisconnectionEventHandler;
 typedef void (*IncomingDataEventHandler)(int fd, ipc_struct_header header);
 
