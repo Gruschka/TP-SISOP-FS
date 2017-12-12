@@ -730,22 +730,8 @@ void fs_listenToDataNodesThread() {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
 	//Create thread
-	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
+	pthread_create(&threadId, &attr, fs_waitForDataNodes, NULL);
 }
-void fs_dataNode_newConnectionHandler(int fd){
-	log_debug(logger,"fs_dataNode_newConnectionHandler in fd %d", fd);
-}
-void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
-	log_debug(logger,"fs_dataNode_incomingDataHandler in fd %d", fd);
-}
-void fs_dataNode_disconnectionHandler(int fd){
-	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
-}
-void fs_waitForDataNodes_select(){
-	int result = ipc_createSelectServer("8080",fs_dataNode_newConnectionHandler,fs_dataNode_incomingDataHandler,fs_dataNode_disconnectionHandler);
-
-}
-
 void fs_waitForDataNodes() {
 
 	//Socket connection variables
