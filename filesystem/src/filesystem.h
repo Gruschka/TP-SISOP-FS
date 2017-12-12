@@ -147,6 +147,7 @@ int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
 int fs_checkNodeConnectionStatus(t_dataNode aDataNode);
+char *fs_getParentPath(char *childPath);
 
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath);
 ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePath);
