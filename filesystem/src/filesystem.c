@@ -1190,19 +1190,17 @@ void fs_waitForWorkers(){
 
 		while (1) {
 			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
-			ipc_struct_worker_file_to_yama *sendFile = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_YAMA);
-			log_debug(logger,"YAMAFS: Received request to store file in YAMA from Worker / Path:%s",sendFile->pathName);
-			t_directory *destinationDirectory = fs_directoryExists(sendFile->pathName);
-			if (!destinationDirectory) {
-				log_error(logger, "fs_waitForWorkers: destination directory doesnt exist");
-			}
-			char *fileName = basename(sendFile->pathName);
+			ipc_struct_worker_file_to_fs *request = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_FS);
+			log_debug(logger,"Yama Request: %s", request->buffer);
+			char *fileName = basename(request->pathName);
 			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
-			fs_createTempFileFromWorker(pathInLocalFS, sendFile->file);
-			fs_cpfrom(pathInLocalFS,sendFile->pathName,'-t');
+			fs_createTempFileFromWorker(pathInLocalFS, request->buffer);
+			char *pathInYAMA = fs_getParentPath(request->pathName);
+			fs_cpfrom(pathInLocalFS,pathInYAMA,"-t");
+			log_debug(logger,"YAMAFS: Successfully stored file in %s",pathInYAMA);
 			remove(pathInLocalFS);
+			free(pathInYAMA);
 			free(pathInLocalFS);
-
 
 		}
 
@@ -3380,4 +3378,15 @@ char *fs_removeYamafsFromPath(char *path){
 	strcpy(strCopy,path+yamaFsLength);
 	return strCopy;
 
+}
+
+char *fs_getParentPath(char *childPath){
+	char *fileName = basename(childPath);
+	int childPathLength = strlen(childPath);
+	int fileNameLength = strlen(fileName);
+
+	char *parentPath = strdup(childPath);
+	parentPath[childPathLength-fileNameLength-1] = '\0';
+
+	return parentPath;
 }

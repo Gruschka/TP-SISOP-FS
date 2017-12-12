@@ -26,6 +26,31 @@
 //TODO: Revisar leaks
 //TODO: Deshardcodear puerto
 
+char *_readFile(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
+
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
+
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
+
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+
+	/* copy the file into the buffer // AND HANDSHAKE */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return buffer;
+}
+
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
@@ -555,7 +580,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 void *server_mainThread() {
 	log_debug(logger, "Waiting for masters on port %s", configuration.serverPort);
-	ipc_createEpollServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
+	ipc_createSelectServer(configuration.serverPort, newConnectionHandler, incomingDataHandler, disconnectionHandler);
 	return NULL;
 }
 
@@ -579,6 +604,7 @@ void initialize() {
 	mastersDict = dictionary_create();
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	log_debug(logger, "Connected to FS");
+
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
