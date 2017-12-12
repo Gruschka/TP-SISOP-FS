@@ -26,31 +26,6 @@
 //TODO: Revisar leaks
 //TODO: Deshardcodear puerto
 
-char *_readFile(char *path) {
-	FILE *fp;
-	long lSize;
-	char *buffer;
-
-	fp = fopen (path, "rb" );
-	if( !fp ) perror(path),exit(1);
-
-	fseek( fp , 0L , SEEK_END);
-	lSize = ftell( fp );
-	rewind( fp );
-
-	/* allocate memory for entire content */
-	buffer = calloc( 1, lSize+1 );
-	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
-
-	/* copy the file into the buffer // AND HANDSHAKE */
-	if( 1!=fread( buffer , lSize, 1 , fp) )
-	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
-
-	fclose(fp);
-
-	return buffer;
-}
-
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
@@ -246,11 +221,14 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currEntry = list_get(stateTable, i);
-		if (currEntry->jobID == jobID && currEntry->masterID == masterID && stringsAreEqual(currEntry->nodeID, nodeID)) return currEntry;
+		if (currEntry->jobID == jobID && currEntry->masterID == masterID && stringsAreEqual(currEntry->nodeID, nodeID)) {
+			pthread_mutex_unlock(&stateTable_mutex);
+			return currEntry;
+		}
 	}
 
 	return NULL;
-	pthread_mutex_unlock(&stateTable_mutex);
+
 }
 
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
@@ -609,6 +587,10 @@ void initialize() {
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
 
+void test() {
+
+}
+
 int main(int argc, char** argv) {
 	char *logFilePath = tempFileName();
 	logger = log_create(logFilePath, "YAMA", 1, LOG_LEVEL_DEBUG);
@@ -621,6 +603,7 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
+	test();
 	pthread_create(&serverThread, NULL, server_mainThread, NULL);
 
 	pthread_join(serverThread, NULL);

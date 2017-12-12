@@ -680,20 +680,23 @@ uint32_t getMasterContinueWithFinalStorageRequestSize(ipc_struct_master_continue
 char *serializeMasterContinueWithFinalStorageRequest(void *data, int *size) {
 	int offset = 0, i;
 	ipc_struct_master_continueWithFinalStorageRequest *request = data;
-	uint32_t entriesSize = getMasterContinueWithGlobalReductionRequestEntriesSize(request);
 	char *buffer;
 
 	buffer = malloc(*size = getMasterContinueWithFinalStorageRequestSize(request));
+
 	memcpy(buffer + offset, request->nodeID, strlen(request->nodeID)); //nodeID
 	offset += strlen(request->nodeID);
 	buffer[offset] = '\0';
 	offset += 1;
+
 	memcpy(buffer + offset, request->workerIP, strlen(request->workerIP)); //workerIP
 	offset += strlen(request->workerIP);
 	buffer[offset] = '\0';
 	offset += 1;
+
 	memcpy(buffer + offset, &(request->workerPort), sizeof(uint32_t));
 	offset += sizeof(uint32_t);
+
 	memcpy(buffer + offset, request->globalReductionTempPath, strlen(request->globalReductionTempPath));
 	offset += strlen(request->globalReductionTempPath);
 	buffer[offset] = '\0';
