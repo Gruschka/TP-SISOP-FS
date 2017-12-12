@@ -26,6 +26,31 @@
 //TODO: Revisar leaks
 //TODO: Deshardcodear puerto
 
+char *_readFile(char *path) {
+	FILE *fp;
+	long lSize;
+	char *buffer;
+
+	fp = fopen (path, "rb" );
+	if( !fp ) perror(path),exit(1);
+
+	fseek( fp , 0L , SEEK_END);
+	lSize = ftell( fp );
+	rewind( fp );
+
+	/* allocate memory for entire content */
+	buffer = calloc( 1, lSize+1 );
+	if( !buffer ) fclose(fp),fputs("memory alloc fails",stderr),exit(1);
+
+	/* copy the file into the buffer // AND HANDSHAKE */
+	if( 1!=fread( buffer , lSize, 1 , fp) )
+	  fclose(fp),free(buffer),fputs("entire read fails",stderr),exit(1);
+
+	fclose(fp);
+
+	return buffer;
+}
+
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
@@ -579,6 +604,15 @@ void initialize() {
 	mastersDict = dictionary_create();
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	log_debug(logger, "Connected to FS");
+
+	ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
+	sendFile->pathName = "/pruebita/lol.txt";
+	char *buffer = _readFile("/mnt/lol.txt");
+	buffer[strlen(buffer)] = '\0';
+	sendFile->buffer = buffer;
+	sendFile->bufferSize = strlen(buffer) + 1;
+
+	ipc_sendMessage(fsFd, WORKER_SEND_FILE_TO_FS, sendFile);
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }

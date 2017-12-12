@@ -42,7 +42,7 @@ void *deserializeSendFileToFS(void *buffer) {
 	offset += sizeof(uint32_t);
 
 	sendFile->buffer = malloc(sendFile->bufferSize);
-	memcpy(sendFile->buffer, buffer + offset, tmpLen + 1); //buffer
+	memcpy(sendFile->buffer, buffer + offset, sendFile->bufferSize); //buffer
 
 	return sendFile;
 }
