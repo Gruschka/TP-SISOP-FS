@@ -605,14 +605,6 @@ void initialize() {
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	log_debug(logger, "Connected to FS");
 
-	ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
-	sendFile->pathName = "/pruebita/lol.txt";
-	char *buffer = _readFile("/mnt/lol.txt");
-	buffer[strlen(buffer)] = '\0';
-	sendFile->buffer = buffer;
-	sendFile->bufferSize = strlen(buffer) + 1;
-
-	ipc_sendMessage(fsFd, WORKER_SEND_FILE_TO_FS, sendFile);
 	pthread_mutex_init(&stateTable_mutex, NULL);
 	pthread_mutex_init(&nodesList_mutex, NULL);
 }
