@@ -184,6 +184,7 @@ int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks);
 int fs_sumOfIntArray(int *array, int length);
 char *fs_removeYamafsFromPath(char *path);
 t_dataNode *fs_getDataNodeFromFileDescriptor(int fd);
+int fs_clean();
 
 
 //Console commands

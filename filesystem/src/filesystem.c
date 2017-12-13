@@ -67,10 +67,21 @@ enum flags {
 
 
 /********* MAIN **********/
-void main() {
+void main(int argc, char **argv) {
+
 	serialization_initialize();
 	char *logFile = tmpnam(NULL);
 	logger = log_create(logFile, "FS", 1, LOG_LEVEL_DEBUG);
+	//Validar parametros de entrada
+	if (argc < 2) {
+		log_debug(logger, "starting up without format");
+	} else {
+		//Si estan bien, cargo el archivo de configuracion
+		if(!strcmp("-clean",argv[1])){
+			log_debug(logger, "starting up with format");
+			fs_clean();
+		}
+	}
 	connectedNodes = list_create(); //Lista con los DataNodes conectados. Arranca siempre vacia y en caso de corresponder se llena con el estado anterior
 	previouslyConnectedNodesNames = list_create();
 	fs_mount(&myFS); //Crea los directorios del FS
@@ -989,7 +1000,7 @@ void fs_yama_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"YAMA disconnected");
 }
 void fs_waitForYama_select() {
-	int new_socket = ipc_createSelectServer(8081,fs_yama_newConnectionHandler,fs_yama_incomingDataHandler,fs_yama_disconnectionHandler);
+	int new_socket = ipc_createSelectServer("8081",fs_yama_newConnectionHandler,fs_yama_incomingDataHandler,fs_yama_disconnectionHandler);
 
 }
 int fs_isStable() {
@@ -3098,7 +3109,11 @@ int *fs_moveFileTo(char *filePhysicalPath, t_directory *parent){
 }
 
 int fs_updateAllConnectedNodesOnTable(){
+	if (!connectedNodes){
+		log_error(logger,"fs_updateAllConnectedNodes: No data nodes connected\n");
+		return EXIT_FAILURE;
 
+	}
 	int listSize = list_size(connectedNodes);
 	int i;
 	t_dataNode * aux;
@@ -3120,6 +3135,10 @@ int fs_updateAllConnectedNodesOnTable(){
 
 int fs_wipeAllConnectedDataNodes(){
 
+	if(!connectedNodes){
+		log_error(logger,"fs_wipeAllConnectedNodes: No data nodes connected\n");
+		return EXIT_FAILURE;
+	}
 	int listSize = list_size(connectedNodes);
 		int i;
 		t_dataNode * aux;
@@ -3312,7 +3331,11 @@ void *fs_readFile(char *filePath){
 	return result;
 }
 int fs_createBitmapsOfAllConnectedNodes(){
+	if (!connectedNodes){
+					log_error(logger,"fs_createBitmapsOfAllConnectedNodes: No data nodes connected\n");
+					return EXIT_FAILURE;
 
+	}
 	int listSize = list_size(connectedNodes);
 			int i;
 			t_dataNode * aux;
@@ -3579,4 +3602,22 @@ t_dataNode *fs_getDataNodeFromFileDescriptor(int fd){
 	}
 
 	return node;
+}
+
+int fs_clean() {
+	//igual a format pero sin fclose
+	char *command = string_from_format("rm -r %s",myFS.mountDirectoryPath);
+	int result = system(command);
+	free(command);
+	myFS._directoryIndexAutonumber = 0; // ▁ ▂ ▄ ▅ ▆ ▇ █ ŴÃŘŇĮŇĞ █ ▇ ▆ ▅ ▄ ▂ ▁
+	myFS.usePreviousStatus = FALSE;
+	fs_mount(&myFS);
+	fs_wipeDirectoryTable();
+    fs_wipeAllConnectedDataNodes();
+    fs_createBitmapsOfAllConnectedNodes();
+	fs_updateAllConnectedNodesOnTable();
+
+	log_debug(logger,"Format successful");
+	return EXIT_SUCCESS;
+
 }
