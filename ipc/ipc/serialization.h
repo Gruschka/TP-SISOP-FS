@@ -50,7 +50,7 @@ DeserializationFunction deserializationArray[OPERATIONS_COUNT];
 
 typedef struct {
 	char type;
-	uint16_t length;
+	uint32_t length;
 } __attribute__((packed)) ipc_struct_header;
 
 typedef struct {

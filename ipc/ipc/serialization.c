@@ -824,7 +824,7 @@ void *serializeDatanodeWriteBlockRequest(void *data, int *size) {
 	memcpy(buffer+offset,&request->blockNumber,sizeof(uint32_t));
 	offset+=sizeof(uint32_t);
 
-	return request;
+	return buffer;
 }
 
 void *deserializeDatanodeWriteBlockRequest(char *buffer) {
@@ -849,7 +849,7 @@ void *serializeDatanodeReadBlockRequest(void *data, int *size) {
 	memcpy(buffer+offset,&request->blockNumber,sizeof(uint32_t));
 	offset+=sizeof(uint32_t);
 
-	return request;
+	return buffer;
 }
 
 void *deserializeDatanodeReadBlockRequest(char *buffer) {
@@ -870,7 +870,7 @@ void *serializeDatanodeReadBlockResponse(void *data, int *size) {
 	memcpy(buffer+offset,response->buffer,1024*1024);
 	offset+=1024*1024;
 
-	return response;
+	return buffer;
 }
 
 void *deserializeDatanodeReadBlockResponse(char *buffer) {

@@ -780,6 +780,9 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 
 				int nodeTableUpdate = fs_updateNodeTable(*dataNode);
 				log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
+				ipc_struct_datanode_handshake_response response;
+				response.status = EXIT_SUCCESS;
+				ipc_sendMessage(fd,DATANODE_HANDSHAKE_RESPONSE,&response);
 				pthread_t newDataNodeThread;
 
 				// Copy the value of the accepted socket, in order to pass to the thread

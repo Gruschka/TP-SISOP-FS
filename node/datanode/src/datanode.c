@@ -114,6 +114,10 @@ void dataNode_connectToFileSystem_ipc(t_dataNode dataNode) {
 	ipc_sendMessage(sockfd,DATANODE_HANDSHAKE_REQUEST,&handshake);
 
 	ipc_struct_datanode_handshake_response *response = ipc_recvMessage(sockfd,DATANODE_HANDSHAKE_RESPONSE);
+	if(response->status == EXIT_FAILURE){
+		printf("\nConnection refused by FS hadnshake\n");
+		abort();
+	}
 
 	printf("\nreceived handshake status %d\n",response->status);
 
