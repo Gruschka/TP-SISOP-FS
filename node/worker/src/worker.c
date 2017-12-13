@@ -59,64 +59,11 @@ int main(int argc, char **argv) {
 		log_error(logFileNodo, "Couldn't register signal handler");
 		return EXIT_FAILURE;
 	}
-		//Esto para test de apareo local
-//		t_list * fileList = list_create();
-//	 	fileNode * testLocal1 = malloc(sizeof(fileNode));
-//	 	fileNode * testLocal2 = malloc(sizeof(fileNode));
-//	 	fileNode * testLocal3 = malloc(sizeof(fileNode));
-//	 	fileNode * testLocal4 = malloc(sizeof(fileNode));
-//	 	testLocal1->filePath = malloc (strlen("/home/utnso/Prueba1"));
-//	 	testLocal2->filePath = malloc (strlen("/home/utnso/Prueba2"));
-//	 	testLocal3->filePath = malloc (strlen("/home/utnso/Prueba3"));
-//	 	testLocal4->filePath = malloc (strlen("/home/utnso/Prueba4"));
-//	 	strcpy(testLocal1->filePath, "/home/utnso/Prueba1");
-//	 	strcpy(testLocal2->filePath, "/home/utnso/Prueba2");
-//	 	strcpy(testLocal3->filePath, "/home/utnso/Prueba3");
-//	 	strcpy(testLocal4->filePath, "/home/utnso/Prueba4");
-//	 	list_add(fileList, testLocal1);
-//	 	list_add(fileList, testLocal2);
-//	 	list_add(fileList, testLocal3);
-//	 	list_add(fileList, testLocal4);
-//	 	pairingFiles(fileList, "/home/utnso/PairTest");
 
 	createServer();
 
-//	// Transformaciones
-//
-//	worker_runCommand("cat /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/test1.txt | /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/transformador.py | sort > /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out1.txt");
-//	worker_runCommand("cat /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/test2.txt | /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/transformador.py | sort > /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out2.txt");
-//	worker_runCommand("cat /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/test3.txt | /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/transformador.py | sort > /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out3.txt");
-//	worker_runCommand("cat /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/test4.txt | /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/transformador.py | sort > /home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out4.txt");
-//
-//	// Reducción local
-//
-//	t_list * fileList = list_create();
-//
-// 	fileNode * testLocal1 = malloc(sizeof(fileNode));
-// 	testLocal1->filePath = malloc(strlen("/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out1.txt") + 1);
-// 	strcpy(testLocal1->filePath, "/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out1.txt");
-// 	list_add(fileList, testLocal1);
-//
-// 	fileNode * testLocal2 = malloc(sizeof(fileNode));
-// 	testLocal2->filePath = malloc(strlen("/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out2.txt") + 1);
-// 	strcpy(testLocal2->filePath, "/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out2.txt");
-// 	list_add(fileList, testLocal2);
-//
-// 	fileNode * testLocal3 = malloc(sizeof(fileNode));
-// 	testLocal3->filePath = malloc (strlen("/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out3.txt") + 1);
-// 	strcpy(testLocal3->filePath, "/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out3.txt");
-// 	list_add(fileList, testLocal3);
-//
-// 	fileNode * testLocal4 = malloc(sizeof(fileNode));
-// 	testLocal4->filePath = malloc (strlen("/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out4.txt") + 1);
-// 	strcpy(testLocal4->filePath, "/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out4.txt");
-// 	list_add(fileList, testLocal4);
-//
-// 	pairFiles(fileList, "/home/utnso/git/tp-2017-2c-Deus-Vult/master/scripts/out_final.txt");
-
 	return EXIT_SUCCESS;
 }
-
 
 void loadConfiguration(char *configFile) {
 	configuration = fetchConfiguration(configFile != NULL ? configFile : "../conf/nodeConf.txt");
@@ -164,45 +111,6 @@ void *createServer() {
 	log_debug(logFileNodo, "Waiting for incoming connections...");
 	c = sizeof(struct sockaddr_in);
 
-
-//	//Esto es para probar Apareo Global
-//	if ((strcmp(configuration.NodeName, "Nodo1")) == 0){
-//		fileGlobalNode * worker2 = malloc(sizeof(fileGlobalNode));
-//		worker2->port = 5100;
-//		worker2->sockfd = connectToWorker("127.0.0.1", worker2->port);
-//		int slaveWorker = SLAVE_WORKER;
-//		send(worker2->sockfd, &slaveWorker, sizeof(int), 0);
-//		worker2->workerNameLength = strlen("Nodo2");
-//		worker2->workerName = malloc(worker2->workerNameLength);
-//		strcpy(worker2->workerName, "Nodo2");
-//		worker2->filePathLength = strlen("/home/utnso/Prueba1");
-//		worker2->filePath = malloc(worker2->filePathLength);
-//		strcpy(worker2->filePath, "/home/utnso/Prueba1");
-//		send(worker2->sockfd, &(worker2->filePathLength), sizeof(int), 0);
-//		send(worker2->sockfd, worker2->filePath, worker2->filePathLength,0);
-//
-//
-//		fileGlobalNode * worker3 = malloc(sizeof(fileGlobalNode));
-//		worker3->port = 5300;
-//		worker3->sockfd = connectToWorker("127.0.0.1", worker3->port);
-//		send(worker3->sockfd, &slaveWorker, sizeof(int), 0);
-//		worker3->workerNameLength = strlen("Nodo3");
-//		worker3->workerName = malloc(worker2->workerNameLength);
-//		strcpy(worker3->workerName, "Nodo3");
-//		worker3->filePathLength = strlen("/home/utnso/Prueba2");
-//		worker3->filePath = malloc(worker2->filePathLength);
-//		strcpy(worker3->filePath, "/home/utnso/Prueba2");
-//		send(worker3->sockfd, &(worker3->filePathLength), sizeof(int), 0);
-//		send(worker3->sockfd, worker3->filePath, worker3->filePathLength,0);
-//
-//
-//		t_list * listaApareoGlobal = list_create();
-//		list_add(listaApareoGlobal, worker2);
-//		list_add(listaApareoGlobal, worker3);
-//		pairingGlobalFiles(listaApareoGlobal, "/home/utnso/resultadoPruebaGlobal");
-//
-//	} else {
-
 	while (1) {
 		int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
 		if (client_sock >= 0) {
@@ -230,11 +138,6 @@ void connectionHandler(int client_sock){
 
 			ipc_struct_worker_start_transform_request request;
 
-//				//Valores Hardcoded
-//				request.block = 3;
-//				request.tempFilePath = "/home/utnso/resultadoHardcoded";
-//				request.usedBytes = 10000;
-
 			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
 			request.scriptContent = malloc(request.scriptContentLength + 1);
 			recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), 0);
@@ -259,7 +162,7 @@ void connectionHandler(int client_sock){
 				break;
 			}
 
-			char *template = "head -c %li %s | tail -c %d | %s | sort > %s";
+			char *template = "export LC_ALL=C; head -c %li %s | tail -c %d | %s | sort > %s";
 
 			long int bytesToRead = (request.block * blockSize) + request.usedBytes;
 			int templateSize = snprintf(NULL, 0, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
@@ -449,6 +352,7 @@ void connectionHandler(int client_sock){
 			uint32_t response_operation = WORKER_START_GLOBAL_REDUCTION_RESPONSE;
 			send(client_sock, &response_operation, sizeof(int), 0);
 			send(client_sock, &(reduction_response), sizeof(uint32_t), 0);
+
 			// Libero memoria que utilizo la lista de workers
 			for (i = 0; i < request.workersEntriesCount; i++){
 				fileGlobalNode * workerToFree;
@@ -459,31 +363,45 @@ void connectionHandler(int client_sock){
 				free(workerToFree);
 			}
 			list_destroy(workerList);
-			//Enviar archivo al Filesystem
-			uint32_t fileFinalNameLength = 0;
-			recv(client_sock, &fileFinalNameLength, sizeof(uint32_t), 0);
-			char * fileFinalName = malloc(fileFinalNameLength +1);
-			recv(client_sock, fileFinalName, fileFinalNameLength, 0);
-			char *fileContent = worker_utils_readFile(request.globalTempPath);
-			uint32_t fileLength = strlen(fileContent);
-			ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
-			sendFile->buffer = fileContent;
-			sendFile->pathName = fileFinalName;
-			sendFile->bufferSize = fileLength;
-			uint32_t sockFs = connectToFileSystem();
-			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, sendFile);
 
 			free(buffer); // Template de System
-			free(fileContent); // Archivo que envio a FS
-			free(sendFile->buffer);
-			free(sendFile->pathName);
-			free(sendFile);
 			free(request.globalTempPath);
 			free(pairingResult);
 			remove(scriptPath);
 			free(scriptPath);
 			break;
 		}
+		case WORKER_START_FINAL_STORAGE_REQUEST: {
+			ipc_struct_worker_start_final_storage_request request;
+
+			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
+
+			request.globalTempPath = malloc(request.globalTempPathLen + 1);
+			recv(client_sock, request.globalTempPath, request.globalTempPathLen + 1, 0);
+
+			recv(client_sock, &(request.finalResultPathLen), sizeof(uint32_t), 0);
+
+			request.finalResultPath = malloc(request.finalResultPathLen + 1);
+			recv(client_sock, request.finalResultPath, request.finalResultPathLen + 1, 0);
+
+			// Enviar archivo al file system
+			char *fileContent = worker_utils_readFile(request.globalTempPath);
+			uint32_t fileLength = strlen(fileContent);
+			ipc_struct_worker_file_to_fs file;
+			file.buffer = fileContent;
+			file.pathName = request.finalResultPath;
+			file.bufferSize = fileLength + 1;
+
+			uint32_t sockFs = connectToFileSystem();
+			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
+
+			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;
+			send(client_sock, &op, sizeof(uint32_t), 0);
+
+			free(fileContent);
+			free(file.buffer);
+			free(file.pathName);
+		} break;
 		case WORKER_REQUEST_FILE_FROM_SLAVE:{
 			log_debug(logFileNodo, "Slave Worker Stage \n");
 
@@ -524,22 +442,22 @@ void connectionHandler(int client_sock){
 }
 
 // Apareo de Archivos
-void pairFiles(t_list *listToPair, char *resultName){
+void pairFiles(t_list *listToPair, char *resultFilePath){
 	int maxLineSize = 1024 * 1024;
 
 	int filesCount = list_size(listToPair);
 	char *filesCursors[filesCount];
-	FILE *filesArray[filesCount];
+	FILE *files[filesCount];
 
 	int i;
 	for(i = 0; i < filesCount; i++){
 		fileNode *fileToOpen = list_get(listToPair, i);
-		filesArray[i] = fopen(fileToOpen->filePath, "r");
+		files[i] = fopen(fileToOpen->filePath, "r");
 		filesCursors[i] = malloc(maxLineSize);
-		fgets(filesCursors[i], maxLineSize, filesArray[i]);
+		fgets(filesCursors[i], maxLineSize, files[i]);
 	}
 
-	FILE *pairingResultFile = fopen(resultName, "w");
+	FILE *resultFile = fopen(resultFilePath, "w");
 
 	int pairedFilesCount = 0;
 	int auxFileIndex = 0;
@@ -551,22 +469,22 @@ void pairFiles(t_list *listToPair, char *resultName){
 		}
 
 		if (filesCursors[auxFileIndex] != NULL) {
-			fprintf(pairingResultFile, "%s", filesCursors[auxFileIndex]);
-			fflush(pairingResultFile);
+			fprintf(resultFile, "%s", filesCursors[auxFileIndex]);
+			fflush(resultFile);
 		}
 
-		if (fgets(filesCursors[auxFileIndex], maxLineSize, filesArray[auxFileIndex]) == NULL) {
+		if (fgets(filesCursors[auxFileIndex], maxLineSize, files[auxFileIndex]) == NULL) {
 			free(filesCursors[auxFileIndex]);
 			filesCursors[auxFileIndex] = NULL;
-			fclose(filesArray[auxFileIndex]);
+			fclose(files[auxFileIndex]);
 			pairedFilesCount++;
 		}
 	}
 
-	fclose(pairingResultFile);
+	fclose(resultFile);
 }
 
-void pairGlobalFiles(t_list *workerList, char *resultName) {
+void pairGlobalFiles(t_list *workerList, char *resultFilePath) {
 	t_list *localFiles = list_create();
 
 	int i;
@@ -596,7 +514,7 @@ void pairGlobalFiles(t_list *workerList, char *resultName) {
 		list_add(localFiles, localFile);
 	}
 
-	pairFiles(localFiles, resultName);
+	pairFiles(localFiles, resultFilePath);
 }
 
 int connectToWorker(char *workerIp, int port){

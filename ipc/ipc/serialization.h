@@ -165,6 +165,8 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_worker_start_global_reduce_response;
 
 typedef struct {
+	uint32_t globalTempPathLen;
+	char *globalTempPath;
 	uint32_t finalResultPathLen;
 	char *finalResultPath;
 }__attribute__((packed)) ipc_struct_worker_start_final_storage_request;
