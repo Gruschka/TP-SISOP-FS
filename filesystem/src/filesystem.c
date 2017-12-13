@@ -847,6 +847,7 @@ void fs_dataNode_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
 	t_dataNode *node = fs_getDataNodeFromFileDescriptor(fd);
 	fs_removeNodeFromConnectedNodeList(*node);
+	fs_rebuildNodeTable();
 	//todo: sacar de la nodetable
 }
 void fs_waitForDataNodes_select(){
@@ -3620,4 +3621,54 @@ int fs_clean() {
 	log_debug(logger,"Format successful");
 	return EXIT_SUCCESS;
 
+}
+
+void fs_rebuildNodeTable(){
+	int connectedNodesCount = list_size(connectedNodes);
+	int positionInList = 0;
+	t_dataNode *node;
+	int totalFSSize = 0;
+	int totalFSFreeSize = 0;
+	char *nodesString = string_from_format("["); //Freed
+	nodeTableConfig = config_create(myFS.nodeTablePath); //destroyed
+	char *nodeFreeKey;//freed
+	char *nodeFreeValue;
+	char *nodeTotalKey;//freed
+	char *nodeTotalValue;
+
+	while(positionInList < connectedNodesCount){
+		node = list_get(connectedNodes,positionInList);
+		totalFSSize+=node->amountOfBlocks;
+		totalFSFreeSize+=node->amountOfBlocks-node->occupiedBlocks;
+		if((positionInList+1) == connectedNodesCount){
+			// es el ultimo
+			string_append_with_format(&nodesString,"%s]",node->name);
+		}else{
+			string_append_with_format(&nodesString,"%s,",node->name);
+		}
+		nodeFreeKey = string_from_format("%sLibre",node->name);
+		nodeFreeValue = string_from_format("%d",node->amountOfBlocks-node->occupiedBlocks);
+		nodeTotalKey = string_from_format("%sTotal",node->name);
+		nodeTotalValue = string_from_format("%d",node->amountOfBlocks);
+
+		config_set_value(nodeTableConfig,nodeFreeKey,nodeFreeValue);
+		config_set_value(nodeTableConfig,nodeTotalKey,nodeTotalValue);
+		free(nodeFreeKey);
+		free(nodeTotalKey);
+		free(nodeFreeValue);
+		free(nodeTotalValue);
+		positionInList++;
+	}
+	char *totalFSSizeString = string_from_format("%d",totalFSSize);
+	config_set_value(nodeTableConfig,"TAMANIO",totalFSSizeString);
+
+	char *totalFSFreeSizeString = string_from_format("%d",totalFSFreeSize);
+	config_set_value(nodeTableConfig,"LIBRE",totalFSFreeSizeString);
+
+	config_set_value(nodeTableConfig,"NODOS",nodesString);
+	config_save_in_file(nodeTableConfig,myFS.nodeTablePath);
+	config_destroy(nodeTableConfig);
+	free(nodesString);
+	free(totalFSSizeString);
+	free(totalFSFreeSizeString);
 }

@@ -185,6 +185,7 @@ int fs_sumOfIntArray(int *array, int length);
 char *fs_removeYamafsFromPath(char *path);
 t_dataNode *fs_getDataNodeFromFileDescriptor(int fd);
 int fs_clean();
+void fs_rebuildNodeTable();
 
 
 //Console commands
