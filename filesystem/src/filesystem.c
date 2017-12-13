@@ -813,8 +813,20 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 
 	   /* you can have any number of case statements */
 	   case WORKER_SEND_FILE_TO_FS :
-		   log_debug(logger,"DATANODE_READ_BLOCK_RESPONSE");
+		   log_debug(logger,"WORKER_SEND_FILE_TO_FS");
 		   //todo: implementar messaging contra el worker
+			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
+			ipc_struct_worker_file_to_fs *workerRequest = ipc_recvMessage(fd, WORKER_SEND_FILE_TO_FS);
+			log_debug(logger,"Yama Request: %s", workerRequest->buffer);
+			char *fileName = basename(workerRequest->pathName);
+			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
+			fs_createTempFileFromWorker(pathInLocalFS, workerRequest->buffer);
+			char *pathInYAMA = fs_getParentPath(workerRequest->pathName);
+			fs_cpfrom(pathInLocalFS,pathInYAMA,"-t");
+			log_debug(logger,"YAMAFS: Successfully stored file in %s",pathInYAMA);
+			remove(pathInLocalFS);
+			free(pathInYAMA);
+			free(pathInLocalFS);
 	      break; /* optional */
 	   default : /* Optional */
 		   log_debug(logger,"DATANODE_DEFAULT");
