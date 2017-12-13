@@ -45,7 +45,7 @@ typedef struct nodeConnection {
 
 
 typedef struct dataNode {
-
+	int fd;
 	char *name;
 	char *IP;
 	int amountOfBlocks;
@@ -146,6 +146,8 @@ int fs_cleanBlockFromDataNode(t_dataNode *aDataNode, int blockNumber);
 int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
+int fs_isDataNodeNameInConnectedList(char* aDataNodeName);
+
 int fs_checkNodeConnectionStatus(t_dataNode aDataNode);
 char *fs_getParentPath(char *childPath);
 
@@ -181,6 +183,7 @@ int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode);
 int fs_getBlockSizesOfFileMetadata(char *fileMetadataPath, int amountOfBlocks);
 int fs_sumOfIntArray(int *array, int length);
 char *fs_removeYamafsFromPath(char *path);
+t_dataNode *fs_getDataNodeFromFileDescriptor(int fd);
 
 
 //Console commands
@@ -212,6 +215,7 @@ int fs_isStable();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
+void fs_dataNodeThreadHandler(t_dataNode *aNode);
 void fs_workerConnectionThread();
 
 #endif /* FILESYSTEM_H_ */

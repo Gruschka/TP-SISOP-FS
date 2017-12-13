@@ -733,13 +733,85 @@ void fs_listenToDataNodesThread() {
 	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
 }
 void fs_dataNode_newConnectionHandler(int fd, char *ip){
-	log_debug(logger,"fs_dataNode_newConnectionHandler in fd %d. ip: %s", fd, ip);
-
-	//TODO: ver que hacer con esta ip
+	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
+	newDataNode->IP = strdup(ip);
+	newDataNode->fd = fd;
+	list_add(connectedNodes,newDataNode);
 	free(ip);
 }
 void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 	log_debug(logger,"fs_dataNode_incomingDataHandler in fd %d", fd);
+	t_dataNode *dataNode = fs_getDataNodeFromFileDescriptor(fd);
+	switch(header.type) {
+
+	   case DATANODE_HANDSHAKE_REQUEST  :
+			log_debug(logger,"DATANODE_HANDSHAKE_REQUEST");
+			ipc_struct_datanode_handshake_to_fs *request = ipc_recvMessage(fd,DATANODE_HANDSHAKE_REQUEST);
+			dataNode->name = NULL;
+			if(fs_isDataNodeNameInConnectedList(request->nodeName)){
+				log_error(logger,"datanode %s already connected, aborting", dataNode->name);
+				dataNode->name = strdup(request->nodeName);
+				fs_removeNodeFromConnectedNodeList(*dataNode);
+				free(request->nodeName);
+				free(request);
+				ipc_struct_datanode_handshake_response response;
+				response.status = EXIT_FAILURE;
+				ipc_sendMessage(fd,DATANODE_HANDSHAKE_RESPONSE,&response);
+				break;
+			}else{
+				dataNode->name = strdup(request->nodeName);
+
+				sem_t *mutex = malloc(sizeof(sem_t));
+				sem_t *results = malloc(sizeof(sem_t));
+				dataNode->amountOfBlocks = request->amountOfBlocks;
+				dataNode->workerPortno = request->portNumber;
+				sem_init(mutex,0,0);
+				sem_init(results,0,0);
+				dataNode->threadSemaphore = mutex;
+				dataNode->resultSemaphore = results;
+				dataNode->operationsQueue = queue_create();
+				dataNode->resultsQueue = queue_create();
+				fs_openOrCreateBitmap(myFS, dataNode);
+
+				myFS.totalAmountOfBlocks += dataNode->amountOfBlocks;
+				dataNode->freeBlocks = fs_getAmountOfFreeBlocksOfADataNode(dataNode);
+				dataNode->occupiedBlocks = dataNode->amountOfBlocks - dataNode->freeBlocks;
+				log_info(logger,"fs_connectionHandler: Node: [%s] connected / Total:[%d], Free:[%d], Occupied:[%d], IP: [%s], workerPortno: [%d]", dataNode->name, dataNode->amountOfBlocks, dataNode->freeBlocks, dataNode->occupiedBlocks, dataNode->IP, dataNode->workerPortno);
+
+				int nodeTableUpdate = fs_updateNodeTable(*dataNode);
+				log_debug(logger,"fs_waitForDataNodes: New connection accepted!");
+				pthread_t newDataNodeThread;
+
+				// Copy the value of the accepted socket, in order to pass to the thread
+
+				if (pthread_create(&newDataNodeThread, NULL,
+						fs_dataNodeThreadHandler, dataNode)
+						< 0) {
+					log_error(logger,"DATANODE_HANDSHAKE_REQUEST: Error creating thread after new connection!");
+				}
+
+				log_debug(logger,"DATANODE_HANDSHAKE_REQUEST: Handler assigned");
+
+			}
+
+
+	      break; /* optional */
+
+	   case DATANODE_HANDSHAKE_RESPONSE  :
+		   log_debug(logger,"DATANODE_HANDSHAKE_RESPONSE");
+	      break; /* optional */
+
+	   case DATANODE_READ_BLOCK_RESPONSE :
+		   log_debug(logger,"DATANODE_READ_BLOCK_RESPONSE");
+		   ipc_struct_datanode_read_block_response *response = ipc_recvMessage(fd,DATANODE_READ_BLOCK_RESPONSE);
+		   queue_push(dataNode->resultsQueue,response->buffer);
+		   sem_post(dataNode->resultSemaphore);
+	      break; /* optional */
+
+	   /* you can have any number of case statements */
+	   default : /* Optional */
+		   log_debug(logger,"DATANODE_DEFAULT");
+	}
 }
 void fs_dataNode_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
@@ -980,6 +1052,44 @@ void fs_print_connected_node_info(t_dataNode *aDataNode) {
 			aDataNode->occupiedBlocks);
 
 }
+
+void fs_dataNodeThreadHandler(t_dataNode *node) {
+	while (1) {
+		//printf("DataNode %s en FS ala espera de pedidos\n", newDataNode.name);
+		sem_wait(node->threadSemaphore);
+
+		//pop operation
+		t_threadOperation *operation = queue_pop(node->operationsQueue);
+		// transform operation to ipc package
+		// operation works as adapter
+		switch (operation->operationId) {
+			case 0:
+				//read
+				log_debug(logger,"node %s read operation",node->name);
+				ipc_struct_datanode_read_block_request readRequest;
+				readRequest.blockNumber = operation->blockNumber;
+				free(operation);
+				ipc_sendMessage(node->fd,DATANODE_READ_BLOCK_REQUEST,&readRequest);
+				break;
+			case 1:
+				//write
+				log_debug(logger,"node %s write operation",node->name);
+				ipc_struct_datanode_write_block_request writeRequest;
+				writeRequest.blockNumber = operation->blockNumber;
+				writeRequest.buffer = malloc(BLOCK_SIZE);
+				memcpy(writeRequest.buffer,operation->buffer,BLOCK_SIZE);
+				free(operation->buffer);
+				free(operation);
+				ipc_sendMessage(node->fd,DATANODE_WRITE_BLOCK_REQUEST,&writeRequest);
+				free(writeRequest.buffer);
+
+				break;
+			default:
+				break;
+		}
+	}
+}
+
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 
 	sem_t *mutex = malloc(sizeof(sem_t));
@@ -1017,27 +1127,6 @@ void fs_dataNodeConnectionHandler(t_nodeConnection *connection) {
 	newDataNode->operationsQueue = queue_create();
 	newDataNode->resultsQueue = queue_create();
 	list_add(connectedNodes, newDataNode);
-
-
-	/*if(myFS.usePreviousStatus){ //Only accepts nodes with IDs from the Node Table
-		log_info(logger,"FS will restore previous session");
-
-		if(!fs_isNodeFromPreviousSession(newDataNode)){ //If the ID isnt in the Node Table the connection thread will be aborted
-
-			if(!(fs_amountOfConnectedNodesFromPreviousStatus() == list_size(previouslyConnectedNodesNames))){//If all the previously connected nodes didnt connect, do not allow any other node
-				log_error(logger, "fs_connectionHandler: Node %s isnt from previous session - Aborting connection", newDataNode.name);
-				int closeResult = close(new_socket);
-				if(closeResult < 0) log_error(logger,"fs_connectionHandler: Couldnt close socket fd when trying to restore from previous session");
-				pthread_cancel(pthread_self());
-				return;
-			}
-
-		}
-
-
-	}
-
-*/
 
 	//Send connection confirmation
 	send(new_socket, hello, strlen(hello), 0);
@@ -2405,6 +2494,25 @@ int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode){
 
 
 }
+int fs_isDataNodeNameInConnectedList(char* aDataNodeName){
+	int amountOfNodes = list_size(connectedNodes);
+	int i;
+	t_dataNode *aux = NULL;
+	for(i = 0; i < amountOfNodes ; i++){
+		aux = list_get(connectedNodes, i);
+		if(aux->name){
+			if(!strcmp(aDataNodeName, aux->name)){
+				log_debug(logger,"fs_isDataNodeAlreadyConnected: DataNode %s is already connected", aDataNodeName);
+				return DATANODE_ALREADY_CONNECTED;
+			}
+		}
+	}
+	log_debug(logger, "Node:[%s] isnt already connected to FS", aDataNodeName);
+
+	return 0;
+
+
+}
 int fs_checkNodeConnectionStatus(t_dataNode aDataNode){
 	return DATANODE_ALREADY_CONNECTED; //todo: desjarcodear
 	int amountOfNodes = list_size(connectedNodes);
@@ -3405,4 +3513,20 @@ char *fs_getParentPath(char *childPath){
 	parentPath[childPathLength-fileNameLength-1] = '\0';
 
 	return parentPath;
+}
+
+t_dataNode *fs_getDataNodeFromFileDescriptor(int fd){
+	int iterator = 0;
+	t_dataNode *node = list_get(connectedNodes,iterator);
+	if(!node){
+		log_error(logger,"fs_getDataNodeFromFileDescriptor: no node connected");
+		return EXIT_FAILURE;
+	}
+
+	while(node->fd!=fd){
+		iterator++;
+		node = list_get(connectedNodes,iterator);
+	}
+
+	return node;
 }

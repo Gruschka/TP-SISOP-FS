@@ -44,6 +44,7 @@ typedef struct dataNode {
 int dataNode_loadConfig(t_dataNode *aDataNode);
 int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb);
 void dataNode_connectToFileSystem();
+void dataNode_connectToFileSystem_ipc();
 void dataNode_setBlockInformation(t_dataNode *aDataNode);
 void *dataNode_getBlock(int blockNumber);
 int dataNode_setBlock(int blockNumber, void *data);

@@ -15,7 +15,7 @@
 #include<commons/config.h>
 #include <sys/mman.h> //mmap
 #include <fcntl.h> // O_RDRW
-
+#include <ipc/ipc.h>
 t_log *logger;
 t_config *config;
 t_dataNode myDataNode;
@@ -24,6 +24,7 @@ t_dataNodeConfig nodeConfig;
 int dataNode_mmapDataBin(char* dataBinPath);
 
 int main(int argc, char **argv) {
+	serialization_initialize();
 	logger = log_create("log.txt", "DataNode", 1, LOG_LEVEL_DEBUG);
 
 	//Validar parametros de entrada
@@ -46,7 +47,7 @@ int main(int argc, char **argv) {
 
 
 
-	dataNode_connectToFileSystem(myDataNode);
+	dataNode_connectToFileSystem_ipc(myDataNode);
 
 	return EXIT_SUCCESS;
 }
@@ -96,6 +97,68 @@ int dataNode_openOrCreateDataBinFile(char *dataBinPath, int sizeInMb) {
 		return EXIT_SUCCESS;
 	}
 }
+
+void dataNode_connectToFileSystem_ipc(t_dataNode dataNode) {
+	int sockfd = ipc_createAndConnect(dataNode.config.fsPortno,dataNode.config.fsIP);
+	//Declare variables used in function
+
+	printf("\nIP FS: %s Portno: %d\n", dataNode.config.fsIP, dataNode.config.fsPortno);
+	printf("\nConnecting to FS\n");
+
+	ipc_struct_datanode_handshake_to_fs handshake;
+	handshake.nodeName = dataNode.config.nodeName;
+	handshake.nameLength = strlen(dataNode.config.nodeName);
+	handshake.portNumber = dataNode.config.fsPortno;
+	handshake.amountOfBlocks = dataNode.blockInfo.amountOfBlocks;
+
+	ipc_sendMessage(sockfd,DATANODE_HANDSHAKE_REQUEST,&handshake);
+
+	ipc_struct_datanode_handshake_response *response = ipc_recvMessage(sockfd,DATANODE_HANDSHAKE_RESPONSE);
+
+	printf("\nreceived handshake status %d\n",response->status);
+
+
+	//wait for request from fs
+	uint32_t operationType;
+	uint32_t blockNumber;
+	void *operationBuffer;
+	while (1) {
+
+		//Codigo para escuchar pedidos del fs aca;lk;lk
+		//leo operation type
+		//read(sockfd, &operationType, sizeof(uint32_t));
+		recv(sockfd,&operationType,sizeof(uint32_t),MSG_WAITALL);
+		int sending;
+		if(operationType == 1){
+			//write
+			//leo size a escribir
+			//read(sockfd, &size, sizeof(uint32_t));
+			//recv(sockfd, &size, sizeof(uint32_t),MSG_WAITALL);
+			//leo block a escribir
+			//read(sockfd, &blockNumber, sizeof(uint32_t));
+			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
+			//leo buffer
+			operationBuffer = malloc(BLOCK_SIZE);
+			memset(operationBuffer,0,BLOCK_SIZE);
+			//read(sockfd, operationBuffer, size);
+			recv(sockfd, operationBuffer, BLOCK_SIZE,MSG_WAITALL);
+			dataNode_setBlock(blockNumber,operationBuffer);
+		}else if(operationType == 0){
+			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
+			void *blockRead;
+			blockRead = dataNode_getBlock(blockNumber);
+			send(sockfd, blockRead, BLOCK_SIZE, 0);
+			log_debug(logger,"Datanode %s mando %d bytes", myDataNode.config.nodeName, strlen(blockRead));
+			free(blockRead);
+		}else if(operationType == 2){
+			sending = 1;
+			send(sockfd,&sending,sizeof(int),0);
+		}
+
+	}
+
+}
+
 
 void dataNode_connectToFileSystem(t_dataNode dataNode) {
 

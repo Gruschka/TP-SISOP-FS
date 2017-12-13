@@ -748,6 +748,142 @@ char *serializeSendFileToFS(void *data, int *size) {
 	return buffer;
 }
 
+// DATANODE OPERATIONS
+char *serializeSendDatanodeHandshakeToFS(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_datanode_handshake_to_fs *sendHandshake = data;
+	*size = sizeof(uint32_t) * 3 + sendHandshake->nameLength + 1;
+	void *buffer = malloc(*size);
+
+	memcpy(buffer+offset,&sendHandshake->nameLength,sizeof(uint32_t)); //nameLength
+	offset+=sizeof(uint32_t);
+
+	memcpy(buffer+offset,sendHandshake->nodeName,sendHandshake->nameLength+1); //name
+	offset+=sendHandshake->nameLength + 1;
+
+	memcpy(buffer+offset,&sendHandshake->amountOfBlocks,sizeof(uint32_t)); //block amount
+	offset+=sizeof(uint32_t);
+
+	memcpy(buffer+offset,&sendHandshake->portNumber,sizeof(uint32_t)); //portno
+	offset+=sizeof(uint32_t);
+
+	return buffer;
+}
+
+void *deserializeSendDatanodeHandshakeToFS(char *buffer) {
+	int offset = 0;
+	ipc_struct_datanode_handshake_to_fs *response = malloc(sizeof(ipc_struct_datanode_handshake_to_fs));
+
+	memcpy(&response->nameLength,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	response->nodeName = malloc(response->nameLength+1);
+
+	memcpy(response->nodeName,buffer+offset,response->nameLength+1);
+	offset+=response->nameLength+1;
+
+	memcpy(&response->amountOfBlocks,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	memcpy(&response->portNumber,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return response;
+}
+
+char *serializeSendDatanodeHandshakeToFSResponse(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_datanode_handshake_response *sendHandshake = data;
+	char *buffer = malloc(*size = sizeof(uint32_t));
+
+	memcpy(buffer+offset,&sendHandshake->status,sizeof(uint32_t)); //status
+	offset+=sizeof(uint32_t);
+
+
+	return buffer;
+}
+
+void *deserializeDatanodeHandshakeToFSResponse(char *buffer) {
+	int offset = 0;
+	ipc_struct_datanode_handshake_response *response = malloc(sizeof(ipc_struct_datanode_handshake_response));
+
+	memcpy(&response->status,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return response;
+}
+
+void *serializeDatanodeWriteBlockRequest(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_datanode_write_block_request *request = data;
+	void *buffer = malloc(*size = (1024*1024) + sizeof(uint32_t)); //1024^2 = block size
+
+	memcpy(buffer+offset,request->buffer,1024*1024);
+	offset+=1024*1024;
+
+	memcpy(buffer+offset,&request->blockNumber,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return request;
+}
+
+void *deserializeDatanodeWriteBlockRequest(char *buffer) {
+	int offset = 0;
+	ipc_struct_datanode_write_block_request *request = malloc(sizeof(ipc_struct_datanode_write_block_request));
+	request->buffer = malloc(1024*1024);
+
+	memcpy(request->buffer,buffer+offset,1024*1024);
+	offset+=1024*1024;
+
+	memcpy(&request->blockNumber,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return request;
+}
+
+void *serializeDatanodeReadBlockRequest(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_datanode_read_block_request *request = data;
+	void *buffer = malloc(*size = sizeof(uint32_t));
+
+	memcpy(buffer+offset,&request->blockNumber,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return request;
+}
+
+void *deserializeDatanodeReadBlockRequest(char *buffer) {
+	int offset = 0;
+	ipc_struct_datanode_read_block_request *request = malloc(sizeof(ipc_struct_datanode_read_block_request));
+
+	memcpy(&request->blockNumber,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return request;
+}
+
+void *serializeDatanodeReadBlockResponse(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_datanode_read_block_response *response = data;
+	void *buffer = malloc(*size = 1024*1024);
+
+	memcpy(buffer+offset,response->buffer,1024*1024);
+	offset+=1024*1024;
+
+	return response;
+}
+
+void *deserializeDatanodeReadBlockResponse(char *buffer) {
+	int offset = 0;
+	ipc_struct_datanode_read_block_response *response = malloc(sizeof(ipc_struct_datanode_read_block_response));
+	response->buffer = malloc(1024*1024);
+
+	memcpy(response->buffer,buffer+offset,1024*1024);
+	offset+=1024*1024;
+
+	return response;
+}
+
 void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO_REQUEST] = serializeFSGetFileInfoRequest;
@@ -762,6 +898,13 @@ void initializeSerialization() {
 	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = serializeMasterContinueWithFinalStorageRequest;
 	serializationArray[WORKER_SEND_FILE_TO_FS] = serializeSendFileToFS;
+	serializationArray[DATANODE_HANDSHAKE_REQUEST] = serializeSendDatanodeHandshakeToFS;
+	serializationArray[DATANODE_HANDSHAKE_RESPONSE] = serializeSendDatanodeHandshakeToFSResponse;
+	serializationArray[DATANODE_WRITE_BLOCK_REQUEST] = serializeDatanodeWriteBlockRequest;
+	serializationArray[DATANODE_READ_BLOCK_REQUEST] = serializeDatanodeReadBlockRequest;
+	serializationArray[DATANODE_READ_BLOCK_RESPONSE] = serializeDatanodeReadBlockResponse;
+
+
 }
 
 void initializeDeserialization () {
@@ -778,6 +921,11 @@ void initializeDeserialization () {
 	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = deserializeMasterContinueWithFinalStorageRequest;
 	deserializationArray[WORKER_SEND_FILE_TO_FS] = deserializeSendFileToFS;
+	deserializationArray[DATANODE_HANDSHAKE_REQUEST] = deserializeSendDatanodeHandshakeToFS;
+	deserializationArray[DATANODE_HANDSHAKE_RESPONSE] = deserializeDatanodeHandshakeToFSResponse;
+	deserializationArray[DATANODE_WRITE_BLOCK_REQUEST] = deserializeDatanodeWriteBlockRequest;
+	deserializationArray[DATANODE_READ_BLOCK_REQUEST] = deserializeDatanodeReadBlockRequest;
+	deserializationArray[DATANODE_READ_BLOCK_RESPONSE] = deserializeDatanodeReadBlockResponse;
 }
 
 void serialization_initialize() {

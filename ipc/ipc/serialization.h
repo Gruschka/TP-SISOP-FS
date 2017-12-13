@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 21
+#define OPERATIONS_COUNT 27
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
@@ -33,7 +33,13 @@ typedef enum ipc_operation {
 	WORKER_SEND_FILE_TO_FS,
 	MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST,
 	MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST,
-	MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST
+	MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST,
+	DATANODE_HANDSHAKE_REQUEST,
+	DATANODE_HANDSHAKE_RESPONSE,
+	DATANODE_WRITE_BLOCK_REQUEST,
+	DATANODE_WRITE_BLOCK_RESPONSE,
+	DATANODE_READ_BLOCK_REQUEST,
+	DATANODE_READ_BLOCK_RESPONSE
 } ipc_operation;
 
 typedef void *(*DeserializationFunction)(char *buffer);
@@ -208,6 +214,34 @@ typedef struct {
 	uint32_t bufferSize;
 	void *buffer;
 }__attribute__((packed)) ipc_struct_worker_file_to_fs;
+
+typedef struct {
+	uint32_t nameLength;
+	char *nodeName;
+	uint32_t amountOfBlocks;
+	uint32_t portNumber;
+}__attribute__((packed)) ipc_struct_datanode_handshake_to_fs;
+
+typedef struct {
+	uint32_t status;
+}__attribute__((packed)) ipc_struct_datanode_handshake_response;
+
+typedef struct {
+	void* buffer;
+	uint32_t blockNumber;
+}__attribute__((packed)) ipc_struct_datanode_write_block_request;
+
+typedef struct {
+	uint32_t status;
+}__attribute__((packed)) ipc_struct_datanode_write_block_response;
+
+typedef struct {
+	uint32_t blockNumber;
+}__attribute__((packed)) ipc_struct_datanode_read_block_request;
+
+typedef struct {
+	void *buffer;
+}__attribute__((packed)) ipc_struct_datanode_read_block_response;
 
 void serialization_initialize();
 
