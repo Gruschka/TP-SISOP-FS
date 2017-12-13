@@ -352,6 +352,7 @@ void connectionHandler(int client_sock){
 			uint32_t response_operation = WORKER_START_GLOBAL_REDUCTION_RESPONSE;
 			send(client_sock, &response_operation, sizeof(int), 0);
 			send(client_sock, &(reduction_response), sizeof(uint32_t), 0);
+
 			// Libero memoria que utilizo la lista de workers
 			for (i = 0; i < request.workersEntriesCount; i++){
 				fileGlobalNode * workerToFree;
@@ -362,31 +363,45 @@ void connectionHandler(int client_sock){
 				free(workerToFree);
 			}
 			list_destroy(workerList);
-			//Enviar archivo al Filesystem
-			uint32_t fileFinalNameLength = 0;
-			recv(client_sock, &fileFinalNameLength, sizeof(uint32_t), 0);
-			char * fileFinalName = malloc(fileFinalNameLength +1);
-			recv(client_sock, fileFinalName, fileFinalNameLength, 0);
-			char *fileContent = worker_utils_readFile(request.globalTempPath);
-			uint32_t fileLength = strlen(fileContent);
-			ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
-			sendFile->buffer = fileContent;
-			sendFile->pathName = fileFinalName;
-			sendFile->bufferSize = fileLength;
-			uint32_t sockFs = connectToFileSystem();
-			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, sendFile);
 
 			free(buffer); // Template de System
-			free(fileContent); // Archivo que envio a FS
-			free(sendFile->buffer);
-			free(sendFile->pathName);
-			free(sendFile);
 			free(request.globalTempPath);
 			free(pairingResult);
 			remove(scriptPath);
 			free(scriptPath);
 			break;
 		}
+		case WORKER_START_FINAL_STORAGE_REQUEST: {
+			ipc_struct_worker_start_final_storage_request request;
+
+			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
+
+			request.globalTempPath = malloc(request.globalTempPathLen + 1);
+			recv(client_sock, request.globalTempPath, request.globalTempPathLen + 1, 0);
+
+			recv(client_sock, &(request.finalResultPathLen), sizeof(uint32_t), 0);
+
+			request.finalResultPath = malloc(request.finalResultPathLen + 1);
+			recv(client_sock, request.finalResultPath, request.finalResultPathLen + 1, 0);
+
+			// Enviar archivo al file system
+			char *fileContent = worker_utils_readFile(request.globalTempPath);
+			uint32_t fileLength = strlen(fileContent);
+			ipc_struct_worker_file_to_fs file;
+			file.buffer = fileContent;
+			file.pathName = request.finalResultPath;
+			file.bufferSize = fileLength + 1;
+
+			uint32_t sockFs = connectToFileSystem();
+			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
+
+			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;
+			send(client_sock, &op, sizeof(uint32_t), 0);
+
+			free(fileContent);
+			free(file.buffer);
+			free(file.pathName);
+		} break;
 		case WORKER_REQUEST_FILE_FROM_SLAVE:{
 			log_debug(logFileNodo, "Slave Worker Stage \n");
 
@@ -538,7 +553,7 @@ int connectToFileSystem(){
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
 
-	printf("\nFileSystem Ip: %s Port No: %d", configuration.filesystemIP, configuration.filesystemPort);
+	printf("\nFileSystem Ip: %s Port No: %d", configuration.filesystemIP, 8082);
 	printf("\nConnecting to FileSystem\n");
 
 	/* Create a socket point */
@@ -553,7 +568,7 @@ int connectToFileSystem(){
 	bzero((char *) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
 	bcopy((char *) server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
-	serv_addr.sin_port = htons(configuration.filesystemPort);
+	serv_addr.sin_port = htons(8082);
 
 	/* Now connect to the server */
 	if (connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {

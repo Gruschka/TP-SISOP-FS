@@ -51,7 +51,6 @@ void master_requestInChargeWorkerFinalStorage(ipc_struct_master_continueWithFina
 	recv(sockfd, &incomingOperation, sizeof(uint32_t), 0);
 
 	uint32_t storageSucceeded = 0;
-
 	if (incomingOperation == WORKER_START_FINAL_STORAGE_RESPONSE) {
 		recv(sockfd, &storageSucceeded, sizeof(uint32_t), 0);
 	}
