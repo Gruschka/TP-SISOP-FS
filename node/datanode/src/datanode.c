@@ -127,32 +127,28 @@ void dataNode_connectToFileSystem_ipc(t_dataNode dataNode) {
 		//Codigo para escuchar pedidos del fs aca;lk;lk
 		//leo operation type
 		//read(sockfd, &operationType, sizeof(uint32_t));
-		recv(sockfd,&operationType,sizeof(uint32_t),MSG_WAITALL);
-		int sending;
-		if(operationType == 1){
-			//write
-			//leo size a escribir
-			//read(sockfd, &size, sizeof(uint32_t));
-			//recv(sockfd, &size, sizeof(uint32_t),MSG_WAITALL);
-			//leo block a escribir
-			//read(sockfd, &blockNumber, sizeof(uint32_t));
-			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
-			//leo buffer
-			operationBuffer = malloc(BLOCK_SIZE);
-			memset(operationBuffer,0,BLOCK_SIZE);
-			//read(sockfd, operationBuffer, size);
-			recv(sockfd, operationBuffer, BLOCK_SIZE,MSG_WAITALL);
-			dataNode_setBlock(blockNumber,operationBuffer);
-		}else if(operationType == 0){
-			recv(sockfd, &blockNumber, sizeof(uint32_t),MSG_WAITALL);
-			void *blockRead;
-			blockRead = dataNode_getBlock(blockNumber);
-			send(sockfd, blockRead, BLOCK_SIZE, 0);
-			log_debug(logger,"Datanode %s mando %d bytes", myDataNode.config.nodeName, strlen(blockRead));
-			free(blockRead);
-		}else if(operationType == 2){
-			sending = 1;
-			send(sockfd,&sending,sizeof(int),0);
+		switch (ipc_getNextOperationId(sockfd)) {
+			case DATANODE_READ_BLOCK_REQUEST:
+				log_debug(logger,"node %s receieved read block request",myDataNode.config.nodeName);
+				ipc_struct_datanode_read_block_request *readRequest = ipc_recvMessage(sockfd,DATANODE_READ_BLOCK_REQUEST);
+				void *blockRead;
+				blockRead = dataNode_getBlock(readRequest->blockNumber);
+				ipc_struct_datanode_read_block_response response;
+				response.buffer = blockRead;
+				ipc_sendMessage(sockfd,DATANODE_READ_BLOCK_RESPONSE,&response);
+				log_debug(logger,"Datanode %s mando %d bytes", myDataNode.config.nodeName, strlen(response.buffer));
+				free(blockRead);
+				break;
+			case DATANODE_WRITE_BLOCK_REQUEST:
+				log_debug(logger,"node %s receieved write block request",myDataNode.config.nodeName);
+				ipc_struct_datanode_write_block_request *writeRequest = ipc_recvMessage(sockfd,DATANODE_WRITE_BLOCK_REQUEST);
+				dataNode_setBlock(writeRequest->blockNumber,writeRequest->buffer);
+				free(writeRequest->buffer);
+				free(writeRequest);
+				break;
+			default:
+				log_debug(logger,"node %s receieved unrecognized operation",myDataNode.config.nodeName);
+				break;
 		}
 
 	}

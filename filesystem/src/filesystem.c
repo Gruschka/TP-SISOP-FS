@@ -1065,7 +1065,7 @@ void fs_dataNodeThreadHandler(t_dataNode *node) {
 		switch (operation->operationId) {
 			case 0:
 				//read
-				log_debug(logger,"node %s read operation",node->name);
+				log_debug(logger,"fs requested %s read operation",node->name);
 				ipc_struct_datanode_read_block_request readRequest;
 				readRequest.blockNumber = operation->blockNumber;
 				free(operation);
@@ -1073,7 +1073,7 @@ void fs_dataNodeThreadHandler(t_dataNode *node) {
 				break;
 			case 1:
 				//write
-				log_debug(logger,"node %s write operation",node->name);
+				log_debug(logger,"fs requested %s write operation",node->name);
 				ipc_struct_datanode_write_block_request writeRequest;
 				writeRequest.blockNumber = operation->blockNumber;
 				writeRequest.buffer = malloc(BLOCK_SIZE);
@@ -1085,6 +1085,7 @@ void fs_dataNodeThreadHandler(t_dataNode *node) {
 
 				break;
 			default:
+				log_debug(logger,"fs requested %s unrecognized operation",node->name);
 				break;
 		}
 	}
