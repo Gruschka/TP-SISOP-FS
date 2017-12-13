@@ -741,8 +741,9 @@ void fs_listenToDataNodesThread() {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
 	//Create thread
-	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
+	pthread_create(&threadId, &attr, fs_waitForDataNodes, NULL);
 }
+
 void fs_dataNode_newConnectionHandler(int fd, char *ip){
 	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
 	newDataNode->IP = strdup(ip);
@@ -894,6 +895,7 @@ void fs_waitForDataNodes() {
 
 	while (new_dataNode_socket = accept(server_fd, (struct sockaddr*) &address,
 			(socklen_t*) &addrlen)) {
+
 		t_nodeConnection *connection = malloc(sizeof(t_nodeConnection));
 		connection->ipAddress = string_from_format("%s",inet_ntoa(address.sin_addr));
 		connection->socketfd = new_dataNode_socket;
