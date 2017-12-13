@@ -741,7 +741,7 @@ void fs_listenToDataNodesThread() {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
 	//Create thread
-	pthread_create(&threadId, &attr, fs_waitForDataNodes, NULL);
+	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
 }
 
 void fs_dataNode_newConnectionHandler(int fd, char *ip){
@@ -851,7 +851,7 @@ void fs_dataNode_disconnectionHandler(int fd, char *_){
 	fs_rebuildNodeTable();
 	//todo: sacar de la nodetable
 }
-void fs_waitForDataNodes_select(){
+void fs_waitForDataNodes(){
 	int result = ipc_createSelectServer("8080",fs_dataNode_newConnectionHandler,fs_dataNode_incomingDataHandler,fs_dataNode_disconnectionHandler);
 
 }
