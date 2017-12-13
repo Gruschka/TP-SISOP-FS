@@ -812,12 +812,19 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 	      break; /* optional */
 
 	   /* you can have any number of case statements */
+	   case WORKER_SEND_FILE_TO_FS :
+		   log_debug(logger,"DATANODE_READ_BLOCK_RESPONSE");
+		   //todo: implementar messaging contra el worker
+	      break; /* optional */
 	   default : /* Optional */
 		   log_debug(logger,"DATANODE_DEFAULT");
 	}
 }
 void fs_dataNode_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
+	t_dataNode *node = fs_getDataNodeFromFileDescriptor(fd);
+	fs_removeNodeFromConnectedNodeList(*node);
+	//todo: sacar de la nodetable
 }
 void fs_waitForDataNodes_select(){
 	int result = ipc_createSelectServer("8080",fs_dataNode_newConnectionHandler,fs_dataNode_incomingDataHandler,fs_dataNode_disconnectionHandler);
@@ -895,7 +902,7 @@ void fs_yamaConnectionThread() {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
 //Create thread
-	pthread_create(&threadId, &attr, fs_waitForYama, NULL);
+	pthread_create(&threadId, &attr, fs_waitForYama_select, NULL);
 }
 void fs_waitForYama() {
 
@@ -944,6 +951,33 @@ void fs_waitForYama() {
 		fs_destroyNodeTupleArray(response->entries, length);
 
 	}
+
+}
+
+void fs_yama_newConnectionHandler(int fd, char *ip){
+	log_debug(logger,"YAMA connected");
+}
+void fs_yama_incomingDataHandler(int fd, ipc_struct_header header){
+	while (1) {
+		log_debug(logger,"Awaiting YAMA request");
+		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(fd, FS_GET_FILE_INFO_REQUEST);
+		log_debug(logger,"Yama Request: %s", request->filePath);
+		char *pathInLocalFS = fs_isAFile(request->filePath);
+		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(pathInLocalFS);
+		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE, response);
+		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		log_debug(logger,"YAMA Request Answered");
+		fs_destroyNodeTupleArray(response->entries, length);
+		free(request->filePath);
+		free(request);
+		free(response);
+	}
+}
+void fs_yama_disconnectionHandler(int fd, char *_){
+	log_debug(logger,"YAMA disconnected");
+}
+void fs_waitForYama_select() {
+	int new_socket = ipc_createSelectServer(8081,fs_yama_newConnectionHandler,fs_yama_incomingDataHandler,fs_yama_disconnectionHandler);
 
 }
 int fs_isStable() {
