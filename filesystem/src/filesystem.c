@@ -3601,19 +3601,22 @@ char *fs_getParentPath(char *childPath){
 }
 
 t_dataNode *fs_getDataNodeFromFileDescriptor(int fd){
-	int iterator = 0;
-	t_dataNode *node = list_get(connectedNodes,iterator);
-	if(!node){
+	int listSize = list_size(connectedNodes);
+	if(listSize == 0){
 		log_error(logger,"fs_getDataNodeFromFileDescriptor: no node connected");
 		return EXIT_FAILURE;
 	}
 
-	while(node->fd!=fd){
-		iterator++;
-		node = list_get(connectedNodes,iterator);
+	int i;
+	for (i = 0; i < listSize; i++) {
+		t_dataNode *node = list_get(connectedNodes, i);
+		if (node->fd == fd) {
+			return node;
+		}
 	}
 
-	return node;
+	return NULL;
+
 }
 
 int fs_clean() {
