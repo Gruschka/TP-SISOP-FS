@@ -60,35 +60,12 @@ int main(int argc, char **argv) {
 	// Inicializo IPC de Hernie
 	serialization_initialize();
 
-	uint32_t sockFs = ipc_createAndConnect(configuration.filesystemPort, configuration.filesystemIP);
-
-	//handshake con FS
-	ipc_struct_worker_handshake_to_fs handshake;
-	handshake.status = 1; // ezto siknifik q soi 1 werker are jajjajaja3
-	ipc_sendMessage(sockFs,WORKER_HANDSHAKE_TO_FS,&handshake);
-
-	ipc_struct_worker_handshake_to_fs *handshakeResponse = ipc_recvMessage(sockFs,WORKER_HANDSHAKE_TO_FS);
-	if(!handshakeResponse->status){
-		// el failed syistem me ah rechasad0
-		// todo: bengarse
-		free(handshakeResponse);
-	}else{
-		free(handshakeResponse);
+	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
+		log_error(logFileNodo, "Couldn't register signal handler");
+		return EXIT_FAILURE;
 	}
 
-	// Enviar archivo al file system
-	ipc_struct_worker_file_to_fs file;
-	file.pathName = "/out/job1/resultado.csv";
-	file.content = worker_utils_readFile("/home/utnso/Descargas/uq3pb2");
-
-	ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
-
-//	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
-//		log_error(logFileNodo, "Couldn't register signal handler");
-//		return EXIT_FAILURE;
-//	}
-//
-//	createServer();
+	createServer();
 
 	return EXIT_SUCCESS;
 }
