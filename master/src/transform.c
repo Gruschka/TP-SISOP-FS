@@ -86,7 +86,8 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 }
 
 void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *yamaResponse, char *transformScript) {
-	int maxBatchSize = 20;
+	int maxBatchSize = 1000;
+//	int maxBatchSize = 20;
 	int numberOfBatches = floor(yamaResponse->entriesCount / maxBatchSize) + 1;
 	int numberOfTasksInFinalBatch = yamaResponse->entriesCount % maxBatchSize;
 
@@ -116,7 +117,10 @@ void master_requestWorkersTransform(ipc_struct_start_transform_reduce_response *
 			request->workerRequest = workerRequest;
 
 			// Creamos un hilo por cada worker
-			if (pthread_create(&(threads[j]), NULL, master_localReduce_connectToWorkerAndMakeRequest, request)) {
+		    pthread_attr_t attrs;
+		    pthread_attr_init(&attrs);
+		    pthread_attr_setstacksize(&attrs, 65536);
+			if (pthread_create(&(threads[j]), &attrs, master_localReduce_connectToWorkerAndMakeRequest, request)) {
 				log_error(master_log, "Falló la creación de thread en etapa de transformación.");
 				exit(EXIT_FAILURE);
 			}

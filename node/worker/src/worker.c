@@ -54,7 +54,12 @@ int worker_runCommand(char *command) {
 int main(int argc, char **argv) {
 	char * logFile = "/home/utnso/logFile";
 	logFileNodo = log_create(logFile, "WORKER", 1, LOG_LEVEL_DEBUG);
+
 	loadConfiguration(argc > 1 ? argv[1] : NULL);
+
+	// Inicializo IPC de Hernie
+	serialization_initialize();
+
 	if (signal(SIGUSR1, signalHandler) == SIG_ERR) {
 		log_error(logFileNodo, "Couldn't register signal handler");
 		return EXIT_FAILURE;
@@ -81,18 +86,19 @@ void logDebug(char *message) {
 }
 
 void *createServer() {
-	int socket_desc, c;
-	struct sockaddr_in server, client;
 	// Create socket
-	int iSetOption = 1;
-	socket_desc = socket(AF_INET, SOCK_STREAM, 0);
-	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption, sizeof(iSetOption));
-	if (socket_desc == -1) {
+	int socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+	if (socket_desc < 0) {
 		log_error(logFileNodo, "Couldn't create socket.");
+		exit(EXIT_FAILURE);
 	}
 	log_debug(logFileNodo, "Socket correctly created");
 
+	int iSetOption = 1;
+	setsockopt(socket_desc, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, (char*)&iSetOption, sizeof(iSetOption));
+
 	// Prepare the sockaddr_in structure
+	struct sockaddr_in server;
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
 	server.sin_port = htons(configuration.workerPort);
@@ -101,7 +107,7 @@ void *createServer() {
 	if (bind(socket_desc, (struct sockaddr *) &server, sizeof(server)) < 0) {
 		log_error(logFileNodo, "Couldn't Bind.");
 		printf("\n\n %d", errno);
-		return NULL;
+		exit(EXIT_FAILURE);
 	}
 
 	// Listen
@@ -109,7 +115,8 @@ void *createServer() {
 
 	// Accept and incoming connection
 	log_debug(logFileNodo, "Waiting for incoming connections...");
-	c = sizeof(struct sockaddr_in);
+	int c = sizeof(struct sockaddr_in);
+	struct sockaddr_in client;
 
 	while (1) {
 		int client_sock = accept(socket_desc, (struct sockaddr *)&client, (socklen_t*)&c);
@@ -312,7 +319,7 @@ void connectionHandler(int client_sock){
 				workerToRequest->filePath = malloc(workerToRequest->filePathLength + 1);
 				recv(client_sock, workerToRequest->filePath, (workerToRequest->filePathLength + 1), 0);
 				workerToRequest->filePath[workerToRequest->filePathLength] = '\0';
-				workerToRequest->sockfd = connectToWorker(workerToRequest->workerIp, workerToRequest->port);
+				workerToRequest->sockfd = ipc_createAndConnect(workerToRequest->port, workerToRequest->workerIp);
 				log_debug(logFileNodo, "workerID: %s sockFD: %d \n", workerToRequest->workerName, workerToRequest->sockfd);
 				if(workerToRequest->sockfd == -1){
 					log_debug(logFileNodo, "Failed connecting to a Worker. Aborting!");
@@ -392,7 +399,7 @@ void connectionHandler(int client_sock){
 			file.pathName = request.finalResultPath;
 			file.bufferSize = fileLength + 1;
 
-			uint32_t sockFs = connectToFileSystem();
+			uint32_t sockFs = ipc_createAndConnect(configuration.filesystemPort, configuration.filesystemIP);
 			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
 			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;
@@ -495,7 +502,7 @@ void pairGlobalFiles(t_list *workerList, char *resultFilePath) {
 		send(worker->sockfd, &(operation_code), sizeof(uint32_t), 0);
 
 		send(worker->sockfd, &(worker->filePathLength), sizeof(int), 0);
-		send(worker->sockfd, worker->filePath, worker->filePathLength,0);
+		send(worker->sockfd, worker->filePath, worker->filePathLength + 1,0);
 
 		int fileSize;
 		recv(worker->sockfd, &fileSize, sizeof(int), MSG_WAITALL);
@@ -515,67 +522,6 @@ void pairGlobalFiles(t_list *workerList, char *resultFilePath) {
 	}
 
 	pairFiles(localFiles, resultFilePath);
-}
-
-int connectToWorker(char *workerIp, int port){
-	int sockfd;
-	struct sockaddr_in serv_addr;
-	struct hostent *server;
-
-	printf("\nWorker Ip: %s Port No: %d", workerIp, port);
-	printf("\nConnecting to Worker\n");
-
-	/* Create a socket point */
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (sockfd < 0) {
-		perror("ERROR opening socket");
-		exit(1);
-	}
-
-	server = gethostbyname(workerIp);
-	bzero((char *) &serv_addr, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	bcopy((char *) server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
-	serv_addr.sin_port = htons(port);
-
-	/* Now connect to the server */
-	if (connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
-		perror("ERROR connecting");
-		sockfd = -1;
-		return sockfd;
-	}
-	return sockfd;
-}
-
-int connectToFileSystem(){
-	int sockfd;
-	struct sockaddr_in serv_addr;
-	struct hostent *server;
-
-	printf("\nFileSystem Ip: %s Port No: %d", configuration.filesystemIP, configuration.filesystemPort);
-	printf("\nConnecting to FileSystem\n");
-
-	/* Create a socket point */
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-	if (sockfd < 0) {
-		perror("ERROR opening socket");
-		exit(1);
-	}
-
-	server = gethostbyname(configuration.filesystemIP);
-	bzero((char *) &serv_addr, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	bcopy((char *) server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
-	serv_addr.sin_port = htons(configuration.filesystemPort);
-
-	/* Now connect to the server */
-	if (connect(sockfd, (struct sockaddr*) &serv_addr, sizeof(serv_addr)) < 0) {
-		perror("ERROR connecting");
-		exit(1);
-	}
-	return sockfd;
 }
 
 char *worker_utils_readFile(char *path) {

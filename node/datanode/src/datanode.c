@@ -108,7 +108,7 @@ void dataNode_connectToFileSystem_ipc(t_dataNode dataNode) {
 	ipc_struct_datanode_handshake_to_fs handshake;
 	handshake.nodeName = dataNode.config.nodeName;
 	handshake.nameLength = strlen(dataNode.config.nodeName);
-	handshake.portNumber = dataNode.config.fsPortno;
+	handshake.portNumber = dataNode.config.workerPortno;
 	handshake.amountOfBlocks = dataNode.blockInfo.amountOfBlocks;
 
 	ipc_sendMessage(sockfd,DATANODE_HANDSHAKE_REQUEST,&handshake);
