@@ -48,11 +48,12 @@ void *deserializeSendFileToFS(void *buffer) {
 	offset += tmpLen + 1;
 	free(tmp);
 
-	memcpy(&(sendFile->bufferSize), buffer + offset, sizeof(uint32_t)); //bufferSize
-	offset += sizeof(uint32_t);
-
-	sendFile->buffer = malloc(sendFile->bufferSize);
-	memcpy(sendFile->buffer, buffer + offset, sendFile->bufferSize); //buffer
+	tmp = strdup(buffer + offset);
+	tmpLen = strlen(tmp);
+	sendFile->content = malloc(tmpLen + 1);
+	memcpy(sendFile->content, tmp, tmpLen + 1); //pathName
+	offset += tmpLen + 1;
+	free(tmp);
 
 	return sendFile;
 }
@@ -756,17 +757,16 @@ char *serializeSendFileToFS(void *data, int *size) {
 	ipc_struct_worker_file_to_fs *sendFile = data;
 	char *buffer;
 
-	buffer = malloc(*size = strlen(sendFile->pathName) + 1 + sendFile->bufferSize + sizeof(void *));
+	buffer = malloc(*size = strlen(sendFile->pathName) + 1 + strlen(sendFile->content) + 1);
 	memcpy(buffer + offset, sendFile->pathName, strlen(sendFile->pathName)); //pathName
 	offset += strlen(sendFile->pathName);
 	buffer[offset] = '\0';
 	offset += 1;
 
-	memcpy(buffer + offset, &(sendFile->bufferSize), sizeof(uint32_t)); //bufferSize
-	offset += sizeof(uint32_t);
-
-	memcpy(buffer + offset, sendFile->buffer, sendFile->bufferSize); //buffer
-	offset += sendFile->bufferSize;
+	memcpy(buffer + offset, sendFile->content, strlen(sendFile->content)); //pathName
+	offset += strlen(sendFile->content);
+	buffer[offset] = '\0';
+	offset += 1;
 
 	return buffer;
 }

@@ -219,8 +219,7 @@ typedef struct {
 
 typedef struct {
 	char *pathName;
-	uint32_t bufferSize;
-	void *buffer;
+	char *content;
 }__attribute__((packed)) ipc_struct_worker_file_to_fs;
 
 typedef struct {

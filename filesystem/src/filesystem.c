@@ -828,10 +828,9 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 		   //todo: implementar messaging contra el worker
 			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
 			ipc_struct_worker_file_to_fs *workerRequest = ipc_recvMessage(fd, WORKER_SEND_FILE_TO_FS);
-			log_debug(logger,"Yama Request: %s", workerRequest->buffer);
 			char *fileName = basename(workerRequest->pathName);
 			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
-			fs_createTempFileFromWorker(pathInLocalFS, workerRequest->buffer);
+			fs_createTempFileFromWorker(pathInLocalFS, workerRequest->content);
 			char *pathInYAMA = fs_getParentPath(workerRequest->pathName);
 			fs_cpfrom(pathInLocalFS,pathInYAMA,"-t");
 			log_debug(logger,"YAMAFS: Successfully stored file in %s",pathInYAMA);
@@ -1367,10 +1366,10 @@ void fs_waitForWorkers(){
 		while (1) {
 			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
 			ipc_struct_worker_file_to_fs *request = ipc_recvMessage(new_socket, WORKER_SEND_FILE_TO_FS);
-			log_debug(logger,"Yama Request: %s", request->buffer);
+			log_debug(logger,"Yama Request: %s", request->content);
 			char *fileName = basename(request->pathName);
 			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
-			fs_createTempFileFromWorker(pathInLocalFS, request->buffer);
+			fs_createTempFileFromWorker(pathInLocalFS, request->content);
 			char *pathInYAMA = fs_getParentPath(request->pathName);
 			fs_cpfrom(pathInLocalFS,pathInYAMA,"-t");
 			log_debug(logger,"YAMAFS: Successfully stored file in %s",pathInYAMA);
