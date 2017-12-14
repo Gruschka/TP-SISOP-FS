@@ -741,7 +741,7 @@ void fs_listenToDataNodesThread() {
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
 	//Create thread
-	pthread_create(&threadId, &attr, fs_waitForDataNodes, NULL);
+	pthread_create(&threadId, &attr, fs_waitForDataNodes_select, NULL);
 }
 void fs_dataNode_newConnectionHandler(int fd, char *ip){
 	t_dataNode *newDataNode = malloc(sizeof(t_dataNode));
