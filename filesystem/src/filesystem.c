@@ -863,6 +863,10 @@ void fs_dataNode_disconnectionHandler(int fd, char *_){
 	if(node){
 		fs_removeNodeFromConnectedNodeList(*node);
 		fs_rebuildNodeTable();
+//		while(fs_isStable()){
+//			log_error(logger,"FS not stable after node disconnection, waiting for new nodes");
+//			sleep(5);
+//		}
 	}else{
 		//es un worker
 	}
