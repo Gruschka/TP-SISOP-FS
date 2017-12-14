@@ -48,7 +48,7 @@ void scheduling_addWorker(Worker *worker);
 
 typedef ipc_struct_fs_get_file_info_response FileInfo;
 typedef ipc_struct_fs_get_file_info_response_entry BlockInfo;
-ExecutionPlan *getExecutionPlan(FileInfo *response);
+ExecutionPlan *getExecutionPlan(FileInfo *response, ExecutionPlan **reschedulingPlan);
 void updateWorkload(ExecutionPlan *executionPlan);
 
 #endif /* SCHEDULING_H_ */

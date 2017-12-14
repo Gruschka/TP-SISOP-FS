@@ -21,6 +21,7 @@ pthread_mutex_t workersList_mutex;
 t_list *workersList; //Circular list
 Worker *maximumAvailabilityWorker = NULL;
 uint32_t maximumAvailabilityWorkerIdx = 0;
+
 extern t_log *logger;
 
 static void *circularlist_get(t_list *list, uint32_t index);
@@ -125,11 +126,15 @@ void updateWorkload(ExecutionPlan *executionPlan) {
 	dictionary_destroy(workersDictionary);
 }
 
-ExecutionPlan *getExecutionPlan(FileInfo *response) {
+ExecutionPlan *getExecutionPlan(FileInfo *response, ExecutionPlan **reschedulingPlan) {
 	uint32_t blocksCount = response->entriesCount;
 	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
 	executionPlan->entriesCount = blocksCount;
 	executionPlan->entries = malloc(sizeof(ExecutionPlanEntry) * blocksCount);
+
+	*reschedulingPlan = malloc(sizeof(ExecutionPlan));
+	(*reschedulingPlan)->entriesCount = blocksCount;
+	(*reschedulingPlan)->entries = malloc(sizeof(ExecutionPlanEntry) * blocksCount);
 
 	calculateMaximumWorkload();
 	calculateAvailability(); //calcula availability y maximumAvailabilityWorker
@@ -143,6 +148,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	int i;
 	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
+		ExecutionPlanEntry *currentReschedulingPlanEntry = (*reschedulingPlan)->entries + i;
 		BlockInfo *blockInfo = response->entries + i;
 		int movesForBlock = 0;
 
@@ -167,8 +173,14 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				clock->availability--;
 				clock = circularlist_get(workersList, offset + moves); moves++;
 				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
+				currentReschedulingPlanEntry->blockID = (copy == FIRST) ? blockInfo->secondCopyBlockID : blockInfo->firstCopyBlockID;
+
 				currentPlanEntry->workerID = (copy == FIRST) ? strdup(blockInfo->firstCopyNodeID) : strdup(blockInfo->secondCopyNodeID);
+				currentReschedulingPlanEntry->workerID = (copy == FIRST) ? strdup(blockInfo->secondCopyNodeID) : strdup(blockInfo->firstCopyNodeID);
+
 				currentPlanEntry->usedBytes = blockInfo->blockSize;
+				currentReschedulingPlanEntry->usedBytes = blockInfo->blockSize;
+
 				assigned = 1;
 			} else { // tiene el bloque pero no tiene disponibilidad
 				log_debug(logger, "Tiene el bloque pero no tiene disponibilidad");

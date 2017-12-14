@@ -36,6 +36,7 @@ t_list *stateTable;
 t_list *nodesList;
 t_dictionary *workersDict;
 t_dictionary *mastersDict;
+t_dictionary *reschedulingDict;
 pthread_t serverThread;
 uint32_t lastJobID = 0;
 int fsFd;
@@ -294,7 +295,7 @@ void dumpExecutionPlan(ExecutionPlan *executionPlan) {
 	}
 }
 
-ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
+ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan, ExecutionPlan *reschedulingPlan) {
 	ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
 
 	response->entriesCount = executionPlan->entriesCount;
@@ -303,16 +304,19 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
 		ExecutionPlanEntry *epEntry = executionPlan->entries + i;
+		ExecutionPlanEntry *rpEntry = reschedulingPlan->entries + i; //TODO: ver como liberarlo
 		ipc_struct_start_transform_reduce_response_entry *responseEntry = response->entries + i;
 
 		responseEntry->blockID = epEntry->blockID;
 		responseEntry->usedBytes = epEntry->usedBytes;
 		responseEntry->nodeID = strdup(epEntry->workerID);
 		responseEntry->tempPath = tempFileName();
+		dictionary_put(reschedulingDict, responseEntry->tempPath, rpEntry);
 
 		WorkerInfo *workerInfo = dictionary_get(workersDict, epEntry->workerID);
 		responseEntry->workerIP = strdup(workerInfo->ip);
 		responseEntry->workerPort = workerInfo->port;
+		log_debug(logger, "[nodeID: %s - blockID: %d]. %s:%d", responseEntry->nodeID, responseEntry->blockID, responseEntry->workerIP, responseEntry->workerPort);
 	}
 
 	return response;
@@ -402,8 +406,9 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
 
-		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
-		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+		ExecutionPlan **reschedulingPlan = malloc(sizeof(ExecutionPlan *));
+		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo, reschedulingPlan);
+		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan, *reschedulingPlan);
 		dumpExecutionPlan(executionPlan);
 		updateWorkload(executionPlan);
 		trackTransformationResponseInStateTable(response, fd);
@@ -418,9 +423,24 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
-		//succeeded me lo paso por los huevos
-		// bueno, esta bien
-		// TODO: replanificar
+		if (transformFinish->succeeded == 0) { // Replanificar si es posible
+			if (dictionary_has_key(reschedulingDict, transformFinish->tempPath)) { //Si todavia queda la otra copia
+				ExecutionPlanEntry *entry = dictionary_remove(reschedulingDict, transformFinish->tempPath);
+				ipc_struct_start_transform_reduce_response *response = malloc(sizeof(ipc_struct_start_transform_reduce_response));
+				response->entries = malloc(sizeof(ipc_struct_start_transform_reduce_response_entry));
+				response->entries->blockID = entry->blockID;
+				response->entries->nodeID = transformFinish->nodeID;
+				response->entries->tempPath = strdup(transformFinish->tempPath);
+				response->entries->usedBytes = entry->usedBytes;
+
+				WorkerInfo *workerInfo = dictionary_get(workersDict, transformFinish->nodeID);
+				response->entries->workerIP = workerInfo->ip;
+				response->entries->workerPort = workerInfo->port;
+				ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+			}
+			//TODO: si no es posible, marcarlo como que fallo
+			break;
+		}
 
 		// lo marco como finalizado
 		yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
@@ -582,6 +602,7 @@ void initialize() {
 	nodesList = list_create();
 	workersDict = dictionary_create();
 	mastersDict = dictionary_create();
+	reschedulingDict = dictionary_create();
 	fsFd = ipc_createAndConnect(configuration.filesystemPort, configuration.filesytemIP);
 	log_debug(logger, "Connected to FS");
 
