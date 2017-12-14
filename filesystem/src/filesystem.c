@@ -797,7 +797,8 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 				pthread_t newDataNodeThread;
 
 				// Copy the value of the accepted socket, in order to pass to the thread
-
+				free(request->nodeName);
+				free(request);
 				if (pthread_create(&newDataNodeThread, NULL,
 						fs_dataNodeThreadHandler, dataNode)
 						< 0) {
@@ -818,8 +819,12 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 	   case DATANODE_READ_BLOCK_RESPONSE :
 		   log_debug(logger,"DATANODE_READ_BLOCK_RESPONSE");
 		   ipc_struct_datanode_read_block_response *response = ipc_recvMessage(fd,DATANODE_READ_BLOCK_RESPONSE);
+		   char *buffer = malloc(BLOCK_SIZE);
+		   memcpy(buffer,response->buffer,BLOCK_SIZE);
 		   queue_push(dataNode->resultsQueue,response->buffer);
 		   sem_post(dataNode->resultSemaphore);
+		   free(response->buffer);
+		   free(response);
 	      break; /* optional */
 
 	   /* you can have any number of case statements */
@@ -854,9 +859,13 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 void fs_dataNode_disconnectionHandler(int fd, char *_){
 	log_debug(logger,"fs_dataNode_disconnectionHandler in fd %d", fd);
 	t_dataNode *node = fs_getDataNodeFromFileDescriptor(fd);
-	fs_removeNodeFromConnectedNodeList(*node);
-	fs_rebuildNodeTable();
-	//todo: sacar de la nodetable
+	if(node){
+		fs_removeNodeFromConnectedNodeList(*node);
+		fs_rebuildNodeTable();
+	}else{
+		//es un worker
+	}
+
 }
 void fs_waitForDataNodes_select(){
 	int result = ipc_createSelectServer("8080",fs_dataNode_newConnectionHandler,fs_dataNode_incomingDataHandler,fs_dataNode_disconnectionHandler);
@@ -1912,6 +1921,7 @@ int fs_writeNBytesOfXToFile(FILE *fileDescriptor, int N, int C) { //El tamanio d
 	memset(buffer, C, N);
 	fwrite(buffer, N, 1, fileDescriptor);
 	fflush(fileDescriptor);
+	free(buffer);
 	return EXIT_SUCCESS;
 }
 int fs_checkNodeBlockTupleConsistency(char *dataNodeName, int blockNumber) { //No puede abrirlo => Lo crea
@@ -3336,6 +3346,7 @@ void *fs_readFile(char *filePath){
 	//log_info(logger,"file: %s",result);
 	free(physicalPath);
 	fs_destroyNodeTupleArray(blockArray,amountOfBlocks);
+	free(blockSizes);
 	free(readOrder);
 	return result;
 }
@@ -3644,6 +3655,8 @@ void fs_rebuildNodeTable(){
 	int totalFSFreeSize = 0;
 	char *nodesString = string_from_format("["); //Freed
 	//remove(myFS.nodeTablePath);
+	FILE *newNodeTable = fopen(myFS.nodeTablePath,"w+");
+	fclose(newNodeTable);
 	nodeTableConfig = config_create(myFS.nodeTablePath); //destroyed
 	char *nodeFreeKey;//freed
 	char *nodeFreeValue;

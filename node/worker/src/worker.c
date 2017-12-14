@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 	// Enviar archivo al file system
 	ipc_struct_worker_file_to_fs file;
 	file.pathName = "/out/job1/resultado.csv";
-	file.content = worker_utils_readFile("path/a/algun/archivo/local");
+	file.content = worker_utils_readFile("/home/utnso/Descargas/uq3pb2");
 
 	ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
