@@ -839,6 +839,15 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 			free(pathInYAMA);
 			free(pathInLocalFS);
 	      break; /* optional */
+	   case WORKER_HANDSHAKE_TO_FS :
+		   log_debug(logger,"WORKER_HANDSHAKE_TO_FS");
+		   ipc_struct_worker_handshake_to_fs *handshakeRequest = ipc_recvMessage(fd,WORKER_HANDSHAKE_TO_FS);
+		   //me la paso por los texticulos
+		   handshakeRequest->status = 1; // OK
+		   dataNode->name = string_from_format("worker");
+		   fs_removeNodeFromConnectedNodeList(*dataNode);
+		   ipc_sendMessage(fd,WORKER_HANDSHAKE_TO_FS,handshakeRequest);
+	      break; /* optional */
 	   default : /* Optional */
 		   log_debug(logger,"DATANODE_DEFAULT");
 	}
@@ -3523,12 +3532,14 @@ int fs_removeNodeFromConnectedNodeList(t_dataNode aDataNode){
 	int amountOfNodes = list_size(connectedNodes);
 	int i;
 	t_dataNode *aux = NULL;
+	t_dataNode *nodeToRemove = NULL;
 
 	for(i = 0; i < amountOfNodes ; i++){
 		aux = list_get(connectedNodes, i);
 		if(!strcmp(aDataNode.name, aux->name)){
 			log_debug(logger,"fs_removeNodeFromConnectedNodeList: Removing DataNode %s", aDataNode.name);
-			list_remove(connectedNodes,i);
+			nodeToRemove = list_remove(connectedNodes,i);
+			//todo: destruir
 			return EXIT_SUCCESS;
 		}
 	}

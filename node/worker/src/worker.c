@@ -391,6 +391,22 @@ void connectionHandler(int client_sock){
 			request.finalResultPath = malloc(request.finalResultPathLen + 1);
 			recv(client_sock, request.finalResultPath, request.finalResultPathLen + 1, 0);
 
+			uint32_t sockFs = ipc_createAndConnect(configuration.filesystemPort, configuration.filesystemIP);
+
+			//handshake con FS
+			ipc_struct_worker_handshake_to_fs handshake;
+			handshake.status = 1; // ezto siknifik q soi 1 werker are jajjajaja3
+			ipc_sendMessage(sockFs,WORKER_HANDSHAKE_TO_FS,&handshake);
+
+			ipc_struct_worker_handshake_to_fs *handshakeResponse = ipc_recvMessage(sockFs,WORKER_HANDSHAKE_TO_FS);
+			if(!handshakeResponse->status){
+				// el failed syistem me ah rechasad0
+				// todo: bengarse
+				free(handshakeResponse);
+			}else{
+				free(handshakeResponse);
+			}
+
 			// Enviar archivo al file system
 			char *fileContent = worker_utils_readFile(request.globalTempPath);
 			uint32_t fileLength = strlen(fileContent);
@@ -399,7 +415,7 @@ void connectionHandler(int client_sock){
 			file.pathName = request.finalResultPath;
 			file.bufferSize = fileLength + 1;
 
-			uint32_t sockFs = ipc_createAndConnect(configuration.filesystemPort, configuration.filesystemIP);
+
 			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
 			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;

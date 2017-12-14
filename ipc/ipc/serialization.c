@@ -26,6 +26,16 @@ void *deserializeFSGetFileInfoRequest(char *buffer) {
 	return request;
 }
 
+void *deserializeWorkerHandshakeToFS(void *buffer) {
+	ipc_struct_worker_handshake_to_fs *handshake = malloc(sizeof(ipc_struct_worker_handshake_to_fs));
+	int offset = 0;
+
+	memcpy(&handshake->status,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	return handshake;
+}
+
 void *deserializeSendFileToFS(void *buffer) {
 	char *tmp; int tmpLen;
 	ipc_struct_worker_file_to_fs *sendFile = malloc(sizeof(ipc_struct_worker_file_to_fs));
@@ -730,6 +740,17 @@ char *serializeYamaNotifyStageFinish(void *data, int *size) {
 	return buffer;
 }
 
+char *serializeWorkerHandshakeToFS(void *data, int *size) {
+	int offset = 0;
+	ipc_struct_worker_handshake_to_fs *handshake = data;
+	char *buffer = malloc(*size = sizeof(uint32_t));
+
+	memcpy(buffer + offset, &handshake->status, sizeof(uint32_t)); //pathName
+	offset += sizeof(uint32_t);
+
+	return buffer;
+}
+
 char *serializeSendFileToFS(void *data, int *size) {
 	int offset = 0;
 	ipc_struct_worker_file_to_fs *sendFile = data;
@@ -900,11 +921,13 @@ void initializeSerialization() {
 	serializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = serializeMasterContinueWithGlobalReductionRequest;
 	serializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = serializeMasterContinueWithFinalStorageRequest;
 	serializationArray[WORKER_SEND_FILE_TO_FS] = serializeSendFileToFS;
+	serializationArray[WORKER_HANDSHAKE_TO_FS] = serializeWorkerHandshakeToFS;
 	serializationArray[DATANODE_HANDSHAKE_REQUEST] = serializeSendDatanodeHandshakeToFS;
 	serializationArray[DATANODE_HANDSHAKE_RESPONSE] = serializeSendDatanodeHandshakeToFSResponse;
 	serializationArray[DATANODE_WRITE_BLOCK_REQUEST] = serializeDatanodeWriteBlockRequest;
 	serializationArray[DATANODE_READ_BLOCK_REQUEST] = serializeDatanodeReadBlockRequest;
 	serializationArray[DATANODE_READ_BLOCK_RESPONSE] = serializeDatanodeReadBlockResponse;
+
 
 
 }
@@ -923,6 +946,7 @@ void initializeDeserialization () {
 	deserializationArray[MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST] = deserializeMasterContinueWithGlobalReductionRequest;
 	deserializationArray[MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST] = deserializeMasterContinueWithFinalStorageRequest;
 	deserializationArray[WORKER_SEND_FILE_TO_FS] = deserializeSendFileToFS;
+	deserializationArray[WORKER_HANDSHAKE_TO_FS] = deserializeWorkerHandshakeToFS;
 	deserializationArray[DATANODE_HANDSHAKE_REQUEST] = deserializeSendDatanodeHandshakeToFS;
 	deserializationArray[DATANODE_HANDSHAKE_RESPONSE] = deserializeDatanodeHandshakeToFSResponse;
 	deserializationArray[DATANODE_WRITE_BLOCK_REQUEST] = deserializeDatanodeWriteBlockRequest;
