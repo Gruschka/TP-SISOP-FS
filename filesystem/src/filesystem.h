@@ -207,6 +207,10 @@ int fs_info(char *filePath);
 //Connection functions
 void fs_listenToDataNodesThread();
 void fs_waitForDataNodes();
+void fs_waitForDataNodes_select();
+void fs_dataNode_newConnectionHandler(int fd, char *ip);
+void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header);
+void fs_dataNode_disconnectionHandler(int fd, char *);
 void fs_yamaConnectionThread();
 void fs_waitForYama();
 void fs_waitForYama_select();
