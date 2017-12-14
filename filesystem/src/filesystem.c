@@ -3630,7 +3630,7 @@ void fs_rebuildNodeTable(){
 	int totalFSSize = 0;
 	int totalFSFreeSize = 0;
 	char *nodesString = string_from_format("["); //Freed
-	remove(myFS.nodeTablePath);
+	//remove(myFS.nodeTablePath);
 	nodeTableConfig = config_create(myFS.nodeTablePath); //destroyed
 	char *nodeFreeKey;//freed
 	char *nodeFreeValue;
