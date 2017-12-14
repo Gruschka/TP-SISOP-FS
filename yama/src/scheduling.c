@@ -7,7 +7,6 @@
 #include "scheduling.h"
 
 #include <commons/log.h>
-#include <commons/collections/dictionary.h>
 #include <commons/collections/list.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -97,34 +96,6 @@ Copy workerContainsBlock(Worker *worker, BlockInfo *block) {
 	return NONE;
 }
 
-t_dictionary *getWorkersDictionary(t_list *workersList) {
-	t_dictionary *result = dictionary_create();
-	int i;
-	for (i = 0; i < workersList_count; i++) {
-		Worker *currentWorker = list_get(workersList, i);
-
-		if (!dictionary_has_key(result, currentWorker->name))
-			dictionary_put(result, currentWorker->name, currentWorker);
-	}
-
-	return result;
-}
-
-void updateWorkload(ExecutionPlan *executionPlan) {
-	t_dictionary *workersDictionary = getWorkersDictionary(workersList);
-
-	int i;
-	for (i = 0; i < executionPlan->entriesCount; i++) {
-		ExecutionPlanEntry *entry = executionPlan->entries + i;
-
-		Worker *worker = dictionary_get(workersDictionary, entry->workerID);
-		worker->currentLoad++;
-		worker->historicalLoad++;
-	}
-
-	dictionary_destroy(workersDictionary);
-}
-
 ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	uint32_t blocksCount = response->entriesCount;
 	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
@@ -144,7 +115,6 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	for (i = 0; i < blocksCount; i++) { // este loop por cada bloque
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
 		BlockInfo *blockInfo = response->entries + i;
-		int movesForBlock = 0;
 
 		int assigned = 0;
 		log_debug(logger, "Scheduling block no. %d. 1st copy: %s. 2nd copy: %s", i, blockInfo->firstCopyNodeID, blockInfo->secondCopyNodeID);
@@ -163,7 +133,6 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				moves++;
 				log_debug(logger, "No tiene el bloque, sigo avanzando");
 			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
-				log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
 				clock->availability--;
 				clock = circularlist_get(workersList, offset + moves); moves++;
 				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
@@ -171,13 +140,11 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				currentPlanEntry->usedBytes = blockInfo->blockSize;
 				assigned = 1;
 			} else { // tiene el bloque pero no tiene disponibilidad
-				log_debug(logger, "Tiene el bloque pero no tiene disponibilidad");
 				clock->availability = scheduling_baseAvailability;
 				moves++;
 			}
-			movesForBlock++;
 
-			if (movesForBlock % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
+			if (moves % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
 				log_debug(logger, "[scheduling] Di toda la vuelta y no lo encontre. Agregando 1 de disp a todos los workers");
 				int i;
 				for (i = 0; i < workersList_count; i++) {
