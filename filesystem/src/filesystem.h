@@ -223,9 +223,5 @@ void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);
 void fs_dataNodeThreadHandler(t_dataNode *aNode);
 void fs_workerConnectionThread();
-void fs_waitForDataNodes_select();
-void fs_dataNode_newConnectionHandler(int fd, char *ip);
-void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header);
-void fs_dataNode_disconnectionHandler(int fd, char *);
 
 #endif /* FILESYSTEM_H_ */
