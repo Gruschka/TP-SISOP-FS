@@ -186,7 +186,7 @@ char *fs_removeYamafsFromPath(char *path);
 t_dataNode *fs_getDataNodeFromFileDescriptor(int fd);
 int fs_clean();
 void fs_rebuildNodeTable();
-
+void fs_intHandler();
 
 //Console commands
 int fs_format();

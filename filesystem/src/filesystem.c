@@ -68,6 +68,7 @@ enum flags {
 
 /********* MAIN **********/
 void main(int argc, char **argv) {
+	signal(SIGINT, fs_intHandler);
 
 	serialization_initialize();
 	char *logFile = tmpnam(NULL);
@@ -3698,4 +3699,9 @@ void fs_rebuildNodeTable(){
 	free(nodesString);
 	free(totalFSSizeString);
 	free(totalFSFreeSizeString);
+}
+
+void fs_intHandler(){
+	//todo: liberar todo
+	log_error(logger,"FS Aborting abnormally");
 }
