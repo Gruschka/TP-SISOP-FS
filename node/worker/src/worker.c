@@ -408,13 +408,9 @@ void connectionHandler(int client_sock){
 			}
 
 			// Enviar archivo al file system
-			char *fileContent = worker_utils_readFile(request.globalTempPath);
-			uint32_t fileLength = strlen(fileContent);
 			ipc_struct_worker_file_to_fs file;
-			file.buffer = fileContent;
 			file.pathName = request.finalResultPath;
-			file.bufferSize = fileLength + 1;
-
+			file.content = worker_utils_readFile(request.globalTempPath);
 
 			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
@@ -424,8 +420,7 @@ void connectionHandler(int client_sock){
 			uint32_t succeeded = 1;
 			send(client_sock, &succeeded, sizeof(uint32_t), 0);
 
-			free(fileContent);
-			free(file.buffer);
+			free(file.content);
 			free(file.pathName);
 		} break;
 		case WORKER_REQUEST_FILE_FROM_SLAVE:{
