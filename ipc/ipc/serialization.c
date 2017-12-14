@@ -230,6 +230,7 @@ void *deserializeMasterContinueWithLocalReductionRequest(char *buffer) {
 		free(tmpTransformPath);
 		free(tmpLocalReducePath);
 		free(tmpWorkerIP);
+		free(tmpNodeID);
 	}
 	response->entries = entries;
 	return response;
@@ -321,6 +322,7 @@ void *deserializeMasterContinueWithFinalStorageRequest(char *buffer) {
 
 	free(tmpResultPath);
 	free(tmpWorkerIP);
+	free(tmpNodeID);
 	return response;
 }
 

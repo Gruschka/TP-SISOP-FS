@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
 	ipc_struct_start_transform_reduce_request request;
 	request.filePath = strdup(inputFilePath);
 	ipc_sendMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
+	free(request.filePath);
 	log_debug(master_log, "Se envió solicitud correctamente.");
 
 	// Espero respuesta de YAMA indicándome a qué workers
@@ -183,5 +184,6 @@ int main(int argc, char **argv) {
 	Exit:
 	log_debug(master_log, "Cerrando.");
 	close(yamaSocket);
+	free(yamaIP);
 	return EXIT_SUCCESS;
 }

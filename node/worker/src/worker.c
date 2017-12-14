@@ -405,6 +405,9 @@ void connectionHandler(int client_sock){
 			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;
 			send(client_sock, &op, sizeof(uint32_t), 0);
 
+			uint32_t succeeded = 1;
+			send(client_sock, &succeeded, sizeof(uint32_t), 0);
+
 			free(fileContent);
 			free(file.buffer);
 			free(file.pathName);
