@@ -235,10 +235,10 @@ ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = filePath;
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
-	free(request->filePath);
-	free(request);
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
 	log_debug(logger, "[FS_GET_FILE_INFO_RESPONSE] File %s has %d blocks", filePath, response->entriesCount);
+	free(request->filePath);
+	free(request);
 
 	int i;
 	for (i = 0; i < response->entriesCount; i++) {
@@ -405,6 +405,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
 		dumpExecutionPlan(executionPlan);
+		updateWorkload(executionPlan);
 		trackTransformationResponseInStateTable(response, fd);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
