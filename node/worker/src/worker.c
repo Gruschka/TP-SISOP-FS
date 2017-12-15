@@ -411,7 +411,9 @@ void connectionHandler(int client_sock){
 			// Enviar archivo al file system
 			ipc_struct_worker_file_to_fs file;
 			file.pathName = request.finalResultPath;
-			file.content = worker_utils_readFile(request.globalTempPath);
+			//file.content = worker_utils_readFile(request.globalTempPath);
+			int readBytes = worker_utils_readFile_deNasi(request.globalTempPath,&file.content);
+			log_debug(logFileNodo,"read bytes of file %d",readBytes);
 			log_debug(logFileNodo, "WORKER_SEND_FILE_TO_FS. pathName: %s. len: %d", file.pathName, strlen(file.content));
 			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
@@ -562,6 +564,21 @@ char *worker_utils_readFile(char *path) {
 	fclose(fp);
 
 	return buffer;
+}
+
+int worker_utils_readFile_deNasi(char *path,char **resultBuffer){
+	FILE *fileStream = fopen(path,"r");
+
+	struct stat st;
+	stat(path, &st);
+	int size = st.st_size;
+
+	*resultBuffer = malloc(size+1);
+
+	int readBytes = fread(*resultBuffer,size,1,fileStream);
+	*resultBuffer[size] = '\0';
+
+	return readBytes;
 }
 
 char *scriptTempFileName() {

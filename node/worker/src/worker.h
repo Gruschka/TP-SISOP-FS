@@ -43,6 +43,7 @@ int connectToWorker(char *workerIp, int port);
 int connectToFileSystem();
 int finalFileSize(char * filePath);
 char *worker_utils_readFile(char *path);
+int worker_utils_readFile_deNasi(char *path, char **resultBuffer);
 char *scriptTempFileName();
 void registerReceiver(char * buffer, int sockfd);
 #endif /* WORKER_H_ */
