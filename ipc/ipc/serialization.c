@@ -347,16 +347,17 @@ void *deserializeYamaNotifyStageFinish(char *buffer) {
 	stageFinish->nodeID = malloc(tmpLength + 1);
 	memcpy(stageFinish->nodeID, tmp, tmpLength + 1); //nodeID
 	offset += tmpLength + 1;
+	free(tmp);
 
 	tmp = strdup(buffer + offset);
 	tmpLength = strlen(tmp);
 	stageFinish->tempPath = malloc(tmpLength + 1);
 	memcpy(stageFinish->tempPath, tmp, tmpLength + 1); //tempPath
 	offset += tmpLength + 1;
+	free(tmp);
 
 	memcpy(&(stageFinish->succeeded), buffer + offset, sizeof(char)); //succeeded
 
-	free(tmp);
 	return stageFinish;
 }
 

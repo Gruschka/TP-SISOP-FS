@@ -68,7 +68,7 @@ enum flags {
 
 /********* MAIN **********/
 void main(int argc, char **argv) {
-	signal(SIGINT, fs_intHandler);
+ 	signal(SIGINT, fs_intHandler);
 
 	serialization_initialize();
 	char *logFile = tmpnam(NULL);
@@ -900,6 +900,8 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 		   //todo: implementar messaging contra el worker
 			log_debug(logger,"YAMAFS: Awaiting request to store file in YAMA from Worker");
 			ipc_struct_worker_file_to_fs *workerRequest = ipc_recvMessage(fd, WORKER_SEND_FILE_TO_FS);
+			char success = 1;
+			send(fd, &success, sizeof(success), 0);
 			char *fileName = basename(workerRequest->pathName);
 			char *pathInLocalFS = string_from_format("%s/%s",myFS.tempFilesPath,fileName);
 			fs_createTempFileFromWorker(pathInLocalFS, workerRequest->content);

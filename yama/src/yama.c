@@ -47,6 +47,7 @@ void destroyStateTable() {
 		yama_state_table_entry *entry = list_get(stateTable, i);
 		free(entry->nodeID);
 		free(entry->tempPath);
+		free(entry->fileName);
 		free(entry);
 	}
 	list_destroy(stateTable);
@@ -206,6 +207,15 @@ char *tempFileName() {
 }
 
 int stringsAreEqual(char *str1, char *str2) {
+	if ((str1 && !str2) || (!str1 && str2)) {
+		log_debug(logger, "stringsAreEqual received null");
+		return 0;
+	}
+	if (!str1 && !str2) {
+		log_debug(logger, "stringsAreEqual received two nulls");
+		return 0;
+	}
+
 	return strcmp(str1, str2) == 0;
 }
 
@@ -233,7 +243,7 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
-	request->filePath = filePath;
+	request->filePath = strdup(filePath);
 	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST, request);
 	ipc_struct_fs_get_file_info_response *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE);
 	log_debug(logger, "[FS_GET_FILE_INFO_RESPONSE] File %s has %d blocks", filePath, response->entriesCount);
@@ -318,7 +328,7 @@ ipc_struct_start_transform_reduce_response *getStartTransformationResponse(Execu
 	return response;
 }
 
-void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response, int fd) {
+void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_response *response, int fd, char *fileName) {
 	int idx;
 	for (idx = 0; idx < response->entriesCount; idx++) {
 		yama_state_table_entry *entry = malloc(sizeof(yama_state_table_entry));
@@ -331,6 +341,7 @@ void trackTransformationResponseInStateTable(ipc_struct_start_transform_reduce_r
 		entry->stage = TRANSFORMATION;
 		entry->status = IN_PROCESS;
 		entry->tempPath = strdup(responseEntry->tempPath);
+		entry->fileName = strdup(fileName);
 
 		yst_addEntry(entry);
 	}
@@ -394,6 +405,19 @@ void freeContinueWithGlobalReductionRequest(ipc_struct_master_continueWithGlobal
 	free(request);
 }
 
+void freeContinueWithLocalReductionRequest(ipc_struct_master_continueWithLocalReductionRequest *request) {
+	int i = 0;
+	for (i = 0; i < request->entriesCount; i++) {
+		ipc_struct_master_continueWithLocalReductionRequestEntry *currentEntry = request->entries + i;
+		free(currentEntry->localReduceTempPath);
+		free(currentEntry->transformTempPath);
+		free(currentEntry->nodeID);
+		free(currentEntry->workerIP);
+	}
+	free(request->entries);
+	free(request);
+}
+
 void incomingDataHandler(int fd, ipc_struct_header header) {
 	switch (header.type) {
 	case YAMA_START_TRANSFORM_REDUCE_REQUEST: {
@@ -406,9 +430,11 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
 		dumpExecutionPlan(executionPlan);
 		updateWorkload(executionPlan);
-		trackTransformationResponseInStateTable(response, fd);
+		trackTransformationResponseInStateTable(response, fd, request->filePath);
 		ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
+		free(request->filePath);
+		free(request);
 		freeStartTransformReduceResponse(response);
 		freeExecutionPlan(executionPlan);
 		freeFileInfoResponse(fileInfo);
@@ -418,9 +444,19 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
-		//succeeded me lo paso por los huevos
-		// bueno, esta bien
-		// TODO: replanificar
+		if (!transformFinish->succeeded) {
+//			yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+//			ystEntry->status = ERROR;
+//
+//			ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(ystEntry->fileName);
+//			ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
+//			ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+//			trackTransformationResponseInStateTable(response, fd, ystEntry->fileName);
+//			ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+
+
+			break;
+		}
 
 		// lo marco como finalizado
 		yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
@@ -451,12 +487,12 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 				entry->stage = LOCAL_REDUCTION;
 				entry->status = IN_PROCESS;
-				entry->tempPath = currentEntry->localReduceTempPath;
+				entry->tempPath = strdup(currentEntry->localReduceTempPath);
 			}
 
 			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST, request);
 			list_destroy(entriesToReduce);
-			free(request);
+			freeContinueWithLocalReductionRequest(request);
 			free(localReduceTempPath);
 		}
 
@@ -483,26 +519,28 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 			log_debug(logger, "Terminaron todas las reducciones locales (cantidad: %d) para el job %d", list_size(entriesToReduce), jobID);
 			ipc_struct_master_continueWithGlobalReductionRequest *request = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequest));
 			request->entriesCount = list_size(entriesToReduce);
-			request->entries = malloc(sizeof(ipc_struct_master_continueWithGlobalReductionRequestEntry) * request->entriesCount);
+			request->entries = calloc(request->entriesCount, sizeof(ipc_struct_master_continueWithGlobalReductionRequestEntry));
 
 			char *globalReduceTempPath = tempFileName();
 			int i;
 			for (i = 0; i < request->entriesCount; i++) {
-				yama_state_table_entry *entry = list_get(entriesToReduce, i);
-				ipc_struct_master_continueWithGlobalReductionRequestEntry *currentEntry = request->entries + i;
-				dumpEntry(entry, i);
-				currentEntry->localReduceTempPath = strdup(entry->tempPath);
-				currentEntry->globalReduceTempPath = strdup(globalReduceTempPath);
-				WorkerInfo *workerInfo = dictionary_get(workersDict, entry->nodeID);
-				currentEntry->workerIP = strdup(workerInfo->ip);
-				currentEntry->workerPort = workerInfo->port;
-				currentEntry->nodeID = strdup(entry->nodeID);
-				currentEntry->isWorkerInCharge = stringsAreEqual(currentEntry->nodeID, localReductionFinish->nodeID);
+				yama_state_table_entry *tableEntry = list_get(entriesToReduce, i);
+				ipc_struct_master_continueWithGlobalReductionRequestEntry *requestEntry = request->entries + i;
 
+				requestEntry->localReduceTempPath = strdup(tableEntry->tempPath);
+				requestEntry->globalReduceTempPath = strdup(globalReduceTempPath);
+
+				WorkerInfo *workerInfo = dictionary_get(workersDict, tableEntry->nodeID);
+				requestEntry->workerIP = strdup(workerInfo->ip);
+				requestEntry->workerPort = workerInfo->port;
+				requestEntry->nodeID = strdup(tableEntry->nodeID);
+				requestEntry->isWorkerInCharge = stringsAreEqual(requestEntry->nodeID, localReductionFinish->nodeID);
+
+				dumpEntry(tableEntry, i);
 				// lo actualizo en la tabla de estados
-				entry->stage = GLOBAL_REDUCTION;
-				entry->status = IN_PROCESS;
-				entry->tempPath = currentEntry->globalReduceTempPath;
+				tableEntry->stage = GLOBAL_REDUCTION;
+				tableEntry->status = IN_PROCESS;
+				tableEntry->tempPath = strdup(requestEntry->globalReduceTempPath);
 			}
 
 			ipc_sendMessage(fd, MASTER_CONTINUE_WITH_GLOBAL_REDUCTION_REQUEST, request);
@@ -528,7 +566,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		setState(getJobIDForTempPath(request->globalReductionTempPath), GLOBAL_REDUCTION, FINISHED_OK);
 
 		WorkerInfo *workerInfo = dictionary_get(workersDict, request->nodeID);
-		request->workerIP = workerInfo->ip;
+		request->workerIP = strdup(workerInfo->ip);
 		request->workerPort = workerInfo->port;
 
 		ipc_sendMessage(fd, MASTER_CONTINUE_WITH_FINAL_STORAGE_REQUEST, request);
@@ -537,9 +575,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		free(request->nodeID);
 		free(request->workerIP);
 		free(request);
-		free(workerInfo->id);
-		free(workerInfo->ip);
-		free(workerInfo);
+
 		free(globalReductionFinish->nodeID);
 		free(globalReductionFinish->tempPath);
 		free(globalReductionFinish);

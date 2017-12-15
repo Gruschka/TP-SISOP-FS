@@ -42,8 +42,13 @@ void *ipc_recvMessage(int sockfd, int type) {
 	}
 
 	buffer = malloc(header.length);
-	if(recv(sockfd, buffer, header.length, MSG_WAITALL) < 0){
+	int bytesReceived = recv(sockfd, buffer, header.length, MSG_WAITALL);
+	if (bytesReceived < 0){
 		exit(1);
+	}
+	if (bytesReceived != header.length) {
+		printf("bytesReceived != header.length. %d != %d", bytesReceived, header.length);
+		fflush(stdout);
 	}
 
 	void *deserialized = (*deserializationArray[type])(buffer);

@@ -24,6 +24,7 @@ typedef struct yama_state_table_entry {
 	yama_job_stage stage;
 	char *tempPath;
 	yama_job_status status;
+	char *fileName;
 } yama_state_table_entry;
 
 typedef struct node {
