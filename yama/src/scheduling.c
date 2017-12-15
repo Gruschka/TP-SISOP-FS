@@ -6,6 +6,7 @@
  */
 #include "scheduling.h"
 
+#include "configuration.h"
 #include <commons/log.h>
 #include <commons/collections/dictionary.h>
 #include <commons/collections/list.h>
@@ -13,7 +14,9 @@
 #include <stddef.h>
 #include <string.h>
 #include <pthread.h>
+#include <unistd.h>
 
+extern yama_configuration configuration;
 extern uint32_t scheduling_baseAvailability;
 uint32_t maximumLoad = 0;
 uint32_t workersList_count = 0;
@@ -149,6 +152,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 		int assigned = 0;
 		log_debug(logger, "Scheduling block no. %d. 1st copy: %s. 2nd copy: %s", i, blockInfo->firstCopyNodeID, blockInfo->secondCopyNodeID);
 		while (!assigned) { // toda la vueltita bb
+			usleep(configuration.schedulingDelay);
 			//TODO Si se encuentra, se deberá reducir en 1 el valor de disponibilidad
 			// y avanzar el Clock al siguiente Worker.
 			// Si dicho clock fuera a ser asignado a un Worker cuyo nivel de disponibilidad fuera 0,

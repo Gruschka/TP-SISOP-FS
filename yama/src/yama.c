@@ -41,7 +41,6 @@ uint32_t lastJobID = 0;
 int fsFd;
 
 void destroyStateTable() {
-	pthread_mutex_lock(&stateTable_mutex);
 	int i = 0;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *entry = list_get(stateTable, i);
@@ -51,7 +50,6 @@ void destroyStateTable() {
 		free(entry);
 	}
 	list_destroy(stateTable);
-	pthread_mutex_unlock(&stateTable_mutex);
 }
 
 int stringsAreEqual(char *str1, char *str2);
@@ -302,6 +300,8 @@ void dumpExecutionPlan(ExecutionPlan *executionPlan) {
 		ExecutionPlanEntry *entry = executionPlan->entries + i;
 		log_debug(logger, "%d |   %d   |   %s  ", i, entry->blockID, entry->workerID);
 	}
+
+	log_debug(logger, "-------------------");
 }
 
 ipc_struct_start_transform_reduce_response *getStartTransformationResponse(ExecutionPlan *executionPlan) {
@@ -487,6 +487,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 				entry->stage = LOCAL_REDUCTION;
 				entry->status = IN_PROCESS;
+				free(entry->tempPath);
 				entry->tempPath = strdup(currentEntry->localReduceTempPath);
 			}
 
@@ -584,8 +585,10 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 	case YAMA_NOTIFY_FINAL_STORAGE_FINISH: {
 		ipc_struct_yama_notify_stage_finish *finalStorageFinish = ipc_recvMessage(fd, YAMA_NOTIFY_FINAL_STORAGE_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_FINAL_STORAGE_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", finalStorageFinish->nodeID, finalStorageFinish->tempPath, finalStorageFinish->succeeded);
-
-
+		//TODO ACTUALIZAR TABLA DE ESTADOS
+		free(finalStorageFinish->nodeID);
+		free(finalStorageFinish->tempPath);
+		free(finalStorageFinish);
 		break;
 	}
 
@@ -605,6 +608,8 @@ void sigint_handler() {
 	close(fsFd);
 	log_debug(logger, "Closed filesystem connection");
 	destroyStateTable();
+	free(configuration.filesytemIP);
+	free(configuration.serverPort);
 
 	exit(0);
 }
