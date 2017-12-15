@@ -139,20 +139,21 @@ void connectionHandler(int client_sock){
 		//Recibo toda la informacion necesaria para ejecutar las tareas
 		uint32_t operation;
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
+		log_debug(logFileNodo, "Recibi operation: %d", operation);
 		switch (operation) {
 		case WORKER_START_TRANSFORM_REQUEST:{
 			log_debug(logFileNodo, "Transformation Stage");
 
 			ipc_struct_worker_start_transform_request request;
 
-			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), MSG_WAITALL);
 			request.scriptContent = malloc(request.scriptContentLength + 1);
-			recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), 0);
-			recv(client_sock, &(request.block), sizeof(uint32_t), 0);
-			recv(client_sock, &(request.usedBytes), sizeof(uint32_t), 0);
-			recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t),0);
+			recv(client_sock, request.scriptContent, (request.scriptContentLength + 1) * sizeof(char), MSG_WAITALL);
+			recv(client_sock, &(request.block), sizeof(uint32_t), MSG_WAITALL);
+			recv(client_sock, &(request.usedBytes), sizeof(uint32_t), MSG_WAITALL);
+			recv(client_sock, &(request.tempFilePathLength), sizeof(uint32_t), MSG_WAITALL);
 			request.tempFilePath = malloc(request.tempFilePathLength + 1);
-			recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), 0);
+			recv(client_sock, request.tempFilePath, ((request.tempFilePathLength * sizeof(char)) + 1), MSG_WAITALL);
 
 			char chmode[] = "0777";
 			int chmodNumber;
@@ -205,10 +206,10 @@ void connectionHandler(int client_sock){
 			log_debug(logFileNodo, "Local Reduction Stage \n");
 
 			ipc_struct_worker_start_local_reduce_request request;
-			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), MSG_WAITALL);
 
 			request.scriptContent = malloc(request.scriptContentLength + 1);
-			recv(client_sock, request.scriptContent, (request.scriptContentLength + 1), 0);
+			recv(client_sock, request.scriptContent, (request.scriptContentLength + 1), MSG_WAITALL);
 			char chmode[] = "0777";
 			int chmodNumber;
 			chmodNumber = strtol(chmode, 0, 8);
@@ -226,20 +227,20 @@ void connectionHandler(int client_sock){
 			}
 			int i =0;//Aca deberia recibir la tabla de archivos del Master y ponerla en una lista
 			t_list * fileList = list_create();
-			recv(client_sock, &(request.transformTempEntriesCount), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.transformTempEntriesCount), sizeof(uint32_t), MSG_WAITALL);
 			for(i = 0; i < request.transformTempEntriesCount; i++ ){
 				//log_debug(logger, "Estoy adentro del for y el entry es %d \n", request.transformTempEntriesCount);
 				fileNode * fileToReduce = malloc(sizeof(fileNode));
-				recv(client_sock, &(fileToReduce->filePathLength), sizeof(uint32_t), 0);
+				recv(client_sock, &(fileToReduce->filePathLength), sizeof(uint32_t), MSG_WAITALL);
 				fileToReduce->filePath = malloc(fileToReduce->filePathLength +1);
-				recv(client_sock, fileToReduce->filePath, (fileToReduce->filePathLength + 1), 0);
+				recv(client_sock, fileToReduce->filePath, (fileToReduce->filePathLength + 1), MSG_WAITALL);
 				list_add(fileList, fileToReduce);
 			}
 
-			recv(client_sock, &(request.reduceTempPathLen), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.reduceTempPathLen), sizeof(uint32_t), MSG_WAITALL);
 
 			request.reduceTempPath = malloc(request.reduceTempPathLen +1);
-			recv(client_sock, request.reduceTempPath, (request.reduceTempPathLen +1), 0);
+			recv(client_sock, request.reduceTempPath, (request.reduceTempPathLen +1), MSG_WAITALL);
 			log_debug(logFileNodo, "tempFile: %s", request.reduceTempPath);
 			char * pairingResult = scriptTempFileName();
 			log_debug(logFileNodo, "El resultado del apareo se guarda aca : %s \n", pairingResult);
@@ -282,9 +283,9 @@ void connectionHandler(int client_sock){
 			int i = 0;
 
 			ipc_struct_worker_start_global_reduce_request request;
-			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.scriptContentLength), sizeof(uint32_t), MSG_WAITALL);
 			request.scriptContent = malloc(request.scriptContentLength + 1);
-			recv(client_sock, request.scriptContent, (request.scriptContentLength +1), 0);
+			recv(client_sock, request.scriptContent, (request.scriptContentLength +1), MSG_WAITALL);
 
 			char chmode[] = "0777";
 			int chmodNumber;
@@ -301,23 +302,23 @@ void connectionHandler(int client_sock){
 				perror("Permissions couldn't be given");
 				break;
 			}
-			recv(client_sock, &(request.workersEntriesCount), sizeof(uint32_t),0);
+			recv(client_sock, &(request.workersEntriesCount), sizeof(uint32_t), MSG_WAITALL);
 			ipc_struct_worker_start_global_reduce_response reduction_response;
 			//Recepcion y conexion a los workers
 			t_list * workerList = list_create();
 			for(i=0; i < request.workersEntriesCount; i++){
 				fileGlobalNode * workerToRequest = malloc(sizeof(fileGlobalNode));
-				recv(client_sock, &(workerToRequest->workerNameLength), sizeof(uint32_t),0);
+				recv(client_sock, &(workerToRequest->workerNameLength), sizeof(uint32_t), MSG_WAITALL);
 				workerToRequest->workerName = malloc(workerToRequest->workerNameLength + 1);
-				recv(client_sock, workerToRequest->workerName, (workerToRequest->workerNameLength + 1), 0);
+				recv(client_sock, workerToRequest->workerName, (workerToRequest->workerNameLength + 1), MSG_WAITALL);
 				workerToRequest->workerName[workerToRequest->workerNameLength] = '\0';
-				recv(client_sock, &(workerToRequest->workerIpLen), sizeof(uint32_t),0);
+				recv(client_sock, &(workerToRequest->workerIpLen), sizeof(uint32_t), MSG_WAITALL);
 				workerToRequest->workerIp = malloc(workerToRequest->workerIpLen + 1);
-				recv(client_sock, workerToRequest->workerIp, (workerToRequest->workerIpLen + 1), 0);
-				recv(client_sock, &(workerToRequest->port), sizeof(uint32_t), 0);
-				recv(client_sock, &(workerToRequest->filePathLength), sizeof(uint32_t), 0);
+				recv(client_sock, workerToRequest->workerIp, (workerToRequest->workerIpLen + 1), MSG_WAITALL);
+				recv(client_sock, &(workerToRequest->port), sizeof(uint32_t), MSG_WAITALL);
+				recv(client_sock, &(workerToRequest->filePathLength), sizeof(uint32_t), MSG_WAITALL);
 				workerToRequest->filePath = malloc(workerToRequest->filePathLength + 1);
-				recv(client_sock, workerToRequest->filePath, (workerToRequest->filePathLength + 1), 0);
+				recv(client_sock, workerToRequest->filePath, (workerToRequest->filePathLength + 1), MSG_WAITALL);
 				workerToRequest->filePath[workerToRequest->filePathLength] = '\0';
 				workerToRequest->sockfd = ipc_createAndConnect(workerToRequest->port, workerToRequest->workerIp);
 				log_debug(logFileNodo, "workerID: %s sockFD: %d \n", workerToRequest->workerName, workerToRequest->sockfd);
@@ -329,10 +330,10 @@ void connectionHandler(int client_sock){
 				}
 				list_add(workerList, workerToRequest);
 			}
-			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), MSG_WAITALL);
 
 			request.globalTempPath = malloc(request.globalTempPathLen + 1);
-			recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), 0);
+			recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), MSG_WAITALL);
 
 			char * pairingResult = scriptTempFileName();
 			log_debug(logFileNodo, "\n The Global Pairing Result is saved at : %s \n", pairingResult);
@@ -381,15 +382,15 @@ void connectionHandler(int client_sock){
 		case WORKER_START_FINAL_STORAGE_REQUEST: {
 			ipc_struct_worker_start_final_storage_request request;
 
-			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.globalTempPathLen), sizeof(uint32_t), MSG_WAITALL);
 
 			request.globalTempPath = malloc(request.globalTempPathLen + 1);
-			recv(client_sock, request.globalTempPath, request.globalTempPathLen + 1, 0);
+			recv(client_sock, request.globalTempPath, request.globalTempPathLen + 1, MSG_WAITALL);
 
-			recv(client_sock, &(request.finalResultPathLen), sizeof(uint32_t), 0);
+			recv(client_sock, &(request.finalResultPathLen), sizeof(uint32_t), MSG_WAITALL);
 
 			request.finalResultPath = malloc(request.finalResultPathLen + 1);
-			recv(client_sock, request.finalResultPath, request.finalResultPathLen + 1, 0);
+			recv(client_sock, request.finalResultPath, request.finalResultPathLen + 1, MSG_WAITALL);
 
 			uint32_t sockFs = ipc_createAndConnect(configuration.filesystemPort, configuration.filesystemIP);
 
@@ -398,7 +399,7 @@ void connectionHandler(int client_sock){
 			handshake.status = 1; // ezto siknifik q soi 1 werker are jajjajaja3
 			ipc_sendMessage(sockFs,WORKER_HANDSHAKE_TO_FS,&handshake);
 
-			ipc_struct_worker_handshake_to_fs *handshakeResponse = ipc_recvMessage(sockFs,WORKER_HANDSHAKE_TO_FS);
+			ipc_struct_worker_handshake_to_fs *handshakeResponse = ipc_recvMessage(sockFs, WORKER_HANDSHAKE_TO_FS);
 			if(!handshakeResponse->status){
 				// el failed syistem me ah rechasad0
 				// todo: bengarse
@@ -411,7 +412,7 @@ void connectionHandler(int client_sock){
 			ipc_struct_worker_file_to_fs file;
 			file.pathName = request.finalResultPath;
 			file.content = worker_utils_readFile(request.globalTempPath);
-
+			log_debug(logFileNodo, "WORKER_SEND_FILE_TO_FS. pathName: %s. len: %d", file.pathName, strlen(file.content));
 			ipc_sendMessage(sockFs, WORKER_SEND_FILE_TO_FS, &file);
 
 			uint32_t op = WORKER_START_FINAL_STORAGE_RESPONSE;
@@ -427,10 +428,10 @@ void connectionHandler(int client_sock){
 			log_debug(logFileNodo, "Slave Worker Stage \n");
 
 			uint32_t temporalNameLength;
-			recv(client_sock, &temporalNameLength, sizeof(int), 0);
+			recv(client_sock, &temporalNameLength, sizeof(int), MSG_WAITALL);
 
 			char *temporalName = malloc(temporalNameLength + 1);
-			recv(client_sock, temporalName, temporalNameLength + 1, 0);
+			recv(client_sock, temporalName, temporalNameLength + 1, MSG_WAITALL);
 
 			log_debug(logFileNodo, "The File is: %s \n", temporalName);
 
