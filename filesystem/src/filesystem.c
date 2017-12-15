@@ -822,7 +822,7 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 		   ipc_struct_datanode_read_block_response *response = ipc_recvMessage(fd,DATANODE_READ_BLOCK_RESPONSE);
 		   char *buffer = malloc(BLOCK_SIZE);
 		   memcpy(buffer,response->buffer,BLOCK_SIZE);
-		   queue_push(dataNode->resultsQueue,response->buffer);
+		   queue_push(dataNode->resultsQueue,buffer);
 		   sem_post(dataNode->resultSemaphore);
 		   free(response->buffer);
 		   free(response);
