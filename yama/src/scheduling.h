@@ -45,6 +45,7 @@ WorkloadCalculationFunction workloadCalculationFunctions[ALGORITHMS_COUNT];
 scheduling_algorithm scheduling_currentAlgorithm;
 uint32_t scheduling_getAvailability(Worker *);
 void scheduling_addWorker(Worker *worker);
+void scheduling_removeWorker(char *name);
 
 typedef ipc_struct_fs_get_file_info_response FileInfo;
 typedef ipc_struct_fs_get_file_info_response_2 FileInfo2;

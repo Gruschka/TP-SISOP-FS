@@ -22,10 +22,6 @@
 #include "configuration.h"
 #include "scheduling.h"
 
-//TODO: Cerrar scheduling
-//TODO: Revisar leaks
-//TODO: Deshardcodear puerto
-
 pthread_mutex_t stateTable_mutex;
 pthread_mutex_t nodesList_mutex;
 
@@ -76,7 +72,6 @@ t_list *getEntriesMatchingJobID(uint32_t jobID) {
 	}
 	pthread_mutex_unlock(&stateTable_mutex);
 
-	//TODO: ver que no este liberanod cualqueir cosa
 	dictionary_destroy(dictionary);
 	return result;
 }
@@ -105,6 +100,10 @@ int localReductionIsFinished(uint32_t jobID) {
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+		if (currentEntry->jobID == jobID && currentEntry->stage == TRANSFORMATION) {
+			pthread_mutex_unlock(&stateTable_mutex);
+			return 0;
+		}
 
 		if (currentEntry->jobID == jobID && currentEntry->stage == LOCAL_REDUCTION) {
 			if (currentEntry->status != FINISHED_OK) {
@@ -116,6 +115,28 @@ int localReductionIsFinished(uint32_t jobID) {
 
 	pthread_mutex_unlock(&stateTable_mutex);
 	return 1;
+}
+
+int jobShouldBeRescheduled(uint32_t jobID) {
+	pthread_mutex_lock(&stateTable_mutex);
+	int i, totalTasksInJob = 0, finishedTasks = 0, finishedTasksWithError = 0;
+	for (i = 0; i < list_size(stateTable); i++) {
+		yama_state_table_entry *currentEntry = list_get(stateTable, i);
+
+		if (currentEntry->jobID == jobID && currentEntry->stage == TRANSFORMATION) {
+			totalTasksInJob++;
+
+			if (currentEntry->status != IN_PROCESS) {
+				finishedTasks++;
+
+				if (currentEntry->status == ERROR) finishedTasksWithError++;
+			}
+		}
+	}
+
+	pthread_mutex_unlock(&stateTable_mutex);
+	log_debug(logger, "jobID: %d. finishedTasks: %d/%d (%d errors)", jobID, finishedTasks, totalTasksInJob, finishedTasksWithError);
+	return (finishedTasks == totalTasksInJob) && (finishedTasksWithError > 0);
 }
 
 int jobIsFinished(uint32_t jobID, char *nodeID, yama_job_stage stage) {
@@ -258,7 +279,7 @@ ipc_struct_fs_get_file_info_response_2 *requestInfoToFilesystem2(char *filePath)
 			workerInfo->ip = strdup(currentBlock->nodeIps[copyIterator]);
 			workerInfo->port = currentBlock->ports[copyIterator];
 
-			if (!dictionary_has_key(workersDict, workerInfo->id)) {
+			if (!dictionary_has_key(workersDict, workerInfo->id) && strcmp(workerInfo->ip, "offline") != 0) {
 				Worker *worker = malloc(sizeof(Worker));
 				worker->availability = 0;
 				worker->currentLoad = 0;
@@ -267,6 +288,13 @@ ipc_struct_fs_get_file_info_response_2 *requestInfoToFilesystem2(char *filePath)
 				scheduling_addWorker(worker);
 				dictionary_put(workersDict, workerInfo->id, workerInfo);
 			} else {
+				if (strcmp(workerInfo->ip, "offline") == 0 && dictionary_has_key(workersDict, workerInfo->id)) {
+					WorkerInfo *toRemove = dictionary_remove(workersDict, workerInfo->id);
+					scheduling_removeWorker(workerInfo->id);
+					free(toRemove->id);
+					free(toRemove->ip);
+					free(toRemove);
+				}
 				free(workerInfo->id);
 				free(workerInfo->ip);
 				free(workerInfo);
@@ -495,23 +523,10 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
 		ipc_struct_yama_notify_stage_finish *transformFinish = ipc_recvMessage(fd, YAMA_NOTIFY_TRANSFORM_FINISH);
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
-
-		if (!transformFinish->succeeded) {
-			yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
-			ystEntry->status = ERROR;
-
-			ipc_struct_fs_get_file_info_response_2 *fileInfo = requestInfoToFilesystem2(ystEntry->fileName);
-			ExecutionPlan *executionPlan = getExecutionPlan2(fileInfo);
-			ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
-			trackTransformationResponseInStateTable(response, fd, ystEntry->fileName);
-			ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
-
-			break;
-		}
+		yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
 
 		// lo marco como finalizado
-		yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
-		ystEntry->status = FINISHED_OK;
+		ystEntry->status = transformFinish->succeeded == 1 ? FINISHED_OK : ERROR;
 
 		uint32_t jobID = getJobIDForTempPath(transformFinish->tempPath);
 
@@ -548,6 +563,16 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 			free(localReduceTempPath);
 		}
 
+		if (jobShouldBeRescheduled(ystEntry->jobID)) {
+			log_debug(logger, "Replanifico job %d", ystEntry->jobID);
+			ipc_struct_fs_get_file_info_response_2 *fileInfo = requestInfoToFilesystem2(ystEntry->fileName);
+			ExecutionPlan *executionPlan = getExecutionPlan2(fileInfo);
+			dumpExecutionPlan(executionPlan);
+			ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+			trackTransformationResponseInStateTable(response, fd, ystEntry->fileName);
+			ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+		}
+
 		free(transformFinish->nodeID);
 		free(transformFinish->tempPath);
 		free(transformFinish);
@@ -559,7 +584,6 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		log_debug(logger, "[YAMA_NOTIFY_LOCAL_REDUCTION_FINISH] nodeID: %s. tempPath: %s. succeeded: %d", localReductionFinish->nodeID, localReductionFinish->tempPath, localReductionFinish->succeeded);
 
 		uint32_t jobID = getJobIDForTempPath(localReductionFinish->tempPath);
-
 
 		// lo marco como finalizado
 //		yama_state_table_entry *ystEntry = getEntry(localReductionFinish->nodeID, localReductionFinish->tempPath);

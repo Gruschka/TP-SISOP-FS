@@ -76,7 +76,34 @@ void scheduling_initialize() {
 	pthread_mutex_init(&workersList_mutex, NULL);
 }
 
+void scheduling_removeWorker(char *name) {
+	pthread_mutex_lock(&workersList_mutex);
+	int i;
+	for (i = 0; i < workersList_count; i++) {
+		Worker *worker = list_get(workersList, i);
+
+		if (strcmp(worker->name, name) == 0) {
+			list_remove(workersList, i);
+
+			if (i == workersList_count - 1) {
+				int x = workersList_count;
+				t_link_element *last = workersList->head;
+				while (x--) {
+					last = last->next;
+				}
+
+				last->next = workersList->head;
+			}
+			break;
+		}
+	}
+
+	workersList_count--;
+	pthread_mutex_unlock(&workersList_mutex);
+}
+
 void scheduling_addWorker(Worker *worker) {
+	pthread_mutex_lock(&workersList_mutex);
 	list_add_in_index(workersList, workersList_count, worker);
 
 	int i = workersList_count;
@@ -88,6 +115,7 @@ void scheduling_addWorker(Worker *worker) {
 	last->next = workersList->head;
 
 	workersList_count++;
+	pthread_mutex_unlock(&workersList_mutex);
 }
 
 Copy workerContainsBlock(Worker *worker, BlockInfo *block) {
@@ -141,6 +169,7 @@ int arrayContainsString(char **array, char *string) {
 }
 
 ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
+	pthread_mutex_lock(&workersList_mutex);
 	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
 	executionPlan->entriesCount = response->amountOfblocks;
 	executionPlan->entries = malloc(sizeof(ExecutionPlanEntry) * executionPlan->entriesCount);
@@ -163,18 +192,18 @@ ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
 		int movesForBlock = 0;
 		int assigned = 0;
 		dictionary_clean(incremented);
-		log_debug(logger, "Scheduling block no. %d. %d copies", i, blockInfo->copies);
+//		log_debug(logger, "Scheduling block no. %d. %d copies", i, blockInfo->copies);
 		while (!assigned) { // toda la vueltita bb
 			usleep(configuration.schedulingDelay);
 
 			clock = circularlist_get(workersList, offset + moves);
-			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
+//			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
 
 			if (clock->availability > 0) {
 				int copy = arrayContainsString(blockInfo->nodeIds, clock->name);
 				if (copy != -1) {
 					// lo encontre y tiene disponibilidad
-					log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
+//					log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
 					clock->availability--;
 					clock = circularlist_get(workersList, offset + moves); moves++;
 					currentPlanEntry->blockID = blockInfo->blockIds[copy];
@@ -183,11 +212,11 @@ ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
 					assigned = 1;
 				} else {
 					moves++;
-					log_debug(logger, "No tiene el bloque, sigo avanzando");
+//					log_debug(logger, "No tiene el bloque, sigo avanzando");
 				}
 			} else {
 				//TODO: no aumentar si no tiene el bloque
-				log_debug(logger, "No tiene disponibilidad. Le subo 1");
+//				log_debug(logger, "No tiene disponibilidad. Le subo 1");
 				moves++;
 				clock->availability += baseAvailabilitySnapshot;
 				dictionary_put(incremented, clock->name, 1);
@@ -196,7 +225,7 @@ ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
 			movesForBlock++;
 
 			if (movesForBlock % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
-				log_debug(logger, "[scheduling] Di toda la vuelta y no lo encontre. Agregando 1 de disp a todos los workers");
+//				log_debug(logger, "[scheduling] Di toda la vuelta y no lo encontre. Agregando 1 de disp a todos los workers");
 				int i;
 				for (i = 0; i < workersList_count; i++) {
 					Worker *worker = circularlist_get(workersList, i);
@@ -210,6 +239,7 @@ ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
 
 	}
 
+	pthread_mutex_unlock(&workersList_mutex);
 	return executionPlan;
 }
 
