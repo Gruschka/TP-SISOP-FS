@@ -123,6 +123,59 @@ int fs_format() {
 	return EXIT_SUCCESS;
 
 }
+int fs_rm2(char *filePath) {
+	printf("removing %s\n", filePath);
+
+	// get parent path
+	char **splitPath = string_split(filePath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath);
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	// release occupied blocks
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	int copyIterator = 0;
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+	t_dataNode *targetNode;
+	for (blockIterator = 0; blockIterator < amountOfBlocks; blockIterator++) {
+		for (copyIterator = 0; copyIterator < blocks[blockIterator].copies; copyIterator++) {
+			targetNode = fs_getNodeFromNodeName(blocks[blockIterator].nodeIds[copyIterator]);
+			fs_cleanBlockFromDataNode(targetNode,blocks[blockIterator].blockIds[copyIterator]);
+		}
+	}
+
+	// update file index
+	fs_deleteFileFromIndex(physicalPath);
+
+	// delete metadata file
+	fclose(fileMetadata);
+	remove(physicalPath);
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	free(splitPath);
+	free(parentPath);
+	free(physicalPath);
+
+	return EXIT_SUCCESS;
+}
 int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
@@ -215,6 +268,83 @@ int fs_rm_dir(char *dirPath) {
 		log_error(logger, "fs_rm_dir: directory doesnt exist or is parent");
 		return EXIT_FAILURE;
 	}
+
+	return EXIT_SUCCESS;
+}
+int fs_rm_block2(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) {
+	printf("removing block %d whose copy is block %d from file %s\n",
+			blockNumberToRemove, numberOfCopyBlock, filePath);
+	int iterator = 0;
+	// get parent path
+	char **splitPath = string_split(filePath,"/"); //freed
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath); //Freed
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]); //Freed
+	FILE *fileMetadata = fopen(physicalPath,"r+"); //closed
+	if(!fileMetadata){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+
+	if(blockNumberToRemove > amountOfBlocks){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
+		fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+		log_error(logger,"block number to remove does not exist");
+		return EXIT_FAILURE;
+	}
+
+	int blockCopyNumber = fs_getCopyNumberFromCopyIdOfBlock(blocks[blockNumberToRemove],numberOfCopyBlock);
+	t_dataNode *targetDataNode = fs_getNodeFromNodeName(blocks[blockNumberToRemove].nodeIds[blockCopyNumber]);
+
+	fs_cleanBlockFromDataNode(targetDataNode,blocks[blockNumberToRemove].blockIds[blockCopyNumber]);
+
+	fs_deleteBlockFromMetadata(physicalPath,blockNumberToRemove,numberOfCopyBlock);
+
+	iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	fclose(fileMetadata);
+	free(splitPath);
+	free(physicalPath);
+	free(parentPath);
 
 	return EXIT_SUCCESS;
 }
@@ -455,7 +585,7 @@ int fs_mv(char *origFilePath, char *destFilePath) {
 int fs_cat(char *filePath) {
 	printf("Showing file %s\n", filePath);
 
-	char *fileContent = fs_readFile(filePath);
+	char *fileContent = fs_readFile2(filePath);
 
 	log_info(logger,"fileContent: %s",fileContent);
 
@@ -589,6 +719,46 @@ int fs_cpto(char *yamaFilePath,char *destDirectory) {
 	return EXIT_SUCCESS;
 
 }
+int fs_cpblock2(char *origFilePath, int blockNumberToCopy, char* nodeId) {
+	printf("Copying block %d from %s to node %s\n", blockNumberToCopy,
+			origFilePath, nodeId);
+
+	char *physicalPath = fs_isAFile(origFilePath);
+	if(physicalPath == NULL){
+		log_error(logger,"file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+	t_dataNode *downloadTarget;
+	int currentCopyNumber = 0;
+
+	while(!(downloadTarget = fs_getNodeFromNodeName(blocks[blockNumberToCopy].nodeIds[currentCopyNumber]))){
+		currentCopyNumber++;
+	}
+	void *buffer = fs_downloadBlock(downloadTarget,blocks[blockNumberToCopy].blockIds[currentCopyNumber]);
+
+	t_dataNode *uploadTarget = fs_getNodeFromNodeName(nodeId);
+	int targetUploadBlockNumber = fs_getFirstFreeBlockFromNode(uploadTarget);
+
+	int result = fs_uploadBlock(uploadTarget,targetUploadBlockNumber,buffer);
+
+	//update metadata
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	t_config *fileMetadata = config_create(physicalPath);
+	int lastCopyId = fs_getLastCopyNumberFromBlock(blocks[blockNumberToCopy]);
+	char *metadataEntry = string_from_format("BLOQUE%dCOPIA%d",blockNumberToCopy,lastCopyId+1);
+	char *value = string_from_format("[%s, %d]",uploadTarget->name,targetUploadBlockNumber);
+	config_set_value(fileMetadata,metadataEntry,value);
+	config_save(fileMetadata);
+	config_destroy(fileMetadata);
+	free(value);
+	free(metadataEntry);
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	free(physicalPath);
+	return 0;
+
+}
 int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId) {
 	printf("Copying block %d from %s to node %s\n", blockNumberToCopy,
 			origFilePath, nodeId);
@@ -701,9 +871,35 @@ int fs_ls(char *directoryPath) {
 	return 0;
 
 }
-int fs_info(char *filePath) {
+int fs_info2(char *filePath) {
 
 	char *filePathInLocalFS = fs_isAFile(filePath);
+	t_block *blocks = fs_getBlocksFromFile(filePathInLocalFS);
+
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePathInLocalFS);
+
+	if(amountOfBlocks == 0){
+		log_error(logger,"fs_info: Number of blocks of file %s failed",filePath);
+		return EXIT_FAILURE;
+	}
+
+	log_info(logger,"Showing info of file file %s\n", filePath);
+
+	int i = 0;
+
+	fs_dumpBlockArrayOfSize(blocks,amountOfBlocks);
+
+	fs_destroyBlockArrayWithSize(blocks, amountOfBlocks);
+	free(filePathInLocalFS);
+	return EXIT_SUCCESS;
+
+}
+int fs_info(char *filePath) {
+
+
+	char *filePathInLocalFS = fs_isAFile(filePath);
+	t_block *test = fs_getBlocksFromFile(filePathInLocalFS);
+
 	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePathInLocalFS);
 
 	if(amountOfBlocks == EXIT_FAILURE){
@@ -1008,14 +1204,15 @@ void fs_yama_newConnectionHandler(int fd, char *ip){
 void fs_yama_incomingDataHandler(int fd, ipc_struct_header header){
 	while (1) {
 		log_debug(logger,"Awaiting YAMA request");
-		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(fd, FS_GET_FILE_INFO_REQUEST);
+		ipc_struct_fs_get_file_info_request_2 *request = ipc_recvMessage(fd, FS_GET_FILE_INFO_REQUEST_2);
 		log_debug(logger,"Yama Request: %s", request->filePath);
 		char *pathInLocalFS = fs_isAFile(request->filePath);
-		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(pathInLocalFS);
-		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE, response);
-		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		log_debug(logger,"%s",pathInLocalFS);
+		ipc_struct_fs_get_file_info_response_2 *response = malloc(sizeof(ipc_struct_fs_get_file_info_response_2));
+		response->amountOfblocks = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		response->blocks = fs_getBlocksFromFile(pathInLocalFS);
+		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE_2, response);
 		log_debug(logger,"YAMA Request Answered");
-		fs_destroyNodeTupleArray(response->entries, length);
 		free(request->filePath);
 		free(request);
 		free(response);
@@ -2634,6 +2831,89 @@ int fs_checkNodeConnectionStatus(t_dataNode aDataNode){
 
 
 }
+
+int fs_getAmountOfCopiesFromBlock(int blockNumber, t_config *fileMetadata){
+	int totalAmountOfCopies = 0;
+	int iterator = 0;
+	int maximumCopySearch = 20; // durlock
+	char *keyToSearch;
+	for (iterator = 0; iterator < maximumCopySearch; iterator++) {
+		keyToSearch = string_from_format("BLOQUE%dCOPIA%d",blockNumber,iterator);
+		if(config_has_property(fileMetadata,keyToSearch)){
+			totalAmountOfCopies++;
+		}
+		free(keyToSearch);
+	}
+	return totalAmountOfCopies;
+}
+
+t_block *fs_getBlocksFromFile(char *filePath){
+
+	FILE * fileToOpen = fopen(filePath,"r");
+	if(fileToOpen == NULL){
+		log_error(logger,"fs_getBlocksFromFile",filePath);
+		fclose(fileToOpen);
+		return EXIT_FAILURE;
+	}
+	fclose(fileToOpen);
+
+	int currentBlock = 0;
+	int currentCopy = 0;
+	int copyNumber = 0;
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
+	t_config *fileConfig = config_create(filePath);
+
+	t_block *block = calloc(amountOfBlocks,sizeof(t_block));
+
+
+
+	char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
+	char *blockBytesKey = string_from_format("BLOQUE%dBYTES",currentBlock);
+	char *nodeBlockTupleAsString;
+	char **nodeBlockTupleAsArray;
+	while(currentBlock<amountOfBlocks){
+		block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
+		block[currentBlock].blockSize = config_get_int_value(fileConfig,blockBytesKey);
+		block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].nodeIds = calloc(block[currentBlock].copies,sizeof(char *));
+		block[currentBlock].nodeIps = calloc(block[currentBlock].copies,sizeof(char *));
+		while(copyNumber < block[currentBlock].copies){
+			if(config_has_property(fileConfig,blockToSearch)){
+				nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
+				nodeBlockTupleAsArray = string_get_string_as_array(nodeBlockTupleAsString);
+				block[currentBlock].nodeIds[copyNumber] = strdup(nodeBlockTupleAsArray[0]);
+				block[currentBlock].blockIds[copyNumber] = atoi(nodeBlockTupleAsArray[1]);
+				t_dataNode *node = fs_getNodeFromNodeName(block[currentBlock].nodeIds[copyNumber]);
+				if(node){
+					block[currentBlock].nodeIps[copyNumber] = strdup(node->IP);
+					block[currentBlock].ports[copyNumber] = node->workerPortno;
+				}else{
+					block[currentBlock].nodeIps[copyNumber] = NULL;
+					block[currentBlock].ports[copyNumber] = 0;
+				}
+				block[currentBlock].copyIds[copyNumber] = currentCopy;
+				copyNumber++;
+				fs_destroyAnArrayOfCharPointers(nodeBlockTupleAsArray);
+				free(blockToSearch);
+				blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,copyNumber);
+			}
+			currentCopy++;
+		}
+		copyNumber = 0;
+		currentCopy = 0;
+		free(blockToSearch);
+		currentBlock++;
+		blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,copyNumber);
+		free(blockBytesKey);
+		blockBytesKey = string_from_format("BLOQUE%dBYTES",currentBlock);
+	}
+	free(blockToSearch);
+	free(blockBytesKey);
+	config_destroy(fileConfig);
+	return block;
+}
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath){
 
 
@@ -3272,6 +3552,79 @@ t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy){
 	}
 	return (queue_size(first->operationsQueue) > queue_size(copy->operationsQueue)) ? copy : first;
 }
+
+void *fs_readFile2(char *filePath){
+	char *physicalPath = fs_isAFile(filePath);
+
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+
+	int iterator = 0;
+	t_dataNode *first = NULL;
+	t_dataNode *copy = NULL;
+	t_dataNode *target = NULL;
+
+	t_threadOperation *operation;
+	t_dataNode **readOrder = malloc(sizeof(t_dataNode*)*amountOfBlocks);
+
+
+	while(iterator<amountOfBlocks){
+
+		int targetCopy = 0;
+		target = fs_getNodeCorrespondingToFirstAvailableCopyOfBlock(blocks[iterator],&targetCopy);
+
+		if(target == NULL){
+			free(readOrder);
+			free(physicalPath);
+			fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+			log_error(logger,"no nodes to send read operation");
+			return NULL;
+		}
+
+		operation = malloc(sizeof(t_threadOperation));
+		operation->operationId = 0; // reada
+		operation->blockNumber = blocks[iterator].blockIds[targetCopy];
+		log_debug(logger,"para el bloque %d se pidio %s block no. %d",iterator,target->name, operation->blockNumber);
+		queue_push(target->operationsQueue,operation);
+		//sem_post(target->threadSemaphore);
+		readOrder[iterator] = target;
+
+
+		iterator++;
+	}
+
+	//borrar a la mierda
+	int *blockSizes = fs_getBlockSizesOfFileMetadata(physicalPath, amountOfBlocks);
+	int trueFileSize = fs_sumOfIntArray(blockSizes, amountOfBlocks);
+
+	//void *buffer = BLOCK_SIZE; // arre
+	void *result = malloc(trueFileSize+1); //TODO: WARNINIGNNGA
+	memset(result,0,trueFileSize+1);
+
+	// termine de mandar los pedidos ahora a leer
+	iterator = 0;
+	int offset = 0;
+	log_debug(logger,"READ: True File Size of file %s is: [%d]",filePath,trueFileSize);
+
+	while(iterator < amountOfBlocks){
+		target = readOrder[iterator];
+		sem_post(target->threadSemaphore);
+		sem_wait(target->resultSemaphore);
+		void *buffer = queue_pop(target->resultsQueue);
+		memcpy(result+offset,buffer,blockSizes[iterator]);
+		offset+= blockSizes[iterator];
+		//log_debug(logger,"READ: Had to read: [%d] bytes from block [%d] and read [%d] instead. In result: [%d]  offset: [%d]", blockSizes[iterator],iterator,strlen(buffer), strlen(result), offset);
+		free(buffer);
+		iterator++;
+	}
+	//log_info(logger,"file: %s",result);
+	free(physicalPath);
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	free(blockSizes);
+	free(readOrder);
+	return result;
+}
 void *fs_readFile(char *filePath){
 	char *physicalPath = fs_isAFile(filePath);
 
@@ -3460,7 +3813,7 @@ int fs_downloadFile(char *yamaFilePath, char *destDirectory){
 	closedir(dir);
 
 	//traigo el contenido
-	char *fileContent = fs_readFile(yamaFilePath);
+	char *fileContent = fs_readFile2(yamaFilePath);
 
 
 	//creo el archivo destino, si existe lo piso
@@ -3710,4 +4063,73 @@ void fs_rebuildNodeTable(){
 void fs_intHandler(){
 	//todo: liberar todo
 	log_error(logger,"FS Aborting abnormally");
+}
+
+void fs_destroyBlockArrayWithSize(t_block *blockArray, int size){
+	int blockIterator = 0;
+	int copiesIterator = 0;
+	while(blockIterator < size){
+		free(blockArray[blockIterator].blockIds);
+		free(blockArray[blockIterator].ports);
+		free(blockArray[blockIterator].copyIds);
+		while(copiesIterator < blockArray[blockIterator].copies){
+			free(blockArray[blockIterator].nodeIds[copiesIterator]);
+			free(blockArray[blockIterator].nodeIps[copiesIterator]);
+			copiesIterator++;
+		}
+		free(blockArray[blockIterator].nodeIds);
+		free(blockArray[blockIterator].nodeIps);
+		blockIterator++;
+	}
+	free(blockArray);
+}
+
+int fs_getLastCopyNumberFromBlock(t_block block){
+	int copyIterator = 0;
+	int lastCopyId = 0;
+	for (copyIterator = 0; copyIterator < block.copies; copyIterator++) {
+		lastCopyId = block.copyIds[copyIterator];
+	}
+
+	return lastCopyId;
+}
+
+t_dataNode *fs_getNodeCorrespondingToFirstAvailableCopyOfBlock(t_block block, int *copy){
+	int copyIterator = 0;
+	t_dataNode *targetNode;
+	int found = 0;
+	while(copyIterator < block.copies && !found){
+		targetNode = fs_getNodeFromNodeName(block.nodeIds[copyIterator]);
+		if(targetNode){
+			found++;
+			*copy = copyIterator;
+		}
+		copyIterator++;
+	}
+	return targetNode;
+
+}
+
+void fs_dumpBlockArrayOfSize(t_block *blockArray, int size){
+	int currentBlock = 0;
+	int currentCopy = 0;
+	log_debug(logger,"file has %d blocks",size);
+	for (currentBlock = 0; currentBlock < size; currentBlock++) {
+		log_debug(logger,"block %d has %d copies of size %d",currentBlock,blockArray[currentBlock].copies, blockArray[currentBlock].blockSize);
+		for(currentCopy = 0; currentCopy < blockArray[currentBlock].copies; currentCopy++){
+			log_debug(logger,"COPY %d: [%s,%d]",currentCopy,blockArray[currentBlock].nodeIds[currentCopy], blockArray[currentBlock].blockIds[currentCopy]);
+		}
+	}
+}
+
+int fs_getCopyNumberFromCopyIdOfBlock(t_block block, int copyId){
+	int copyIterator = 0;
+	for (copyIterator = 0; copyIterator < block.copies; copyIterator++) {
+		if (block.copyIds[copyIterator] == copyId) {
+			return copyIterator;
+		}
+	}
+	log_error(logger,"copyId %d not found",copyId);
+	return -1;
+
 }

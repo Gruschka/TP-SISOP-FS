@@ -128,6 +128,92 @@ void updateWorkload(ExecutionPlan *executionPlan) {
 	dictionary_destroy(workersDictionary);
 }
 
+int arrayContainsString(char **array, char *string) {
+	int i = 0;
+
+	while (array[i]) {
+		if (!strcmp(array[i], string))	//Si lo encuentra
+			return i;
+		i++;
+	}
+
+	return -1;
+}
+
+ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
+	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));
+	executionPlan->entriesCount = response->amountOfblocks;
+	executionPlan->entries = malloc(sizeof(ExecutionPlanEntry) * executionPlan->entriesCount);
+
+	calculateMaximumWorkload();
+	calculateAvailability(); //calcula availability y maximumAvailabilityWorker
+
+	Worker *clock = maximumAvailabilityWorker;
+	uint32_t offset = maximumAvailabilityWorkerIdx;
+	uint32_t baseAvailabilitySnapshot = scheduling_baseAvailability;
+	t_dictionary *incremented = dictionary_create();
+
+	int moves = 0; // cantidad de veces que movi el clock
+
+	int i;
+	for (i = 0; i < executionPlan->entriesCount; i++) { // este loop por cada bloque
+		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
+		t_block *blockInfo = response.blocks + i;
+
+		int movesForBlock = 0;
+		int assigned = 0;
+		dictionary_clean(incremented);
+		log_debug(logger, "Scheduling block no. %d. %n copies", i, blockInfo->copies);
+		while (!assigned) { // toda la vueltita bb
+			usleep(configuration.schedulingDelay);
+
+			clock = circularlist_get(workersList, offset + moves);
+			Copy copy = workerContainsBlock(clock, blockInfo);
+			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
+
+			if (clock->availability > 0) {
+				int copyNumber = arrayContainsString(blockInfo->nodeIds, clock->name);
+				if (copyNumber != -1) {
+					// lo encontre y tiene disponibilidad
+					log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
+					clock->availability--;
+					clock = circularlist_get(workersList, offset + moves); moves++;
+					currentPlanEntry->blockID = blockInfo->blockIds[copyNumber];
+					currentPlanEntry->workerID = blockInfo->nodeIds[copyNumber];
+					currentPlanEntry->usedBytes = blockInfo->blockSize;
+					assigned = 1;
+				} else {
+					moves++;
+					log_debug(logger, "No tiene el bloque, sigo avanzando");
+				}
+			} else {
+				//TODO: no aumentar si no tiene el bloque
+				log_debug(logger, "No tiene disponibilidad. Le subo 1");
+				moves++;
+				clock->availability += baseAvailabilitySnapshot;
+				dictionary_put(incremented, clock->name, 1);
+			}
+
+			movesForBlock++;
+
+			if (movesForBlock % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
+				log_debug(logger, "[scheduling] Di toda la vuelta y no lo encontre. Agregando 1 de disp a todos los workers");
+				int i;
+				for (i = 0; i < workersList_count; i++) {
+					Worker *worker = circularlist_get(workersList, i);
+					// si no lo incremente antes, ahora si
+					if (!dictionary_has_key(incremented, worker->name))
+						worker->availability += baseAvailabilitySnapshot;
+				}
+			}
+		}
+
+
+	}
+
+	return executionPlan;
+}
+
 ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	uint32_t blocksCount = response->entriesCount;
 	ExecutionPlan *executionPlan = malloc(sizeof(ExecutionPlan));

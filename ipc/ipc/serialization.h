@@ -10,12 +10,14 @@
 
 #include <stdint.h>
 
-#define OPERATIONS_COUNT 28
+#define OPERATIONS_COUNT 30
 
 typedef enum ipc_operation {
 	TEST_MESSAGE,
 	FS_GET_FILE_INFO_REQUEST,
 	FS_GET_FILE_INFO_RESPONSE,
+	FS_GET_FILE_INFO_REQUEST_2,
+	FS_GET_FILE_INFO_RESPONSE_2,
 	YAMA_START_TRANSFORM_REDUCE_REQUEST,
 	YAMA_START_TRANSFORM_REDUCE_RESPONSE,
 	YAMA_NOTIFY_TRANSFORM_FINISH,
@@ -77,10 +79,32 @@ typedef struct {
 }__attribute__((packed)) ipc_struct_fs_get_file_info_response_entry;
 
 typedef struct {
+	char *filePath;
+}__attribute__((packed)) ipc_struct_fs_get_file_info_request_2;
+
+
+
+typedef struct {
+	uint32_t blockSize;
+	uint32_t copies;
+	char **nodeIds;
+	char **nodeIps;
+	uint32_t *ports;
+	uint32_t *blockIds;
+	uint32_t *copyIds;
+}t_block;
+
+typedef struct {
 	uint32_t entriesCount;
 	uint32_t entriesSize;
 	ipc_struct_fs_get_file_info_response_entry *entries;
 }__attribute__((packed)) ipc_struct_fs_get_file_info_response;
+
+typedef struct {
+	uint32_t amountOfblocks;
+	uint32_t *amountOfCopiesPerBlock;
+	t_block *blocks;
+}__attribute__((packed)) ipc_struct_fs_get_file_info_response_2;
 
 typedef struct {
 	char *filePath;

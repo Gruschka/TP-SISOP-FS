@@ -7,6 +7,7 @@
 #include <commons/collections/queue.h>
 #include <stdio.h>
 #include <ipc/serialization.h>
+#include <commons/config.h>
 
 #define BLOCK_SIZE 1048576
 
@@ -18,6 +19,7 @@ typedef struct {
  int secondCopyBlockID;
  int blockSize;
 }t_fileBlockTuple;
+
 
 typedef enum fileTypes {
 	T_BINARY,
@@ -148,10 +150,15 @@ int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
 int fs_isDataNodeNameInConnectedList(char* aDataNodeName);
 
+
 int fs_checkNodeConnectionStatus(t_dataNode aDataNode);
 char *fs_getParentPath(char *childPath);
 
 ipc_struct_fs_get_file_info_response_entry *fs_getFileBlockTuples(char *filePath);
+int fs_getLastCopyNumberFromBlock(t_block block);
+t_dataNode *fs_getNodeCorrespondingToFirstAvailableCopyOfBlock(t_block block, int *copy);
+int fs_getAmountOfCopiesFromBlock(int blockNumber,t_config *fileMetadata);
+t_block* fs_getBlocksFromFile(char *filePath);
 ipc_struct_fs_get_file_info_response *fs_yamaFileBlockTupleResponse(char *filePath);
 int fs_isDataNodeIncludedInPreviouslyConnectedNodes(char *nodeName);
 int fs_deleteFileFromIndex(char *path);
@@ -170,6 +177,7 @@ int fs_wipeAllConnectedDataNodes();
 int fs_wipeDirectoryTable();
 int fs_directoryStartsWithSlash(char *directory);
 t_dataNode *fs_pickNodeToSendRead(t_dataNode *first, t_dataNode *copy);
+void *fs_readFile2(char *filePath);
 void *fs_readFile(char *filePath);
 int fs_createBitmapsOfAllConnectedNodes();
 int fs_getFileSize(char *filePath);
@@ -187,12 +195,17 @@ t_dataNode *fs_getDataNodeFromFileDescriptor(int fd);
 int fs_clean();
 void fs_rebuildNodeTable();
 void fs_intHandler();
+void fs_dumpBlockArrayOfSize(t_block *blockArray, int size);
+int fs_getCopyNumberFromCopyIdOfBlock(t_block block, int copyId);
+
 
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);
+int fs_rm2(char *filePath);
 int fs_rm_dir(char *dirPath);
 int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock);
+int fs_rm_block2(char *filePath, int blockNumberToRemove, int numberOfCopyBlock);
 int fs_rename(char *filePath, char *nombreFinal);
 int fs_mv(char *origFilePath, char *destFilePath);
 int fs_cat(char *filePath);
@@ -200,9 +213,11 @@ int fs_mkdir(char *filePath);
 int fs_cpfrom(char *origFilePath, char *yama_directory, char *fileType);
 int fs_cpto(char *origFilePath, char *yama_directory);
 int fs_cpblock(char *origFilePath, int blockNumberToCopy, char* nodeId);
+int fs_cpblock2(char *origFilePath, int blockNumberToCopy, char* nodeId);
 int fs_md5(char *filePath);
 int fs_ls(char *filePath);
 int fs_info(char *filePath);
+int fs_info2(char *filePath);
 
 //Connection functions
 void fs_listenToDataNodesThread();

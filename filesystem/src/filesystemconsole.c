@@ -106,7 +106,7 @@ int fs_console_validateOp(char * newLine) {
 		//-b
 		if (!strcmp(parameter_list[1], "-b")) {
 
-			opResult = fs_rm_block(parameter_list[2], atoi(parameter_list[3]),
+			opResult = fs_rm_block2(parameter_list[2], atoi(parameter_list[3]),
 					atoi(parameter_list[4]));
 
 			if (!fs_console_operationEndedSuccessfully(opResult))
@@ -116,7 +116,7 @@ int fs_console_validateOp(char * newLine) {
 
 			if(sizeof_parameter_list == 2){
 				//If not -b or -d
-				opResult = fs_rm(parameter_list[1]);
+				opResult = fs_rm2(parameter_list[1]);
 				if (!fs_console_operationEndedSuccessfully(opResult))
 					log_error(logger,"fs_console_validateOp:rm operation failed");
 			}
@@ -174,7 +174,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "cpblock")) {
 		log_debug(logger,"Console operation: [%s]", operation);
-		opResult = fs_cpblock(parameter_list[1], atoi(parameter_list[2]),
+		opResult = fs_cpblock2(parameter_list[1], atoi(parameter_list[2]),
 				parameter_list[3]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			log_error(logger,"fs_console_validateOp:cpblock operation failed");
@@ -197,7 +197,7 @@ int fs_console_validateOp(char * newLine) {
 
 	if (!strcmp(operation, "info")) {
 		log_debug(logger,"Console operation: [%s]", operation);
-		opResult = fs_info(parameter_list[1]);
+		opResult = fs_info2(parameter_list[1]);
 		if (!fs_console_operationEndedSuccessfully(opResult))
 			log_error(logger,"fs_console_validateOp:info operation failed");
 

@@ -239,6 +239,44 @@ yama_state_table_entry *yst_getEntry(uint32_t jobID, uint32_t masterID, char *no
 
 }
 
+ipc_struct_fs_get_file_info_response_2 *requestInfoToFilesystem2(char *filePath) {
+	ipc_struct_fs_get_file_info_request_2 *request = malloc(sizeof(ipc_struct_fs_get_file_info_request_2));
+	request->filePath = strdup(filePath);
+	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST_2, request);
+	ipc_struct_fs_get_file_info_response_2 *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE_2);
+	log_debug(logger, "[FS_GET_FILE_INFO_RESPONSE_2] File %s has %d blocks", filePath, response->amountOfblocks);
+	free(request->filePath);
+	free(request);
+
+	int blockIterator, copyIterator;
+	for (blockIterator = 0; blockIterator < response->amountOfblocks; blockIterator++) {
+		t_block *currentBlock = response->blocks + blockIterator;
+
+		for (copyIterator = 0; copyIterator < currentBlock->copies; copyIterator++) {
+			WorkerInfo *workerInfo = malloc(sizeof(WorkerInfo));
+			workerInfo->id = strdup(currentBlock->nodeIds[copyIterator]);
+			workerInfo->ip = strdup(currentBlock->nodeIps[copyIterator]);
+			workerInfo->port = currentBlock->ports[copyIterator];
+
+			if (!dictionary_has_key(workersDict, workerInfo->id)) {
+				Worker *worker = malloc(sizeof(Worker));
+				worker->availability = 0;
+				worker->currentLoad = 0;
+				worker->historicalLoad = 0;
+				worker->name = strdup(workerInfo->id);
+				scheduling_addWorker(worker);
+				dictionary_put(workersDict, workerInfo->id, workerInfo);
+			} else {
+				free(workerInfo->id);
+				free(workerInfo->ip);
+				free(workerInfo);
+			}
+		}
+	}
+
+	return response;
+}
+
 ipc_struct_fs_get_file_info_response *requestInfoToFilesystem(char *filePath) {
 	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
 	request->filePath = strdup(filePath);
@@ -631,7 +669,12 @@ void initialize() {
 }
 
 void test() {
+	ipc_struct_fs_get_file_info_request_2 *request = malloc(sizeof(ipc_struct_fs_get_file_info_request_2));
+	request->filePath = "/a/ejemplo2.txt";
+	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST_2, request);
 
+	ipc_struct_fs_get_file_info_response_2 *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE_2);
+	log_debug(logger, "File %s has %d blocks", request->filePath, response->amountOfblocks);
 }
 
 int main(int argc, char** argv) {
@@ -646,7 +689,7 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
-	test();
+//	test();
 	pthread_create(&serverThread, NULL, server_mainThread, NULL);
 
 	pthread_join(serverThread, NULL);
