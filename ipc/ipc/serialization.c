@@ -71,6 +71,7 @@ void *deserializeFSGetFileInfoResponse2(char *buffer) {
 	memcpy(&response->amountOfblocks,buffer+offset,sizeof(uint32_t));
 	offset+=sizeof(uint32_t);
 
+	response->amountOfCopiesPerBlock = calloc(response->amountOfblocks, sizeof(uint32_t));
 	memcpy(response->amountOfCopiesPerBlock,buffer+offset,sizeof(uint32_t)*response->amountOfblocks);
 	offset+=sizeof(uint32_t)*response->amountOfblocks;
 
@@ -81,29 +82,30 @@ void *deserializeFSGetFileInfoResponse2(char *buffer) {
 	for (blockIterator = 0; blockIterator < response->amountOfblocks; blockIterator++) {
 		memcpy(&((response->blocks)[blockIterator].copies),buffer+offset,sizeof(uint32_t));
 		offset+=sizeof(uint32_t);
+		uint32_t numberOfCopies = (response->blocks)[blockIterator].copies;
 
-		(response->blocks)[blockIterator].blockIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
-		memcpy(&((response->blocks)[blockIterator].blockIds),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
-		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+		(response->blocks)[blockIterator].blockIds = calloc(numberOfCopies, sizeof(uint32_t));
+		memcpy((response->blocks)[blockIterator].blockIds,buffer+offset,sizeof(uint32_t) * numberOfCopies);
+		offset+=sizeof(uint32_t) * numberOfCopies;
 
-		(response->blocks)[blockIterator].ports = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
-		memcpy(&((response->blocks)[blockIterator].ports),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
-		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+		(response->blocks)[blockIterator].ports = calloc(numberOfCopies, sizeof(uint32_t));
+		memcpy((response->blocks)[blockIterator].ports,buffer+offset,sizeof(uint32_t) * numberOfCopies);
+		offset+=sizeof(uint32_t) * numberOfCopies;
 
-		(response->blocks)[blockIterator].copyIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
-		memcpy(&((response->blocks)[blockIterator].copyIds),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
-		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+		(response->blocks)[blockIterator].copyIds = calloc(numberOfCopies, sizeof(uint32_t));
+		memcpy((response->blocks)[blockIterator].copyIds,buffer+offset,sizeof(uint32_t) * numberOfCopies);
+		offset+=sizeof(uint32_t) * numberOfCopies;
 
-		(response->blocks)[blockIterator].nodeIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(char *));
-		(response->blocks)[blockIterator].nodeIps = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(char *));
-		for (copyIterator = 0; copyIterator < response->amountOfCopiesPerBlock[blockIterator]; copyIterator++) {
+		(response->blocks)[blockIterator].nodeIds = calloc(numberOfCopies, sizeof(char *));
+		(response->blocks)[blockIterator].nodeIps = calloc(numberOfCopies, sizeof(char *));
+		for (copyIterator = 0; copyIterator < numberOfCopies; copyIterator++) {
 
 			(response->blocks)[blockIterator].nodeIds[copyIterator] = malloc(strlen(buffer+offset)+1);
-			memcpy(&((response->blocks)[blockIterator].nodeIds[copyIterator]),buffer+offset,strlen(buffer+offset)+1);
+			memcpy((response->blocks)[blockIterator].nodeIds[copyIterator],buffer+offset,strlen(buffer+offset)+1);
 			offset+=strlen(buffer+offset)+1;
 
 			(response->blocks)[blockIterator].nodeIps[copyIterator] = malloc(strlen(buffer+offset)+1);
-			memcpy(&((response->blocks)[blockIterator].nodeIps[copyIterator]),buffer+offset,strlen(buffer+offset)+1);
+			memcpy((response->blocks)[blockIterator].nodeIps[copyIterator],buffer+offset,strlen(buffer+offset)+1);
 			offset+=strlen(buffer+offset)+1;
 		}
 

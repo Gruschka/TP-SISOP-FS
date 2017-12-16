@@ -631,7 +631,12 @@ void initialize() {
 }
 
 void test() {
+	ipc_struct_fs_get_file_info_request_2 *request = malloc(sizeof(ipc_struct_fs_get_file_info_request_2));
+	request->filePath = "/a/ejemplo2.txt";
+	ipc_sendMessage(fsFd, FS_GET_FILE_INFO_REQUEST_2, request);
 
+	ipc_struct_fs_get_file_info_response_2 *response = ipc_recvMessage(fsFd, FS_GET_FILE_INFO_RESPONSE_2);
+	log_debug(logger, "File %s has %d blocks", request->filePath, response->amountOfblocks);
 }
 
 int main(int argc, char** argv) {
@@ -646,7 +651,7 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
-	test();
+//	test();
 	pthread_create(&serverThread, NULL, server_mainThread, NULL);
 
 	pthread_join(serverThread, NULL);
