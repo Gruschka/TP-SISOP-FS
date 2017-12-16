@@ -68,7 +68,7 @@ enum flags {
 
 /********* MAIN **********/
 void main(int argc, char **argv) {
- 	signal(SIGINT, fs_intHandler);
+ 	//signal(SIGINT, fs_intHandler);
 
 	serialization_initialize();
 	char *logFile = tmpnam(NULL);
@@ -92,7 +92,7 @@ void main(int argc, char **argv) {
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
-	while (fs_isStable()) { //Placeholder hardcodeado durlock
+	while (fs_isStable2()) { //Placeholder hardcodeado durlock
 
 		log_debug(logger,
 				"FS not stable. Cant connect to YAMA, will try again in 5 seconds-");
@@ -151,7 +151,7 @@ int fs_rm2(char *filePath) {
 	}
 
 	// release occupied blocks
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile2(physicalPath);
 	int blockIterator = 0;
 	int copyIterator = 0;
 	t_block *blocks = fs_getBlocksFromFile(physicalPath);
@@ -311,7 +311,7 @@ int fs_rm_block2(char *filePath, int blockNumberToRemove, int numberOfCopyBlock)
 		return EXIT_FAILURE;
 	}
 
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile2(physicalPath);
 	int blockIterator = 0;
 	t_block *blocks = fs_getBlocksFromFile(physicalPath);
 
@@ -876,7 +876,7 @@ int fs_info2(char *filePath) {
 	char *filePathInLocalFS = fs_isAFile(filePath);
 	t_block *blocks = fs_getBlocksFromFile(filePathInLocalFS);
 
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePathInLocalFS);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile2(filePathInLocalFS);
 
 	if(amountOfBlocks == 0){
 		log_error(logger,"fs_info: Number of blocks of file %s failed",filePath);
@@ -1209,7 +1209,7 @@ void fs_yama_incomingDataHandler(int fd, ipc_struct_header header){
 		char *pathInLocalFS = fs_isAFile(request->filePath);
 		log_debug(logger,"%s",pathInLocalFS);
 		ipc_struct_fs_get_file_info_response_2 *response = malloc(sizeof(ipc_struct_fs_get_file_info_response_2));
-		response->amountOfblocks = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		response->amountOfblocks = fs_getNumberOfBlocksOfAFile2(pathInLocalFS);
 		response->blocks = fs_getBlocksFromFile(pathInLocalFS);
 		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE_2, response);
 		log_debug(logger,"YAMA Request Answered");
@@ -1224,6 +1224,65 @@ void fs_yama_disconnectionHandler(int fd, char *_){
 void fs_waitForYama_select() {
 	int new_socket = ipc_createSelectServer("8081",fs_yama_newConnectionHandler,fs_yama_incomingDataHandler,fs_yama_disconnectionHandler);
 
+}
+int fs_isStable2() {
+	int amountOfConnectedNodes = list_size(connectedNodes);
+	if (amountOfConnectedNodes <= 1) {
+		log_error(logger, "fs_isStable: not enough datanodes connected");
+		return EXIT_FAILURE;
+	}
+
+	FILE *fileListFileDescriptor = fopen(myFS.FSFileList, "r+");
+	if (fileListFileDescriptor == NULL) {
+		fileListFileDescriptor = fopen(myFS.FSFileList, "w+");
+		fclose(fileListFileDescriptor);
+		return EXIT_SUCCESS;
+	}
+	char buffer[255];
+	memset(buffer, 0, 255);
+	int size;
+	int blockCount;
+	int iterator;
+	int copy;
+	while (fgets(buffer, 255, fileListFileDescriptor)) {
+		if (buffer[strlen(buffer) - 1] == '\n') {
+			buffer[strlen(buffer) - 1] = '\0';
+		}
+
+		char *fullFilePath = string_from_format("%s", buffer);
+
+		blockCount = fs_getNumberOfBlocksOfAFile2(fullFilePath); //Convierto a MB y como cada bloque es de 1MB la relacion es 1 a 1 (no hace falta dividir por block/size)
+
+		t_block *blocks = fs_getBlocksFromFile(fullFilePath);
+
+		int blockIterator = 0;
+		int copyIterator = 0;
+		int found = 0;
+
+		for (blockIterator = 0; blockIterator < blockCount; blockIterator++) {
+			for (copyIterator = 0; copyIterator < blocks[blockIterator].copies; copyIterator++) {
+				if(strcmp(blocks[blockIterator].nodeIps[copyIterator],"offline")){
+					found++;
+					break;
+				}
+			}
+			if((copyIterator == blocks[blockIterator].copies) && !found){
+				log_error(logger,"FS Not stable: missing block %d, no copies found",blockIterator);
+				log_error(logger,"FS stability tampered by physical file %s",fullFilePath);
+				free(fullFilePath);
+				fclose(fileListFileDescriptor);
+				return EXIT_FAILURE;
+			}
+		}
+
+		free(fullFilePath);
+
+		fs_destroyBlockArrayWithSize(blocks,blockCount);
+
+	}
+
+	fclose(fileListFileDescriptor);
+	return EXIT_SUCCESS;
 }
 int fs_isStable() {
 	int amountOfConnectedNodes = list_size(connectedNodes);
@@ -1295,15 +1354,18 @@ int fs_isStable() {
 					config_destroy(fileMetadata);
 					free(fullFilePath);
 					free(blockToSearch);
-					if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
-					if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
-					free(nodeBlockTupleAsArray);
+//					if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
+//					if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
+//					free(nodeBlockTupleAsArray);
 					return EXIT_FAILURE;
 				}
 			}
-			if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
-			if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
-			free(nodeBlockTupleAsArray);
+			if(nodeBlockTupleAsString != NULL){
+				if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
+				if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
+				free(nodeBlockTupleAsArray);
+			}
+
 		}
 		config_destroy(fileMetadata);
 		free(fullFilePath);
@@ -2860,7 +2922,7 @@ t_block *fs_getBlocksFromFile(char *filePath){
 	int currentBlock = 0;
 	int currentCopy = 0;
 	int copyNumber = 0;
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile2(filePath);
 	t_config *fileConfig = config_create(filePath);
 
 	t_block *block = calloc(amountOfBlocks,sizeof(t_block));
@@ -2890,16 +2952,22 @@ t_block *fs_getBlocksFromFile(char *filePath){
 					block[currentBlock].nodeIps[copyNumber] = strdup(node->IP);
 					block[currentBlock].ports[copyNumber] = node->workerPortno;
 				}else{
-					block[currentBlock].nodeIps[copyNumber] = NULL;
+					block[currentBlock].nodeIps[copyNumber] = string_from_format("offline");
 					block[currentBlock].ports[copyNumber] = 0;
 				}
 				block[currentBlock].copyIds[copyNumber] = currentCopy;
-				copyNumber++;
 				fs_destroyAnArrayOfCharPointers(nodeBlockTupleAsArray);
+				currentCopy++;
 				free(blockToSearch);
-				blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,copyNumber);
+				blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
+				copyNumber++;
+			}else{
+				free(blockToSearch);
+				currentCopy++;
+				blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
 			}
-			currentCopy++;
+
+
 		}
 		copyNumber = 0;
 		currentCopy = 0;
@@ -3228,6 +3296,12 @@ int fs_deleteBlockFromMetadata(char *path,int block, int copy){
 	free(blockAndCopyString);
     free(outFileName);
 	return EXIT_SUCCESS;
+}
+int fs_getNumberOfBlocksOfAFile2(char *file){
+	t_config *fileConfig = config_create(file);
+	int fileSize = config_get_int_value(fileConfig,"TAMANIO");
+	config_destroy(fileConfig);
+	return ceil(fs_bytesToMegaBytes(fileSize));
 }
 
 int fs_getNumberOfBlocksOfAFile(char *file){
@@ -3558,7 +3632,7 @@ void *fs_readFile2(char *filePath){
 
 	t_block *blocks = fs_getBlocksFromFile(physicalPath);
 
-	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile2(physicalPath);
 
 	int iterator = 0;
 	t_dataNode *first = NULL;
@@ -4063,6 +4137,7 @@ void fs_rebuildNodeTable(){
 void fs_intHandler(){
 	//todo: liberar todo
 	log_error(logger,"FS Aborting abnormally");
+	exit(0);
 }
 
 void fs_destroyBlockArrayWithSize(t_block *blockArray, int size){
