@@ -31,6 +31,9 @@ void master_initMetrics() {
 	sumOfLocalReductionTasksDurations = 0;
 
 	globalReductionDuration = 0;
+
+	pthread_mutex_init(&numberOfFailuresMutex, NULL);
+	numberOfFailures = 0;
 }
 
 void master_incrementNumberOfTransformTasksRan(double taskDuration) {
