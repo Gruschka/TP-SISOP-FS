@@ -43,21 +43,22 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
-	clock_t startTimestamp = clock();
+	time_t startTimestamp;
+	time(&startTimestamp);
 
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 	log_debug(master_log, "TRANSFORMACIÓN. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_TRANSFORM_REQUEST;
-	send(sockfd, &operation, sizeof(uint32_t), 0);
+	send(sockfd, &operation, sizeof(uint32_t), MSG_NOSIGNAL);
 
-	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
-	send(sockfd, &(request->workerRequest.block), sizeof(uint32_t), 0);
-	send(sockfd, &(request->workerRequest.usedBytes), sizeof(uint32_t), 0);
-	send(sockfd, &(request->workerRequest.tempFilePathLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.tempFilePath, (request->workerRequest.tempFilePathLength + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.block), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.usedBytes), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.tempFilePathLength), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.tempFilePath, (request->workerRequest.tempFilePathLength + 1) * sizeof(char), MSG_NOSIGNAL);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;
@@ -81,8 +82,9 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (worker: '%s'; file: %s; fd: %d).", transformSucceeded, request->nodeID, request->workerRequest.tempFilePath, sockfd);
 	close(sockfd);
 
-	clock_t endTimestamp = clock();
-	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
+	time_t endTimestamp;
+	time(&endTimestamp);
+	double duration = difftime(endTimestamp, startTimestamp);
 	master_incrementNumberOfTransformTasksRan(duration);
 
 	free(notification->nodeID);
