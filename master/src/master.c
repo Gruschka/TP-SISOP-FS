@@ -202,6 +202,8 @@ int main(int argc, char **argv) {
 	log_info(master_log, "El tiempo promedio de duración de una tarea de transformación fue de %.0f segundos.", master_getTransformAverageDuration());
 	log_info(master_log, "El tiempo promedio de duración de una tarea de reducción local fue de %.0f segundos.", master_getLocalReductionAverageDuration());
 	log_info(master_log, "El tiempo de duración de la reducción global fue de %.0f segundos.", master_getGlobalReductionDuration());
+	log_info(master_log, "La cantidad máxima de tareas de transformación ejecutadas de forma paralela fue de %d.", master_getMaxNumberOfConcurrentRunningTransforms());
+	log_info(master_log, "La cantidad máxima de tareas de reducción local ejecutadas de forma paralela fue de %d.", master_getMaxNumberOfConcurrentRunningLocalReductions());
 	log_info(master_log, "3:");
 	log_info(master_log, "La cantidad total de tareas de transformación ejecutadas es %d.", master_getNumberOfTransformTasksRan());
 	log_info(master_log, "La cantidad total de tareas de reducción local ejecutadas es %d.", master_getNumberOfLocalReductionTasksRan());

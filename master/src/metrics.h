@@ -13,10 +13,16 @@ void master_initMetrics();
 void master_incrementNumberOfTransformTasksRan(double taskDuration);
 int master_getNumberOfTransformTasksRan();
 double master_getTransformAverageDuration();
+void master_incrementNumberOfCurrentRunningTransforms();
+void master_decrementNumberOfCurrentRunningTransforms();
+int master_getMaxNumberOfConcurrentRunningTransforms();
 
 void master_incrementNumberOfLocalReductionTasksRan(double taskDuration);
 int master_getNumberOfLocalReductionTasksRan();
 double master_getLocalReductionAverageDuration();
+void master_incrementNumberOfCurrentRunningLocalReductions();
+void master_decrementNumberOfCurrentRunningLocalReductions();
+int master_getMaxNumberOfConcurrentRunningLocalReductions();
 
 void master_setGlobalReductionDuration(double duration);
 double master_getGlobalReductionDuration();

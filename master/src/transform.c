@@ -43,6 +43,8 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+	master_incrementNumberOfCurrentRunningTransforms();
+
 	time_t startTimestamp;
 	time(&startTimestamp);
 
@@ -86,6 +88,7 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	time(&endTimestamp);
 	double duration = difftime(endTimestamp, startTimestamp);
 	master_incrementNumberOfTransformTasksRan(duration);
+	master_decrementNumberOfCurrentRunningTransforms();
 
 	free(notification->nodeID);
 	free(notification->tempPath);

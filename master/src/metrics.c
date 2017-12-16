@@ -11,10 +11,16 @@
 pthread_mutex_t numberOfTransformTasksRanMutex;
 int numberOfTransformTasksRan;
 double sumOfTransformTasksDurations;
+pthread_mutex_t numberOfCurrentRunningTransformsMutex;
+int numberOfCurrentRunningTransforms;
+int maxNumberOfConcurrentRunningTransforms;
 
 pthread_mutex_t numberOfLocalReductionTasksRanMutex;
 int numberOfLocalReductionTasksRan;
 double sumOfLocalReductionTasksDurations;
+pthread_mutex_t numberOfCurrentRunningLocalReductionsMutex;
+int numberOfCurrentRunningLocalReductions;
+int maxNumberOfConcurrentRunningLocalReductions;
 
 double globalReductionDuration;
 
@@ -25,10 +31,16 @@ void master_initMetrics() {
 	pthread_mutex_init(&numberOfTransformTasksRanMutex, NULL);
 	numberOfTransformTasksRan = 0;
 	sumOfTransformTasksDurations = 0;
+	pthread_mutex_init(&numberOfCurrentRunningTransformsMutex, NULL);
+	numberOfCurrentRunningTransforms = 0;
+	maxNumberOfConcurrentRunningTransforms = 0;
 
 	pthread_mutex_init(&numberOfLocalReductionTasksRanMutex, NULL);
 	numberOfLocalReductionTasksRan = 0;
 	sumOfLocalReductionTasksDurations = 0;
+	pthread_mutex_init(&numberOfCurrentRunningLocalReductionsMutex, NULL);
+	numberOfCurrentRunningLocalReductions = 0;
+	maxNumberOfConcurrentRunningLocalReductions = 0;
 
 	globalReductionDuration = 0;
 
@@ -51,6 +63,27 @@ double master_getTransformAverageDuration() {
 	return sumOfTransformTasksDurations / numberOfTransformTasksRan;
 }
 
+void master_incrementNumberOfCurrentRunningTransforms() {
+	pthread_mutex_lock(&numberOfCurrentRunningTransformsMutex);
+	numberOfCurrentRunningTransforms++;
+	if (numberOfCurrentRunningTransforms > maxNumberOfConcurrentRunningTransforms) {
+		maxNumberOfConcurrentRunningTransforms = numberOfCurrentRunningTransforms;
+	}
+	pthread_mutex_unlock(&numberOfCurrentRunningTransformsMutex);
+}
+
+void master_decrementNumberOfCurrentRunningTransforms() {
+	pthread_mutex_lock(&numberOfCurrentRunningTransformsMutex);
+	numberOfCurrentRunningTransforms--;
+	pthread_mutex_unlock(&numberOfCurrentRunningTransformsMutex);
+}
+
+int master_getMaxNumberOfConcurrentRunningTransforms() {
+	return maxNumberOfConcurrentRunningTransforms;
+}
+
+// Local Reduction
+
 void master_incrementNumberOfLocalReductionTasksRan(double taskDuration) {
 	pthread_mutex_lock(&numberOfLocalReductionTasksRanMutex);
 	numberOfLocalReductionTasksRan++;
@@ -65,6 +98,27 @@ int master_getNumberOfLocalReductionTasksRan() {
 double master_getLocalReductionAverageDuration() {
 	return sumOfLocalReductionTasksDurations / numberOfLocalReductionTasksRan;
 }
+
+void master_incrementNumberOfCurrentRunningLocalReductions() {
+	pthread_mutex_lock(&numberOfCurrentRunningLocalReductionsMutex);
+	numberOfCurrentRunningLocalReductions++;
+	if (numberOfCurrentRunningLocalReductions > maxNumberOfConcurrentRunningLocalReductions) {
+		maxNumberOfConcurrentRunningLocalReductions = numberOfCurrentRunningLocalReductions;
+	}
+	pthread_mutex_unlock(&numberOfCurrentRunningLocalReductionsMutex);
+}
+
+void master_decrementNumberOfCurrentRunningLocalReductions() {
+	pthread_mutex_lock(&numberOfCurrentRunningLocalReductionsMutex);
+	numberOfCurrentRunningLocalReductions--;
+	pthread_mutex_unlock(&numberOfCurrentRunningLocalReductionsMutex);
+}
+
+int master_getMaxNumberOfConcurrentRunningLocalReductions() {
+	return maxNumberOfConcurrentRunningLocalReductions;
+}
+
+// Global Reduction
 
 void master_setGlobalReductionDuration(double duration) {
 	globalReductionDuration = duration;
