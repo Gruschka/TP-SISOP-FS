@@ -1038,7 +1038,7 @@ void fs_dataNode_incomingDataHandler(int fd, ipc_struct_header header){
 			char *pathInYAMA = fs_getParentPath(workerRequest->pathName);
 			fs_cpfrom(pathInLocalFS,pathInYAMA,"-t");
 			log_debug(logger,"YAMAFS: Successfully stored file in %s",pathInYAMA);
-			remove(pathInLocalFS);
+			//remove(pathInLocalFS);
 			free(pathInYAMA);
 			free(pathInLocalFS);
 	      break; /* optional */
