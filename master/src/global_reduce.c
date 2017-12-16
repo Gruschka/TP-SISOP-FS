@@ -108,7 +108,7 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	close(sockfd);
 
 	clock_t endTimestamp = clock();
-	double duration = ((double)(startTimestamp - endTimestamp)) / CLOCKS_PER_SEC;
+	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
 	master_setGlobalReductionDuration(duration);
 
 	free(workerInChargeEntry->nodeID);

@@ -82,7 +82,7 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	close(sockfd);
 
 	clock_t endTimestamp = clock();
-	double duration = ((double)(startTimestamp - endTimestamp)) / CLOCKS_PER_SEC;
+	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
 	master_incrementNumberOfTransformTasksRan(duration);
 
 	free(notification->nodeID);
