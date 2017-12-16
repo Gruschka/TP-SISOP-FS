@@ -234,6 +234,7 @@ void fs_yama_newConnectionHandler(int fd, char *ip);
 void fs_yama_incomingDataHandler(int fd, ipc_struct_header header);
 void fs_yama_disconnectionHandler(int fd, char *);
 int fs_isStable();
+int fs_isStable2();
 void fs_show_connected_nodes();
 void fs_print_connected_node_info(t_dataNode *aDataNode);
 void fs_dataNodeConnectionHandler(t_nodeConnection *connection);

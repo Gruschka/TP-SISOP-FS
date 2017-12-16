@@ -68,7 +68,7 @@ enum flags {
 
 /********* MAIN **********/
 void main(int argc, char **argv) {
- 	signal(SIGINT, fs_intHandler);
+ 	//signal(SIGINT, fs_intHandler);
 
 	serialization_initialize();
 	char *logFile = tmpnam(NULL);
@@ -92,7 +92,7 @@ void main(int argc, char **argv) {
 
 	fs_listenToDataNodesThread(); //Este hilo escucha conexiones entrantes. Podriamos hacerlo generico y segun el handshake crear un hilo de DataNode o de YAMA
 
-	while (fs_isStable()) { //Placeholder hardcodeado durlock
+	while (fs_isStable2()) { //Placeholder hardcodeado durlock
 
 		log_debug(logger,
 				"FS not stable. Cant connect to YAMA, will try again in 5 seconds-");
@@ -1225,6 +1225,65 @@ void fs_waitForYama_select() {
 	int new_socket = ipc_createSelectServer("8081",fs_yama_newConnectionHandler,fs_yama_incomingDataHandler,fs_yama_disconnectionHandler);
 
 }
+int fs_isStable2() {
+	int amountOfConnectedNodes = list_size(connectedNodes);
+	if (amountOfConnectedNodes <= 1) {
+		log_error(logger, "fs_isStable: not enough datanodes connected");
+		return EXIT_FAILURE;
+	}
+
+	FILE *fileListFileDescriptor = fopen(myFS.FSFileList, "r+");
+	if (fileListFileDescriptor == NULL) {
+		fileListFileDescriptor = fopen(myFS.FSFileList, "w+");
+		fclose(fileListFileDescriptor);
+		return EXIT_SUCCESS;
+	}
+	char buffer[255];
+	memset(buffer, 0, 255);
+	int size;
+	int blockCount;
+	int iterator;
+	int copy;
+	while (fgets(buffer, 255, fileListFileDescriptor)) {
+		if (buffer[strlen(buffer) - 1] == '\n') {
+			buffer[strlen(buffer) - 1] = '\0';
+		}
+
+		char *fullFilePath = string_from_format("%s", buffer);
+
+		blockCount = fs_getNumberOfBlocksOfAFile2(fullFilePath); //Convierto a MB y como cada bloque es de 1MB la relacion es 1 a 1 (no hace falta dividir por block/size)
+
+		t_block *blocks = fs_getBlocksFromFile(fullFilePath);
+
+		int blockIterator = 0;
+		int copyIterator = 0;
+		int found = 0;
+
+		for (blockIterator = 0; blockIterator < blockCount; blockIterator++) {
+			for (copyIterator = 0; copyIterator < blocks[blockIterator].copies; copyIterator++) {
+				if(strcmp(blocks[blockIterator].nodeIps[copyIterator],"offline")){
+					found++;
+					break;
+				}
+			}
+			if((copyIterator == blocks[blockIterator].copies) && !found){
+				log_error(logger,"FS Not stable: missing block %d, no copies found",blockIterator);
+				log_error(logger,"FS stability tampered by physical file %s",fullFilePath);
+				free(fullFilePath);
+				fclose(fileListFileDescriptor);
+				return EXIT_FAILURE;
+			}
+		}
+
+		free(fullFilePath);
+
+		fs_destroyBlockArrayWithSize(blocks,blockCount);
+
+	}
+
+	fclose(fileListFileDescriptor);
+	return EXIT_SUCCESS;
+}
 int fs_isStable() {
 	int amountOfConnectedNodes = list_size(connectedNodes);
 	if (amountOfConnectedNodes <= 1) {
@@ -1295,9 +1354,9 @@ int fs_isStable() {
 					config_destroy(fileMetadata);
 					free(fullFilePath);
 					free(blockToSearch);
-					if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
-					if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
-					free(nodeBlockTupleAsArray);
+//					if(nodeBlockTupleAsArray[0])free(nodeBlockTupleAsArray[0]);
+//					if(nodeBlockTupleAsArray[1])free(nodeBlockTupleAsArray[1]);
+//					free(nodeBlockTupleAsArray);
 					return EXIT_FAILURE;
 				}
 			}
@@ -4078,6 +4137,7 @@ void fs_rebuildNodeTable(){
 void fs_intHandler(){
 	//todo: liberar todo
 	log_error(logger,"FS Aborting abnormally");
+	exit(0);
 }
 
 void fs_destroyBlockArrayWithSize(t_block *blockArray, int size){
