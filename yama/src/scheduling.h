@@ -47,8 +47,10 @@ uint32_t scheduling_getAvailability(Worker *);
 void scheduling_addWorker(Worker *worker);
 
 typedef ipc_struct_fs_get_file_info_response FileInfo;
+typedef ipc_struct_fs_get_file_info_response_2 FileInfo2;
 typedef ipc_struct_fs_get_file_info_response_entry BlockInfo;
 ExecutionPlan *getExecutionPlan(FileInfo *response);
+ExecutionPlan *getExecutionPlan2(FileInfo2 *response);
 void updateWorkload(ExecutionPlan *executionPlan);
 
 #endif /* SCHEDULING_H_ */
