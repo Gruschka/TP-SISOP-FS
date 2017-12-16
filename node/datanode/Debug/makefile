@@ -26,7 +26,7 @@ endif
 all: datanode
 
 dependents:
-	-cd /home/utnso/git/tp-2017-2c-Deus-Vult/ipc/Debug && $(MAKE) clean all
+	-cd /home/utnso/git/tp-2017-2c-Deus-Vult/ipc/Debug && $(MAKE) all
 
 # Tool invocations
 datanode: $(OBJS) $(USER_OBJS) /home/utnso/git/tp-2017-2c-Deus-Vult/ipc/Debug/libipc.so
