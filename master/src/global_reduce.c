@@ -36,7 +36,8 @@
 extern t_log *master_log;
 
 void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlobalReductionRequest *yamaRequest, char *globalReduceScript) {
-	clock_t startTimestamp = clock();
+	time_t startTimestamp;
+	time(&startTimestamp);
 
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *workerInChargeEntry = NULL;
 
@@ -107,8 +108,9 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	log_debug(master_log, "REDUCCIÓN GLOBAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, workerInChargeEntry->globalReduceTempPath, sockfd);
 	close(sockfd);
 
-	clock_t endTimestamp = clock();
-	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
+	time_t endTimestamp;
+	time(&endTimestamp);
+	double duration = difftime(endTimestamp, startTimestamp);
 	master_setGlobalReductionDuration(duration);
 
 	free(workerInChargeEntry->nodeID);

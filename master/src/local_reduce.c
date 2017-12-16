@@ -44,7 +44,8 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
-	clock_t startTimestamp = clock();
+	time_t startTimestamp;
+	time(&startTimestamp);
 
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
@@ -91,8 +92,9 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
 	close(sockfd);
 
-	clock_t endTimestamp = clock();
-	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
+	time_t endTimestamp;
+	time(&endTimestamp);
+	double duration = difftime(endTimestamp, startTimestamp);
 	master_incrementNumberOfLocalReductionTasksRan(duration);
 
 	free(notification->nodeID);

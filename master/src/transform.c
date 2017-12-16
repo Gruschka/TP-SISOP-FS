@@ -43,7 +43,8 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
-	clock_t startTimestamp = clock();
+	time_t startTimestamp;
+	time(&startTimestamp);
 
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
@@ -81,8 +82,9 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (worker: '%s'; file: %s; fd: %d).", transformSucceeded, request->nodeID, request->workerRequest.tempFilePath, sockfd);
 	close(sockfd);
 
-	clock_t endTimestamp = clock();
-	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
+	time_t endTimestamp;
+	time(&endTimestamp);
+	double duration = difftime(endTimestamp, startTimestamp);
 	master_incrementNumberOfTransformTasksRan(duration);
 
 	free(notification->nodeID);
