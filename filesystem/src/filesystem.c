@@ -2861,6 +2861,7 @@ t_block *fs_getBlocksFromFile(char *filePath){
 	int copyNumber = 0;
 	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(filePath);
 	t_config *fileConfig = config_create(filePath);
+
 	t_block *block = calloc(amountOfBlocks,sizeof(t_block));
 	block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
 
@@ -2881,8 +2882,13 @@ t_block *fs_getBlocksFromFile(char *filePath){
 				block[currentBlock].nodeIds[copyNumber] = strdup(nodeBlockTupleAsArray[0]);
 				block[currentBlock].blockIds[copyNumber] = atoi(nodeBlockTupleAsArray[1]);
 				t_dataNode *node = fs_getNodeFromNodeName(block[currentBlock].nodeIds[copyNumber]);
-				block[currentBlock].nodeIps[copyNumber] = strdup(node->IP);
-				block[currentBlock].ports[copyNumber] = node->workerPortno;
+				if(node){
+					block[currentBlock].nodeIps[copyNumber] = strdup(node->IP);
+					block[currentBlock].ports[copyNumber] = node->workerPortno;
+				}else{
+					block[currentBlock].nodeIps[copyNumber] = NULL;
+					block[currentBlock].ports[copyNumber] = 0;
+				}
 				block[currentBlock].copyIds[copyNumber] = currentCopy;
 				copyNumber++;
 				fs_destroyAnArrayOfCharPointers(nodeBlockTupleAsArray);
@@ -3582,8 +3588,8 @@ void *fs_readFile2(char *filePath){
 	int trueFileSize = fs_sumOfIntArray(blockSizes, amountOfBlocks);
 
 	//void *buffer = BLOCK_SIZE; // arre
-	void *result = malloc(trueFileSize);
-	memset(result,0,trueFileSize);
+	void *result = malloc(trueFileSize+1); //TODO: WARNINIGNNGA
+	memset(result,0,trueFileSize+1);
 
 	// termine de mandar los pedidos ahora a leer
 	iterator = 0;
@@ -4064,6 +4070,7 @@ void fs_destroyBlockArrayWithSize(t_block *blockArray, int size){
 		free(blockArray[blockIterator].nodeIps);
 		blockIterator++;
 	}
+	free(blockArray);
 }
 
 int fs_getLastCopyNumberFromBlock(t_block block){
