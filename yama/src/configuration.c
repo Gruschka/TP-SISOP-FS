@@ -14,15 +14,14 @@ yama_configuration fetchConfiguration(char *filePath) {
 	yama_configuration config;
 
 	config.filesystemPort = config_get_int_value(configFile, "FS_PUERTO");
-	config.filesytemIP = config_get_string_value(configFile, "FS_IP");
+	config.filesytemIP = strdup(config_get_string_value(configFile, "FS_IP"));
 	config.schedulingDelay = config_get_int_value(configFile, "RETARDO_PLANIFICACION");
 	config.baseAvailability = config_get_int_value(configFile, "DISP_BASE");
-	config.serverPort = config_get_string_value(configFile, "PUERTO");
+	config.serverPort = strdup(config_get_string_value(configFile, "PUERTO"));
 
 	char *algorithm = config_get_string_value(configFile, "ALGORITMO_BALANCEO");
 	config.balancingAlgorithm = strcmp(algorithm, "CLOCK") == 0 ? CLOCK : W_CLOCK;
 
-	free(configFile);
-	free(algorithm);
+	config_destroy(configFile);
 	return config;
 }

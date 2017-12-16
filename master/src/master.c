@@ -77,7 +77,6 @@
 // 3. Esperar confirmación
 // 4. Notificar a YAMA.
 //
-// TODO: replanificación.
 // TODO: métricas
 // TODO: logs
 
@@ -131,21 +130,20 @@ int main(int argc, char **argv) {
 	ipc_sendMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_REQUEST, &request);
 	free(request.filePath);
 	log_debug(master_log, "Se envió solicitud correctamente.");
-
-	// Espero respuesta de YAMA indicándome a qué workers
-	// conectarme y qué enviarles
-	log_debug(master_log, "Esperando respuesta de YAMA...");
-	ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
-	log_debug(master_log, "Se recibió respuesta.");
-
-	// Me conecto con los workers indicados y les
-	// envío la información necesaria para la transformación
-	log_debug(master_log, "Iniciando etapa de transformación.");
-	master_requestWorkersTransform(yamaResponse, strdup(transformScript));
+	log_debug(master_log, "Esperando órdenes de YAMA...");
 
 	while (1) {
 		int operation = ipc_getNextOperationId(yamaSocket);
 		switch (operation) {
+		case YAMA_START_TRANSFORM_REDUCE_RESPONSE: {
+			log_debug(master_log, "Iniciando etapa de transformación.");
+
+			ipc_struct_start_transform_reduce_response *yamaResponse = ipc_recvMessage(yamaSocket, YAMA_START_TRANSFORM_REDUCE_RESPONSE);
+
+			// Me conecto con los workers indicados y les
+			// envío la información necesaria para la transformación
+			master_requestWorkersTransform(yamaResponse, strdup(transformScript));
+		} break;
 		case MASTER_CONTINUE_WITH_LOCAL_REDUCTION_REQUEST: {
 			log_debug(master_log, "Iniciando etapa de reducción local.");
 
