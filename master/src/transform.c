@@ -7,6 +7,7 @@
 
 #include "transform.h"
 #include "yama_socket.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <math.h>
+#include <time.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -41,6 +43,8 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+	clock_t startTimestamp = clock();
+
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 	log_debug(master_log, "TRANSFORMACIÓN. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
@@ -65,14 +69,21 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 		recv(sockfd, &transformSucceeded, sizeof(uint32_t), 0);
 	}
 
+	if (transformSucceeded == 0) {
+		master_incrementNumberOfFailures();
+	}
+
 	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
 	notification->nodeID = strdup(request->nodeID);
 	notification->tempPath = strdup(request->workerRequest.tempFilePath);
 	notification->succeeded = transformSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_TRANSFORM_FINISH, notification);
 	log_debug(master_log, "TRANSFORMACIÓN. Éxito: %d (worker: '%s'; file: %s; fd: %d).", transformSucceeded, request->nodeID, request->workerRequest.tempFilePath, sockfd);
-
 	close(sockfd);
+
+	clock_t endTimestamp = clock();
+	double duration = ((double)(startTimestamp - endTimestamp)) / CLOCKS_PER_SEC;
+	master_incrementNumberOfTransformTasksRan(duration);
 
 	free(notification->nodeID);
 	free(notification->tempPath);

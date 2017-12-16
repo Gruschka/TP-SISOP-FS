@@ -7,6 +7,7 @@
 
 #include "global_reduce.h"
 #include "yama_socket.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -34,6 +36,8 @@
 extern t_log *master_log;
 
 void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlobalReductionRequest *yamaRequest, char *globalReduceScript) {
+	clock_t startTimestamp = clock();
+
 	ipc_struct_master_continueWithGlobalReductionRequestEntry *workerInChargeEntry = NULL;
 
 	int i;
@@ -91,14 +95,21 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
+	if (reduceSucceeded == 0) {
+		master_incrementNumberOfFailures();
+	}
+
 	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
 	notification->nodeID = strdup(workerInChargeEntry->nodeID);
 	notification->tempPath = strdup(workerInChargeEntry->globalReduceTempPath);
 	notification->succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_GLOBAL_REDUCTION_FINISH, notification);
 	log_debug(master_log, "REDUCCIÓN GLOBAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, workerInChargeEntry->globalReduceTempPath, sockfd);
-
 	close(sockfd);
+
+	clock_t endTimestamp = clock();
+	double duration = ((double)(startTimestamp - endTimestamp)) / CLOCKS_PER_SEC;
+	master_setGlobalReductionDuration(duration);
 
 	free(workerInChargeEntry->nodeID);
 	free(workerInChargeEntry->workerIP);

@@ -9,14 +9,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <commons/config.h>
-#include <commons/log.h>
 #include <semaphore.h>
 #include <pthread.h>
+#include <time.h>
 
 #include <string.h>
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
+
+#include <commons/config.h>
+#include <commons/log.h>
 
 #include "transform.h"
 #include "local_reduce.h"
@@ -24,6 +26,7 @@
 #include "final_storage.h"
 #include "utils.h"
 #include "yama_socket.h"
+#include "metrics.h"
 
 #include <unistd.h>
 
@@ -77,8 +80,6 @@
 // 3. Esperar confirmación
 // 4. Notificar a YAMA.
 //
-// TODO: métricas
-// TODO: logs
 
 int yamaSocket;
 
@@ -87,10 +88,15 @@ char *transformScript;
 char *reduceScript;
 
 int main(int argc, char **argv) {
+	clock_t jobStartTimestamp = clock();
+
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
 		return EXIT_FAILURE;
 	}
+
+	// Inicializo métricas
+	master_initMetrics();
 
 	// Levanto los argumentos
 	char *transformScriptPath = argv[1];
@@ -173,15 +179,33 @@ int main(int argc, char **argv) {
 			goto Exit;
 		} break;
 		default: {
-			log_debug(master_log, "Se recibió una orden desconocida.");
-			goto Exit;
+			log_debug(master_log, "Se recibió una orden desconocida. Cerrando.");
+			close(yamaSocket);
+			free(yamaIP);
+			exit(EXIT_FAILURE);
 		} break;
 		}
 	}
 
 	Exit:
-	log_debug(master_log, "Cerrando.");
 	close(yamaSocket);
 	free(yamaIP);
+
+	clock_t jobEndTimestamp = clock();
+	double jobDuration = ((double)(jobEndTimestamp - jobStartTimestamp)) / CLOCKS_PER_SEC;
+	log_info(master_log, "Métricas:");
+	log_info(master_log, "1:");
+	log_info(master_log, "El tiempo total de ejecución fue de %f segundos.", jobDuration);
+	log_info(master_log, "2:");
+	log_info(master_log, "El tiempo promedio de duración de una tarea de transformación fue de %f segundos.", master_getTransformAverageDuration());
+	log_info(master_log, "El tiempo promedio de duración de una tarea de reducción local fue de %f segundos.", master_getLocalReductionAverageDuration());
+	log_info(master_log, "El tiempo de duración de la reducción global fue de %f segundos.", master_getGlobalReductionDuration());
+	log_info(master_log, "3:");
+	log_info(master_log, "La cantidad total de tareas de transformación ejecutadas es %d.", master_getNumberOfTransformTasksRan());
+	log_info(master_log, "La cantidad total de tareas de reducción local ejecutadas es %d.", master_getNumberOfLocalReductionTasksRan());
+	log_info(master_log, "La cantidad total de tareas de reducción global ejecutadas es 1.");
+	log_info(master_log, "4:");
+	log_info(master_log, "La cantidad total de fallos ocurridos es %d.", master_getNumberOfFailures());
+
 	return EXIT_SUCCESS;
 }

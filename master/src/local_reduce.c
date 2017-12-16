@@ -7,6 +7,7 @@
 
 #include "local_reduce.h"
 #include "yama_socket.h"
+#include "metrics.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <ipc/ipc.h>
 #include <ipc/serialization.h>
@@ -42,6 +44,8 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
+	clock_t startTimestamp = clock();
+
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 	log_debug(master_log, "REDUCCIÓN LOCAL. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
@@ -75,14 +79,21 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 		recv(sockfd, &reduceSucceeded, sizeof(uint32_t), 0);
 	}
 
+	if (reduceSucceeded == 0) {
+		master_incrementNumberOfFailures();
+	}
+
 	ipc_struct_yama_notify_stage_finish *notification = malloc(sizeof(ipc_struct_yama_notify_stage_finish));
 	notification->nodeID = strdup(request->nodeID);
 	notification->tempPath = strdup(request->workerRequest.reduceTempPath);
 	notification->succeeded = reduceSucceeded;
 	ipc_sendMessage(yamaSocket, YAMA_NOTIFY_LOCAL_REDUCTION_FINISH, notification);
 	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
-
 	close(sockfd);
+
+	clock_t endTimestamp = clock();
+	double duration = ((double)(startTimestamp - endTimestamp)) / CLOCKS_PER_SEC;
+	master_incrementNumberOfLocalReductionTasksRan(duration);
 
 	free(notification->nodeID);
 	free(notification->tempPath);
