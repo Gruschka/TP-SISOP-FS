@@ -531,14 +531,19 @@ void pairGlobalFiles(t_list *workerList, char *resultFilePath) {
 		FILE *file = fopen(filePath, "w");
 		fputs(fileContent, file);
 		fclose(file);
-
+		free(fileContent); //Libero despues de copiar el contenido en un archivo local
 		fileNode *localFile = malloc(sizeof(fileNode));
 		localFile->filePath = malloc(strlen(filePath + 1));
 		strcpy(localFile->filePath, filePath);
 		list_add(localFiles, localFile);
+		free(filePath); //libero buffer con nombre temporal ya que lo tiene el FileNode
 	}
-
 	pairFiles(localFiles, resultFilePath);
+	for (i = 0; i < workerList->elements_count; i++){
+		fileNode * localFile = list_get(localFiles, i);
+		free(localFile->filePath); //libero char * con path del fileNode
+		free(localFile); //libero la estructura
+	}
 }
 
 char *worker_utils_readFile(char *path) {
