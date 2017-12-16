@@ -50,14 +50,14 @@ void *master_localReduce_connectToWorkerAndMakeRequest(void *requestAsVoidPointe
 	log_debug(master_log, "TRANSFORMACIÓN. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_TRANSFORM_REQUEST;
-	send(sockfd, &operation, sizeof(uint32_t), 0);
+	send(sockfd, &operation, sizeof(uint32_t), MSG_NOSIGNAL);
 
-	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
-	send(sockfd, &(request->workerRequest.block), sizeof(uint32_t), 0);
-	send(sockfd, &(request->workerRequest.usedBytes), sizeof(uint32_t), 0);
-	send(sockfd, &(request->workerRequest.tempFilePathLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.tempFilePath, (request->workerRequest.tempFilePathLength + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.block), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.usedBytes), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, &(request->workerRequest.tempFilePathLength), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.tempFilePath, (request->workerRequest.tempFilePathLength + 1) * sizeof(char), MSG_NOSIGNAL);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;

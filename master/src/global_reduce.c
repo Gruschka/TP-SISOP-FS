@@ -53,25 +53,25 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	log_debug(master_log, "REDUCCIÓN GLOBAL. Conectado al worker '%s' (fd: %d).", workerInChargeEntry->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_GLOBAL_REDUCTION_REQUEST;
-	send(sockfd, &operation, sizeof(uint32_t), 0);
+	send(sockfd, &operation, sizeof(uint32_t), MSG_NOSIGNAL);
 
 	int globalReduceScriptLen = strlen(globalReduceScript);
-	send(sockfd, &globalReduceScriptLen, sizeof(uint32_t), 0);
-	send(sockfd, globalReduceScript, globalReduceScriptLen + 1, 0);
+	send(sockfd, &globalReduceScriptLen, sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, globalReduceScript, globalReduceScriptLen + 1, MSG_NOSIGNAL);
 
-	send(sockfd, &(yamaRequest->entriesCount), sizeof(uint32_t), 0);
+	send(sockfd, &(yamaRequest->entriesCount), sizeof(uint32_t), MSG_NOSIGNAL);
 	for (i = 0; i < yamaRequest->entriesCount; i++) {
 		ipc_struct_master_continueWithGlobalReductionRequestEntry *entry = yamaRequest->entries + i;
 		int nodeIDLen = strlen(entry->nodeID);
-		send(sockfd, &nodeIDLen, sizeof(uint32_t), 0);
-		send(sockfd, entry->nodeID, nodeIDLen + 1, 0);
+		send(sockfd, &nodeIDLen, sizeof(uint32_t), MSG_NOSIGNAL);
+		send(sockfd, entry->nodeID, nodeIDLen + 1, MSG_NOSIGNAL);
 		int workerIPLen = strlen(entry->workerIP);
-		send(sockfd, &workerIPLen, sizeof(uint32_t), 0);
-		send(sockfd, entry->workerIP, workerIPLen + 1, 0);
-		send(sockfd, &(entry->workerPort), sizeof(uint32_t), 0);
+		send(sockfd, &workerIPLen, sizeof(uint32_t), MSG_NOSIGNAL);
+		send(sockfd, entry->workerIP, workerIPLen + 1, MSG_NOSIGNAL);
+		send(sockfd, &(entry->workerPort), sizeof(uint32_t), MSG_NOSIGNAL);
 		int localReduceTempPathLen = strlen(entry->localReduceTempPath);
-		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), 0);
-		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, 0);
+		send(sockfd, &localReduceTempPathLen, sizeof(uint32_t), MSG_NOSIGNAL);
+		send(sockfd, entry->localReduceTempPath, localReduceTempPathLen + 1, MSG_NOSIGNAL);
 
 		if (entry->isWorkerInCharge == 0) {
 			free(entry->nodeID);
@@ -82,8 +82,8 @@ void master_requestInChargeWorkerGlobalReduce(ipc_struct_master_continueWithGlob
 	}
 
 	int globalReduceTempPathLen = strlen(workerInChargeEntry->globalReduceTempPath);
-	send(sockfd, &globalReduceTempPathLen, sizeof(uint32_t), 0);
-	send(sockfd, workerInChargeEntry->globalReduceTempPath, globalReduceTempPathLen + 1, 0);
+	send(sockfd, &globalReduceTempPathLen, sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, workerInChargeEntry->globalReduceTempPath, globalReduceTempPathLen + 1, MSG_NOSIGNAL);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;
