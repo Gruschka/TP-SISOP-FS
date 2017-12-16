@@ -371,7 +371,7 @@ void connectionHandler(int client_sock){
 				free(workerToFree);
 			}
 			list_destroy(workerList);
-
+			free(request.scriptContent);
 			free(buffer); // Template de System
 			free(request.globalTempPath);
 			free(pairingResult);
