@@ -1204,14 +1204,15 @@ void fs_yama_newConnectionHandler(int fd, char *ip){
 void fs_yama_incomingDataHandler(int fd, ipc_struct_header header){
 	while (1) {
 		log_debug(logger,"Awaiting YAMA request");
-		ipc_struct_fs_get_file_info_request *request = ipc_recvMessage(fd, FS_GET_FILE_INFO_REQUEST);
+		ipc_struct_fs_get_file_info_request_2 *request = ipc_recvMessage(fd, FS_GET_FILE_INFO_REQUEST_2);
 		log_debug(logger,"Yama Request: %s", request->filePath);
 		char *pathInLocalFS = fs_isAFile(request->filePath);
-		ipc_struct_fs_get_file_info_response *response = fs_yamaFileBlockTupleResponse(pathInLocalFS);
-		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE, response);
-		int length = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		log_debug(logger,"%s",pathInLocalFS);
+		ipc_struct_fs_get_file_info_response_2 *response = malloc(sizeof(ipc_struct_fs_get_file_info_response_2));
+		response->amountOfblocks = fs_getNumberOfBlocksOfAFile(pathInLocalFS);
+		response->blocks = fs_getBlocksFromFile(pathInLocalFS);
+		ipc_sendMessage(fd, FS_GET_FILE_INFO_RESPONSE_2, response);
 		log_debug(logger,"YAMA Request Answered");
-		fs_destroyNodeTupleArray(response->entries, length);
 		free(request->filePath);
 		free(request);
 		free(response);
@@ -2863,19 +2864,21 @@ t_block *fs_getBlocksFromFile(char *filePath){
 	t_config *fileConfig = config_create(filePath);
 
 	t_block *block = calloc(amountOfBlocks,sizeof(t_block));
-	block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
 
-	block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].nodeIds = calloc(block[currentBlock].copies,sizeof(char *));
-	block[currentBlock].nodeIps = calloc(block[currentBlock].copies,sizeof(char *));
+
 
 	char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
 	char *nodeBlockTupleAsString;
 	char **nodeBlockTupleAsArray;
 	while(currentBlock<amountOfBlocks){
-		while(currentCopy < 20 || (copyNumber < block[currentBlock].copies)){
+		block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
+
+		block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].nodeIds = calloc(block[currentBlock].copies,sizeof(char *));
+		block[currentBlock].nodeIps = calloc(block[currentBlock].copies,sizeof(char *));
+		while(copyNumber < block[currentBlock].copies){
 			if(config_has_property(fileConfig,blockToSearch)){
 				nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
 				nodeBlockTupleAsArray = string_get_string_as_array(nodeBlockTupleAsString);
@@ -2897,7 +2900,11 @@ t_block *fs_getBlocksFromFile(char *filePath){
 			}
 			currentCopy++;
 		}
+		copyNumber = 0;
+		currentCopy = 0;
+		free(blockToSearch);
 		currentBlock++;
+		blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,copyNumber);
 	}
 	free(blockToSearch);
 	config_destroy(fileConfig);
@@ -3574,7 +3581,7 @@ void *fs_readFile2(char *filePath){
 		operation = malloc(sizeof(t_threadOperation));
 		operation->operationId = 0; // reada
 		operation->blockNumber = blocks[iterator].blockIds[targetCopy];
-
+		log_debug(logger,"para el bloque %d se pidio %s block no. %d",iterator,target->name, operation->blockNumber);
 		queue_push(target->operationsQueue,operation);
 		//sem_post(target->threadSemaphore);
 		readOrder[iterator] = target;
