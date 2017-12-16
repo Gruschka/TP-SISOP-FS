@@ -165,6 +165,7 @@ int fs_deleteFileFromIndex(char *path);
 int fs_updateFileFromIndex(char *old, char *new);
 int fs_deleteBlockFromMetadata(char *path,int block, int copy);
 int fs_getNumberOfBlocksOfAFile(char *file);
+int fs_getNumberOfBlocksOfAFile2(char *file);
 int fs_getAmountOfBlocksAndCopiesOfAFile(char *file);
 void fs_dumpBlockTuple(ipc_struct_fs_get_file_info_response_entry  blockTuple);
 void fs_freeTuple(ipc_struct_fs_get_file_info_response_entry *tuple);
