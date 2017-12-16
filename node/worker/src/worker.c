@@ -139,7 +139,7 @@ void connectionHandler(int client_sock){
 		//Recibo toda la informacion necesaria para ejecutar las tareas
 		uint32_t operation;
 		recv(client_sock,&operation,sizeof(uint32_t), 0);
-		log_debug(logFileNodo, "Recibi operation: %d", operation);
+		//log_debug(logFileNodo, "Recibi operation: %d", operation);
 		switch (operation) {
 		case WORKER_START_TRANSFORM_REQUEST:{
 			log_debug(logFileNodo, "Transformation Stage");
@@ -336,7 +336,7 @@ void connectionHandler(int client_sock){
 			recv(client_sock, request.globalTempPath, (request.globalTempPathLen + 1), MSG_WAITALL);
 
 			char * pairingResult = scriptTempFileName();
-			log_debug(logFileNodo, "\n The Global Pairing Result is saved at : %s \n", pairingResult);
+			log_debug(logFileNodo, "The Global Pairing Result is saved at : %s", pairingResult);
 
 			pairGlobalFiles(workerList, pairingResult);
 
