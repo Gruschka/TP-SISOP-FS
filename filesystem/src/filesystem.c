@@ -2863,18 +2863,20 @@ t_block *fs_getBlocksFromFile(char *filePath){
 	t_config *fileConfig = config_create(filePath);
 
 	t_block *block = calloc(amountOfBlocks,sizeof(t_block));
-	block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
 
-	block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
-	block[currentBlock].nodeIds = calloc(block[currentBlock].copies,sizeof(char *));
-	block[currentBlock].nodeIps = calloc(block[currentBlock].copies,sizeof(char *));
+
 
 	char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
 	char *nodeBlockTupleAsString;
 	char **nodeBlockTupleAsArray;
 	while(currentBlock<amountOfBlocks){
+		block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
+
+		block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
+		block[currentBlock].nodeIds = calloc(block[currentBlock].copies,sizeof(char *));
+		block[currentBlock].nodeIps = calloc(block[currentBlock].copies,sizeof(char *));
 		while(currentCopy < 20 || (copyNumber < block[currentBlock].copies)){
 			if(config_has_property(fileConfig,blockToSearch)){
 				nodeBlockTupleAsString = config_get_string_value(fileConfig,blockToSearch);
