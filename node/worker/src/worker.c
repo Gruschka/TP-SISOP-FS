@@ -178,16 +178,16 @@ void connectionHandler(int client_sock){
 			sprintf(buffer, template, bytesToRead, configuration.binPath, request.usedBytes, scriptPath, request.tempFilePath);
 			buffer[templateSize] = '\0';
 
-			log_debug(logFileNodo, "\n Transforming Block: %d \n", request.block);
-			log_debug(logFileNodo, "\n %s \n", buffer);
+			log_debug(logFileNodo, "Transforming Block: %d", request.block);
+			log_debug(logFileNodo, "%s", buffer);
 			int checkCode = worker_runCommand(buffer);
 			ipc_struct_worker_start_transform_response transform_response;
 			if(checkCode!= 0){
-				log_debug(logFileNodo, "FAIL \n");
+				log_debug(logFileNodo, "FAIL");
 				transform_response.succeeded = 0;
 			}
 			else{
-				log_debug(logFileNodo, "SUCCESS \n");
+				log_debug(logFileNodo, "SUCCESS");
 				transform_response.succeeded = 1;
 			}
 
@@ -243,7 +243,7 @@ void connectionHandler(int client_sock){
 			recv(client_sock, request.reduceTempPath, (request.reduceTempPathLen +1), MSG_WAITALL);
 			log_debug(logFileNodo, "tempFile: %s", request.reduceTempPath);
 			char * pairingResult = scriptTempFileName();
-			log_debug(logFileNodo, "El resultado del apareo se guarda aca : %s \n", pairingResult);
+			log_debug(logFileNodo, "The Pair result is saved at : %s", pairingResult);
 			pairFiles(fileList, pairingResult);
 
 			char *template = "cat %s | %s > %s";
@@ -251,7 +251,7 @@ void connectionHandler(int client_sock){
 			char *buffer = malloc(templateSize + 1);
 			sprintf(buffer, template, pairingResult, scriptPath, request.reduceTempPath);
 			buffer[templateSize] = '\0';
-			log_debug(logFileNodo, "\n %s \n", buffer);
+			log_debug(logFileNodo, "%s", buffer);
 			int checkCode = worker_runCommand(buffer);
 			ipc_struct_worker_start_local_reduce_response reduction_response;
 			if(checkCode != 0){
@@ -291,7 +291,7 @@ void connectionHandler(int client_sock){
 			int chmodNumber;
 			chmodNumber = strtol(chmode, 0, 8);
 			char * scriptPath = scriptTempFileName();
-			log_debug(logFileNodo, "scriptPath: %s \n", scriptPath);
+			log_debug(logFileNodo, "scriptPath: %s", scriptPath);
 			FILE *scriptFile = fopen(scriptPath, "w");
 			if (scriptFile == NULL) {
 				exit(-1); //fixme: ola q ace
@@ -341,14 +341,14 @@ void connectionHandler(int client_sock){
 			pairGlobalFiles(workerList, pairingResult);
 
 			char * template = "cat %s | %s > %s";
-			log_debug(logFileNodo, "temp: %s, script: %s , result: %s \n", pairingResult, scriptPath, request.globalTempPath);
+			log_debug(logFileNodo, "temp: %s, script: %s , result: %s", pairingResult, scriptPath, request.globalTempPath);
 			int templateSize = snprintf(NULL, 0, template, pairingResult, scriptPath, request.globalTempPath);
 			char *buffer = malloc(templateSize + 1);
 			sprintf(buffer, template, pairingResult, scriptPath, request.globalTempPath);
 			buffer[templateSize] = '\0';
 
 			int checkCode = worker_runCommand(buffer);
-			log_debug(logFileNodo, "%s \n", buffer);
+			log_debug(logFileNodo, "%s", buffer);
 
 			if(checkCode != 0){
 				reduction_response.succeeded = 0;
@@ -427,7 +427,7 @@ void connectionHandler(int client_sock){
 			free(file.pathName);
 		} break;
 		case WORKER_REQUEST_FILE_FROM_SLAVE:{
-			log_debug(logFileNodo, "Slave Worker Stage \n");
+			log_debug(logFileNodo, "Slave Worker Stage");
 
 			uint32_t temporalNameLength;
 			recv(client_sock, &temporalNameLength, sizeof(int), MSG_WAITALL);
@@ -435,7 +435,7 @@ void connectionHandler(int client_sock){
 			char *temporalName = malloc(temporalNameLength + 1);
 			recv(client_sock, temporalName, temporalNameLength + 1, MSG_WAITALL);
 
-			log_debug(logFileNodo, "The File is: %s \n", temporalName);
+			log_debug(logFileNodo, "The File is: %s", temporalName);
 
 			char *fileContent = worker_utils_readFile(temporalName);
 
