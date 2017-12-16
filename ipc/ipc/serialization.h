@@ -85,12 +85,13 @@ typedef struct {
 
 
 typedef struct {
-       uint32_t copies;
-       char **nodeIds;
-       char **nodeIps;
-       uint32_t *ports;
-       uint32_t *blockIds;
-       uint32_t *copyIds;
+	uint32_t blockSize;
+	uint32_t copies;
+	char **nodeIds;
+	char **nodeIps;
+	uint32_t *ports;
+	uint32_t *blockIds;
+	uint32_t *copyIds;
 }t_block;
 
 typedef struct {
