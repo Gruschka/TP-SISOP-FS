@@ -44,30 +44,31 @@ typedef struct WorkerRequest {
 extern t_log *master_log;
 
 void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer) {
-	clock_t startTimestamp = clock();
+	time_t startTimestamp;
+	time(&startTimestamp);
 
 	WorkerRequest *request = (WorkerRequest *)requestAsVoidPointer;
 	int sockfd = ipc_createAndConnect(request->port, request->ip);
 	log_debug(master_log, "REDUCCIÓN LOCAL. Conectado al worker '%s' (fd: %d).", request->nodeID, sockfd);
 
 	uint32_t operation = WORKER_START_LOCAL_REDUCTION_REQUEST;
-	send(sockfd, &operation, sizeof(uint32_t), 0);
+	send(sockfd, &operation, sizeof(uint32_t), MSG_NOSIGNAL);
 
-	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.scriptContentLength), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.scriptContent, (request->workerRequest.scriptContentLength + 1) * sizeof(char), MSG_NOSIGNAL);
 
-	send(sockfd, &(request->workerRequest.transformTempEntriesCount), sizeof(uint32_t), 0);
+	send(sockfd, &(request->workerRequest.transformTempEntriesCount), sizeof(uint32_t), MSG_NOSIGNAL);
 	int i;
 	for (i = 0; i < request->workerRequest.transformTempEntriesCount; i++) {
 		ipc_struct_worker_start_local_reduce_TransformTempEntry *entry = request->workerRequest.transformTempEntries + i;
-		send(sockfd, &(entry->tempPathLen), sizeof(uint32_t), 0);
-		send(sockfd, entry->tempPath, (entry->tempPathLen + 1) * sizeof(char), 0);
+		send(sockfd, &(entry->tempPathLen), sizeof(uint32_t), MSG_NOSIGNAL);
+		send(sockfd, entry->tempPath, (entry->tempPathLen + 1) * sizeof(char), MSG_NOSIGNAL);
 
 		free(entry->tempPath);
 	}
 
-	send(sockfd, &(request->workerRequest.reduceTempPathLen), sizeof(uint32_t), 0);
-	send(sockfd, request->workerRequest.reduceTempPath, (request->workerRequest.reduceTempPathLen + 1) * sizeof(char), 0);
+	send(sockfd, &(request->workerRequest.reduceTempPathLen), sizeof(uint32_t), MSG_NOSIGNAL);
+	send(sockfd, request->workerRequest.reduceTempPath, (request->workerRequest.reduceTempPathLen + 1) * sizeof(char), MSG_NOSIGNAL);
 
 	// Esperamos respuesta del worker
 	uint32_t incomingOperation = 666;
@@ -91,8 +92,9 @@ void *master_transform_connectToWorkerAndMakeRequest(void *requestAsVoidPointer)
 	log_debug(master_log, "REDUCCIÓN LOCAL. Éxito: %d (file: %s. fd: %d).", reduceSucceeded, request->workerRequest.reduceTempPath, sockfd);
 	close(sockfd);
 
-	clock_t endTimestamp = clock();
-	double duration = ((double)(endTimestamp - startTimestamp)) / CLOCKS_PER_SEC;
+	time_t endTimestamp;
+	time(&endTimestamp);
+	double duration = difftime(endTimestamp, startTimestamp);
 	master_incrementNumberOfLocalReductionTasksRan(duration);
 
 	free(notification->nodeID);

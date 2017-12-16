@@ -158,28 +158,27 @@ ExecutionPlan *getExecutionPlan2(FileInfo2 *response) {
 	int i;
 	for (i = 0; i < executionPlan->entriesCount; i++) { // este loop por cada bloque
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
-		t_block *blockInfo = response.blocks + i;
+		t_block *blockInfo = response->blocks + i;
 
 		int movesForBlock = 0;
 		int assigned = 0;
 		dictionary_clean(incremented);
-		log_debug(logger, "Scheduling block no. %d. %n copies", i, blockInfo->copies);
+		log_debug(logger, "Scheduling block no. %d. %d copies", i, blockInfo->copies);
 		while (!assigned) { // toda la vueltita bb
 			usleep(configuration.schedulingDelay);
 
 			clock = circularlist_get(workersList, offset + moves);
-			Copy copy = workerContainsBlock(clock, blockInfo);
 			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
 
 			if (clock->availability > 0) {
-				int copyNumber = arrayContainsString(blockInfo->nodeIds, clock->name);
-				if (copyNumber != -1) {
+				int copy = arrayContainsString(blockInfo->nodeIds, clock->name);
+				if (copy != -1) {
 					// lo encontre y tiene disponibilidad
 					log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
 					clock->availability--;
 					clock = circularlist_get(workersList, offset + moves); moves++;
-					currentPlanEntry->blockID = blockInfo->blockIds[copyNumber];
-					currentPlanEntry->workerID = blockInfo->nodeIds[copyNumber];
+					currentPlanEntry->blockID = blockInfo->blockIds[copy];
+					currentPlanEntry->workerID = blockInfo->nodeIds[copy];
 					currentPlanEntry->usedBytes = blockInfo->blockSize;
 					assigned = 1;
 				} else {

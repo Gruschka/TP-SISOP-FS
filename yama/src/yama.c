@@ -166,14 +166,14 @@ void setState(uint32_t jobID, yama_job_stage stage, yama_job_status status) {
 	pthread_mutex_unlock(&stateTable_mutex);
 }
 
-void markLocalReductionAsFinished(char *tempPath, char *nodeID) {
+void markLocalReductionAsFinished(char *tempPath, char *nodeID, char succeeded) {
 	pthread_mutex_lock(&stateTable_mutex);
 	int i;
 	for (i = 0; i < list_size(stateTable); i++) {
 		yama_state_table_entry *currentEntry = list_get(stateTable, i);
 
 		if (stringsAreEqual(currentEntry->tempPath, tempPath) && stringsAreEqual(currentEntry->nodeID, nodeID)) {
-			currentEntry->status = FINISHED_OK;
+			currentEntry->status = (succeeded == 1 ? FINISHED_OK : ERROR);
 		}
 	}
 	pthread_mutex_unlock(&stateTable_mutex);
@@ -417,6 +417,20 @@ void freeExecutionPlan(ExecutionPlan *executionPlan) {
 	free(executionPlan);
 }
 
+void freeFileInfoResponse2(ipc_struct_fs_get_file_info_response_2 *response) {
+	int blocksIterator;
+	for (blocksIterator = 0; blocksIterator < response->amountOfblocks; blocksIterator++) {
+		free(response->blocks[blocksIterator].blockIds);
+		free(response->blocks[blocksIterator].copyIds);
+		free(response->blocks[blocksIterator].nodeIds);
+		free(response->blocks[blocksIterator].nodeIps);
+		free(response->blocks[blocksIterator].ports);
+		//TODO liberar bien
+	}
+	free(response->blocks);
+	free(response);
+}
+
 void freeFileInfoResponse(ipc_struct_fs_get_file_info_response *response) {
 	int i = 0;
 	for (i = 0; i < response->entriesCount; i++) {
@@ -462,9 +476,9 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(fd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
 		log_debug(logger, "request: path: %s", request->filePath);
 
-		ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
+		ipc_struct_fs_get_file_info_response_2 *fileInfo = requestInfoToFilesystem2(request->filePath);
 
-		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
+		ExecutionPlan *executionPlan = getExecutionPlan2(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
 		dumpExecutionPlan(executionPlan);
 		updateWorkload(executionPlan);
@@ -475,7 +489,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		free(request);
 		freeStartTransformReduceResponse(response);
 		freeExecutionPlan(executionPlan);
-		freeFileInfoResponse(fileInfo);
+		freeFileInfoResponse2(fileInfo);
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
@@ -483,15 +497,14 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		log_debug(logger, "[YAMA_NOTIFY_TRANSFORM_FINISH] nodeID: %s. tempPath: %s. succeeded: %d.", transformFinish->nodeID, transformFinish->tempPath, transformFinish->succeeded);
 
 		if (!transformFinish->succeeded) {
-//			yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
-//			ystEntry->status = ERROR;
-//
-//			ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(ystEntry->fileName);
-//			ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
-//			ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
-//			trackTransformationResponseInStateTable(response, fd, ystEntry->fileName);
-//			ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
+			yama_state_table_entry *ystEntry = getEntry(transformFinish->nodeID, transformFinish->tempPath);
+			ystEntry->status = ERROR;
 
+			ipc_struct_fs_get_file_info_response_2 *fileInfo = requestInfoToFilesystem2(ystEntry->fileName);
+			ExecutionPlan *executionPlan = getExecutionPlan2(fileInfo);
+			ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
+			trackTransformationResponseInStateTable(response, fd, ystEntry->fileName);
+			ipc_sendMessage(fd, YAMA_START_TRANSFORM_REDUCE_RESPONSE, response);
 
 			break;
 		}
@@ -547,10 +560,10 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 
 		uint32_t jobID = getJobIDForTempPath(localReductionFinish->tempPath);
 
+
 		// lo marco como finalizado
-		// todo ver el succeeded
 //		yama_state_table_entry *ystEntry = getEntry(localReductionFinish->nodeID, localReductionFinish->tempPath);
-		markLocalReductionAsFinished(localReductionFinish->tempPath, localReductionFinish->nodeID);
+		markLocalReductionAsFinished(localReductionFinish->tempPath, localReductionFinish->nodeID, localReductionFinish->succeeded);
 
 		if (localReductionIsFinished(jobID)) {
 			// elegir el nodo menos cargado

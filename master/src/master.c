@@ -88,7 +88,8 @@ char *transformScript;
 char *reduceScript;
 
 int main(int argc, char **argv) {
-	clock_t jobStartTimestamp = clock();
+	time_t jobStartTimestamp;
+	time(&jobStartTimestamp);
 
 	if (argc != 5) {
 		printf("El proceso master debe recibir 4 argumentos.");
@@ -191,8 +192,9 @@ int main(int argc, char **argv) {
 	close(yamaSocket);
 	free(yamaIP);
 
-	clock_t jobEndTimestamp = clock();
-	double jobDuration = ((double)(jobEndTimestamp - jobStartTimestamp)) / CLOCKS_PER_SEC;
+	time_t jobEndTimestamp;
+	time(&jobEndTimestamp);
+	double jobDuration = difftime(jobEndTimestamp, jobStartTimestamp);
 	log_info(master_log, "Métricas:");
 	log_info(master_log, "1:");
 	log_info(master_log, "El tiempo total de ejecución fue de %f segundos.", jobDuration);
