@@ -174,6 +174,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 					log_debug(logger, "No tiene el bloque, sigo avanzando");
 				}
 			} else {
+				log_debug(logger, "No tiene disponibilidad. Le subo 1");
 				moves++;
 				clock->availability++;
 				dictionary_put(incremented, clock->name, 1);
