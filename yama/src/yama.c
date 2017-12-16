@@ -417,6 +417,20 @@ void freeExecutionPlan(ExecutionPlan *executionPlan) {
 	free(executionPlan);
 }
 
+void freeFileInfoResponse2(ipc_struct_fs_get_file_info_response_2 *response) {
+	int blocksIterator;
+	for (blocksIterator = 0; blocksIterator < response->amountOfblocks; blocksIterator++) {
+		free(response->blocks[blocksIterator].blockIds);
+		free(response->blocks[blocksIterator].copyIds);
+		free(response->blocks[blocksIterator].nodeIds);
+		free(response->blocks[blocksIterator].nodeIps);
+		free(response->blocks[blocksIterator].ports);
+		//TODO liberar bien
+	}
+	free(response->blocks);
+	free(response);
+}
+
 void freeFileInfoResponse(ipc_struct_fs_get_file_info_response *response) {
 	int i = 0;
 	for (i = 0; i < response->entriesCount; i++) {
@@ -462,9 +476,9 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		ipc_struct_start_transform_reduce_request *request = ipc_recvMessage(fd, YAMA_START_TRANSFORM_REDUCE_REQUEST);
 		log_debug(logger, "request: path: %s", request->filePath);
 
-		ipc_struct_fs_get_file_info_response *fileInfo = requestInfoToFilesystem(request->filePath);
+		ipc_struct_fs_get_file_info_response_2 *fileInfo = requestInfoToFilesystem2(request->filePath);
 
-		ExecutionPlan *executionPlan = getExecutionPlan(fileInfo);
+		ExecutionPlan *executionPlan = getExecutionPlan2(fileInfo);
 		ipc_struct_start_transform_reduce_response *response = getStartTransformationResponse(executionPlan);
 		dumpExecutionPlan(executionPlan);
 		updateWorkload(executionPlan);
@@ -475,7 +489,7 @@ void incomingDataHandler(int fd, ipc_struct_header header) {
 		free(request);
 		freeStartTransformReduceResponse(response);
 		freeExecutionPlan(executionPlan);
-		freeFileInfoResponse(fileInfo);
+		freeFileInfoResponse2(fileInfo);
 		break;
 	}
 	case YAMA_NOTIFY_TRANSFORM_FINISH: {
