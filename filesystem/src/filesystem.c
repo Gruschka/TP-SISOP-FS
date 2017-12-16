@@ -123,6 +123,59 @@ int fs_format() {
 	return EXIT_SUCCESS;
 
 }
+int fs_rm2(char *filePath) {
+	printf("removing %s\n", filePath);
+
+	// get parent path
+	char **splitPath = string_split(filePath,"/");
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath);
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]);
+	FILE *fileMetadata = fopen(physicalPath,"r+");
+	if(!fileMetadata){
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	// release occupied blocks
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	int copyIterator = 0;
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+	t_dataNode *targetNode;
+	for (blockIterator = 0; blockIterator < amountOfBlocks; blockIterator++) {
+		for (copyIterator = 0; copyIterator < blocks[blockIterator].copies; copyIterator++) {
+			targetNode = fs_getNodeFromNodeName(blocks[blockIterator].nodeIds[copyIterator]);
+			fs_cleanBlockFromDataNode(targetNode,blocks[blockIterator].blockIds[copyIterator]);
+		}
+	}
+
+	// update file index
+	fs_deleteFileFromIndex(physicalPath);
+
+	// delete metadata file
+	fclose(fileMetadata);
+	remove(physicalPath);
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	free(splitPath);
+	free(parentPath);
+	free(physicalPath);
+
+	return EXIT_SUCCESS;
+}
 int fs_rm(char *filePath) {
 	printf("removing %s\n", filePath);
 
@@ -215,6 +268,83 @@ int fs_rm_dir(char *dirPath) {
 		log_error(logger, "fs_rm_dir: directory doesnt exist or is parent");
 		return EXIT_FAILURE;
 	}
+
+	return EXIT_SUCCESS;
+}
+int fs_rm_block2(char *filePath, int blockNumberToRemove, int numberOfCopyBlock) {
+	printf("removing block %d whose copy is block %d from file %s\n",
+			blockNumberToRemove, numberOfCopyBlock, filePath);
+	int iterator = 0;
+	// get parent path
+	char **splitPath = string_split(filePath,"/"); //freed
+	int splitPathElementCount = fs_amountOfElementsInArray(splitPath);
+	int fileNameLength = strlen(splitPath[splitPathElementCount-1]);
+
+	char *parentPath = strdup(filePath); //Freed
+	parentPath[strlen(parentPath)-fileNameLength] = 0;
+
+	//check parent path exists and get parent dir
+	t_directory *parent = fs_directoryExists(parentPath);
+	if(!parent){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		log_error(logger,"fs_rm: directory doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	//check file exists
+	//transform path to physical path
+	char *physicalPath = string_from_format("%s/%d/%s",myFS.filesDirectoryPath,parent->index,splitPath[splitPathElementCount-1]); //Freed
+	FILE *fileMetadata = fopen(physicalPath,"r+"); //closed
+	if(!fileMetadata){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
+		log_error(logger,"fs_rm: file doesnt exist");
+		return EXIT_FAILURE;
+	}
+
+	int amountOfBlocks = fs_getNumberOfBlocksOfAFile(physicalPath);
+	int blockIterator = 0;
+	t_block *blocks = fs_getBlocksFromFile(physicalPath);
+
+	if(blockNumberToRemove > amountOfBlocks){
+		free(parentPath);
+		while(iterator < splitPathElementCount){
+			free(splitPath[iterator]);
+			iterator++;
+		}
+		free(physicalPath);
+		fclose(fileMetadata);
+		fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+		log_error(logger,"block number to remove does not exist");
+		return EXIT_FAILURE;
+	}
+
+	int blockCopyNumber = fs_getCopyNumberFromCopyIdOfBlock(blocks[blockNumberToRemove],numberOfCopyBlock);
+	t_dataNode *targetDataNode = fs_getNodeFromNodeName(blocks[blockNumberToRemove].nodeIds[blockCopyNumber]);
+
+	fs_cleanBlockFromDataNode(targetDataNode,blocks[blockNumberToRemove].blockIds[blockCopyNumber]);
+
+	fs_deleteBlockFromMetadata(physicalPath,blockNumberToRemove,numberOfCopyBlock);
+
+	iterator = 0;
+	while(iterator < splitPathElementCount){
+		free(splitPath[iterator]);
+		iterator++;
+	}
+	fs_destroyBlockArrayWithSize(blocks,amountOfBlocks);
+	fclose(fileMetadata);
+	free(splitPath);
+	free(physicalPath);
+	free(parentPath);
 
 	return EXIT_SUCCESS;
 }
@@ -3972,4 +4102,16 @@ void fs_dumpBlockArrayOfSize(t_block *blockArray, int size){
 			log_debug(logger,"COPY %d: [%s,%d]",currentCopy,blockArray[currentBlock].nodeIds[currentCopy], blockArray[currentBlock].blockIds[currentCopy]);
 		}
 	}
+}
+
+int fs_getCopyNumberFromCopyIdOfBlock(t_block block, int copyId){
+	int copyIterator = 0;
+	for (copyIterator = 0; copyIterator < block.copies; copyIterator++) {
+		if (block.copyIds[copyIterator] == copyId) {
+			return copyIterator;
+		}
+	}
+	log_error(logger,"copyId %d not found",copyId);
+	return -1;
+
 }

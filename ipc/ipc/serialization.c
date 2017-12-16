@@ -26,6 +26,11 @@ void *deserializeFSGetFileInfoRequest(char *buffer) {
 	return request;
 }
 
+void *deserializeFSGetFileInfoRequest2(char *buffer) {
+	ipc_struct_fs_get_file_info_request *request = malloc(sizeof(ipc_struct_fs_get_file_info_request));
+	request->filePath = strdup(buffer);
+	return request;
+}
 void *deserializeWorkerHandshakeToFS(void *buffer) {
 	ipc_struct_worker_handshake_to_fs *handshake = malloc(sizeof(ipc_struct_worker_handshake_to_fs));
 	int offset = 0;
@@ -59,6 +64,53 @@ void *deserializeSendFileToFS(void *buffer) {
 }
 
 // FS_GET_FILE_INFO_RESPONSE
+void *deserializeFSGetFileInfoResponse2(char *buffer) {
+	int offset = 0;
+	ipc_struct_fs_get_file_info_response_2 *response = malloc(sizeof(ipc_struct_fs_get_file_info_response_2));
+
+	memcpy(&response->amountOfblocks,buffer+offset,sizeof(uint32_t));
+	offset+=sizeof(uint32_t);
+
+	memcpy(response->amountOfCopiesPerBlock,buffer+offset,sizeof(uint32_t)*response->amountOfblocks);
+	offset+=sizeof(uint32_t)*response->amountOfblocks;
+
+	int blockIterator = 0;
+	int copyIterator = 0;
+	response->blocks = calloc(response->amountOfblocks,sizeof(t_block));
+
+	for (blockIterator = 0; blockIterator < response->amountOfblocks; blockIterator++) {
+		memcpy(&((response->blocks)[blockIterator].copies),buffer+offset,sizeof(uint32_t));
+		offset+=sizeof(uint32_t);
+
+		(response->blocks)[blockIterator].blockIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
+		memcpy(&((response->blocks)[blockIterator].blockIds),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
+		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+
+		(response->blocks)[blockIterator].ports = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
+		memcpy(&((response->blocks)[blockIterator].ports),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
+		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+
+		(response->blocks)[blockIterator].copyIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(uint32_t));
+		memcpy(&((response->blocks)[blockIterator].copyIds),buffer+offset,sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator]);
+		offset+=sizeof(uint32_t)*(response->amountOfCopiesPerBlock)[blockIterator];
+
+		(response->blocks)[blockIterator].nodeIds = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(char *));
+		(response->blocks)[blockIterator].nodeIps = calloc((response->amountOfCopiesPerBlock)[blockIterator],sizeof(char *));
+		for (copyIterator = 0; copyIterator < response->amountOfCopiesPerBlock[blockIterator]; copyIterator++) {
+
+			(response->blocks)[blockIterator].nodeIds[copyIterator] = malloc(strlen(buffer+offset)+1);
+			memcpy(&((response->blocks)[blockIterator].nodeIds[copyIterator]),buffer+offset,strlen(buffer+offset)+1);
+			offset+=strlen(buffer+offset)+1;
+
+			(response->blocks)[blockIterator].nodeIps[copyIterator] = malloc(strlen(buffer+offset)+1);
+			memcpy(&((response->blocks)[blockIterator].nodeIps[copyIterator]),buffer+offset,strlen(buffer+offset)+1);
+			offset+=strlen(buffer+offset)+1;
+		}
+
+	}
+
+	return response;
+}
 void *deserializeFSGetFileInfoResponse(char *buffer) {
 	int offset = 0, i;
 	ipc_struct_fs_get_file_info_response *response = malloc(sizeof(ipc_struct_fs_get_file_info_response));
@@ -376,6 +428,17 @@ char *serializeTestMessage(void *data, int *size){
 }
 
 // FS_GET_FILE_INFO_REQUEST
+char *serializeFSGetFileInfoRequest2(void *data, int *size) {
+	ipc_struct_fs_get_file_info_request *request = data;
+
+	char *buffer = malloc(*size = strlen(request->filePath) + 1);
+
+	memcpy(buffer, request->filePath, strlen(request->filePath) + 1);
+	buffer[strlen(request->filePath)] = '\0';
+
+	return buffer;
+}
+
 char *serializeFSGetFileInfoRequest(void *data, int *size) {
 	ipc_struct_fs_get_file_info_request *request = data;
 
@@ -415,6 +478,69 @@ uint32_t getFSGetFileInfoResponseSize(ipc_struct_fs_get_file_info_response *resp
 	result += getFSGetFileInfoResponseEntriesSize(response);
 
 	return result;
+}
+int getSizeOfBlockArrayOfBlockCount(t_block *block, int blockCount){
+	int blockIterator = 0;
+	int copyIterator = 0;
+	int totalArraySize = sizeof(uint32_t); //copies
+	for (blockIterator = 0; blockIterator < blockCount; blockIterator++) {
+		totalArraySize+= sizeof(uint32_t) * block[blockCount].copies; // blockIds
+		totalArraySize+= sizeof(uint32_t) * block[blockCount].copies; // ports
+		totalArraySize+= sizeof(uint32_t) * block[blockCount].copies; // copyIds
+		for (copyIterator = 0; copyIterator < block[blockIterator].copies; copyIterator++) {
+			totalArraySize+= strlen(block[blockIterator].nodeIds[copyIterator]) +1; //node Ids
+			totalArraySize+= strlen(block[blockIterator].nodeIps[copyIterator]) +1; //node Ips
+		}
+	}
+}
+
+char *serializeFSGetFileInfoResponse2(void *data, int *size) {
+	int offset = 0, i;
+	ipc_struct_fs_get_file_info_response_2 *response = data;
+	int sizeOfBlockArray = getSizeOfBlockArrayOfBlockCount(response->blocks,response->amountOfblocks);
+	int sizeOfCopiesPerBlockArray = sizeof(uint32_t) * response->amountOfblocks;
+
+	char *buffer = malloc(*size = sizeof(uint32_t) + sizeOfBlockArray + sizeOfCopiesPerBlockArray);
+	uint32_t *copiesPerBlock = malloc(sizeOfCopiesPerBlockArray);
+
+	int blockIterator = 0;
+	int copyIterator = 0;
+	int bufferOffset = 0;
+	int copiesPerBlockOffset = 0;
+
+	memcpy(buffer+bufferOffset,&(response->amountOfblocks),sizeof(uint32_t));
+	bufferOffset+=sizeof(uint32_t);
+	copiesPerBlockOffset = bufferOffset;
+	bufferOffset+=sizeOfCopiesPerBlockArray; //dejo lugar para escribir esto despues
+
+
+	for (blockIterator = 0; blockIterator < response->amountOfblocks; blockIterator++) {
+		memcpy(copiesPerBlock+copiesPerBlockOffset,&((response->blocks)[blockIterator].copies),sizeof(uint32_t));
+		copiesPerBlockOffset+=sizeof(uint32_t);
+
+		memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].blockIds,sizeof(uint32_t)*(response->blocks)[blockIterator].copies);
+		bufferOffset+=sizeof(uint32_t)*(response->blocks)[blockIterator].copies;
+
+		memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].ports,sizeof(uint32_t)*(response->blocks)[blockIterator].copies);
+		bufferOffset+=sizeof(uint32_t)*(response->blocks)[blockIterator].copies;
+
+		memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].copyIds,sizeof(uint32_t)*(response->blocks)[blockIterator].copies);
+		bufferOffset+=sizeof(uint32_t)*(response->blocks)[blockIterator].copies;
+
+		for (copyIterator = 0; copyIterator < (response->blocks)[blockIterator].copies; copyIterator++) {
+			memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].nodeIds[copyIterator],strlen((response->blocks)[blockIterator].nodeIds[copyIterator])+1);
+			bufferOffset+=strlen((response->blocks)[blockIterator].nodeIds[copyIterator])+1;
+
+			memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].nodeIps[copyIterator],strlen((response->blocks)[blockIterator].nodeIps[copyIterator])+1);
+			bufferOffset+=strlen((response->blocks)[blockIterator].nodeIps[copyIterator])+1;
+		}
+	}
+
+	memcpy(buffer+copiesPerBlockOffset,copiesPerBlock,sizeOfCopiesPerBlockArray);
+
+
+
+	return buffer;
 }
 
 char *serializeFSGetFileInfoResponse(void *data, int *size) {
@@ -912,6 +1038,8 @@ void initializeSerialization() {
 	serializationArray[TEST_MESSAGE] = serializeTestMessage;
 	serializationArray[FS_GET_FILE_INFO_REQUEST] = serializeFSGetFileInfoRequest;
 	serializationArray[FS_GET_FILE_INFO_RESPONSE] = serializeFSGetFileInfoResponse;
+	serializationArray[FS_GET_FILE_INFO_REQUEST_2] = serializeFSGetFileInfoRequest2;
+	serializationArray[FS_GET_FILE_INFO_RESPONSE_2] = serializeFSGetFileInfoResponse2;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = serializeYAMAStartTransformationRequest;
 	serializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = serializeYAMAStartTransformationResponse;
 	serializationArray[YAMA_NOTIFY_FINAL_STORAGE_FINISH] = serializeYamaNotifyStageFinish;
@@ -937,6 +1065,8 @@ void initializeDeserialization () {
 	deserializationArray[TEST_MESSAGE] = deserializeTestMessage;
 	deserializationArray[FS_GET_FILE_INFO_REQUEST] = deserializeFSGetFileInfoRequest;
 	deserializationArray[FS_GET_FILE_INFO_RESPONSE] = deserializeFSGetFileInfoResponse;
+	deserializationArray[FS_GET_FILE_INFO_REQUEST_2] = deserializeFSGetFileInfoRequest2;
+	deserializationArray[FS_GET_FILE_INFO_RESPONSE_2] = deserializeFSGetFileInfoResponse2;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_REQUEST] = deserializeYAMAStartTransformationRequest;
 	deserializationArray[YAMA_START_TRANSFORM_REDUCE_RESPONSE] = deserializeYAMAStartTransformationResponse;
 	deserializationArray[YAMA_NOTIFY_FINAL_STORAGE_FINISH] = deserializeYamaNotifyStageFinish;

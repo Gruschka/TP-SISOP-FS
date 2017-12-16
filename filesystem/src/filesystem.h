@@ -20,14 +20,6 @@ typedef struct {
  int blockSize;
 }t_fileBlockTuple;
 
-typedef struct {
-	uint32_t copies;
-	char **nodeIds;
-	char **nodeIps;
-	uint32_t *ports;
-	uint32_t *blockIds;
-	uint32_t *copyIds;
-}t_block;
 
 typedef enum fileTypes {
 	T_BINARY,
@@ -157,7 +149,7 @@ int fs_restorePreviousStatus();
 int fs_isNodeFromPreviousSession(t_dataNode aDataNode);
 int fs_isDataNodeAlreadyConnected(t_dataNode aDataNode);
 int fs_isDataNodeNameInConnectedList(char* aDataNodeName);
-void fs_destroyBlockArrayWithSize(t_block *blockArray, int size);
+
 
 int fs_checkNodeConnectionStatus(t_dataNode aDataNode);
 char *fs_getParentPath(char *childPath);
@@ -204,12 +196,16 @@ int fs_clean();
 void fs_rebuildNodeTable();
 void fs_intHandler();
 void fs_dumpBlockArrayOfSize(t_block *blockArray, int size);
+int fs_getCopyNumberFromCopyIdOfBlock(t_block block, int copyId);
+
 
 //Console commands
 int fs_format();
 int fs_rm(char *filePath);
+int fs_rm2(char *filePath);
 int fs_rm_dir(char *dirPath);
 int fs_rm_block(char *filePath, int blockNumberToRemove, int numberOfCopyBlock);
+int fs_rm_block2(char *filePath, int blockNumberToRemove, int numberOfCopyBlock);
 int fs_rename(char *filePath, char *nombreFinal);
 int fs_mv(char *origFilePath, char *destFilePath);
 int fs_cat(char *filePath);
