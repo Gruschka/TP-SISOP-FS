@@ -2868,11 +2868,12 @@ t_block *fs_getBlocksFromFile(char *filePath){
 
 
 	char *blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,currentCopy);
+	char *blockBytesKey = string_from_format("BLOQUE%dBYTES",currentBlock);
 	char *nodeBlockTupleAsString;
 	char **nodeBlockTupleAsArray;
 	while(currentBlock<amountOfBlocks){
 		block[currentBlock].copies = fs_getAmountOfCopiesFromBlock(currentBlock,fileConfig);
-
+		block[currentBlock].blockSize = config_get_int_value(fileConfig,blockBytesKey);
 		block[currentBlock].blockIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
 		block[currentBlock].ports = calloc(block[currentBlock].copies,sizeof(uint32_t));
 		block[currentBlock].copyIds = calloc(block[currentBlock].copies,sizeof(uint32_t));
@@ -2905,8 +2906,11 @@ t_block *fs_getBlocksFromFile(char *filePath){
 		free(blockToSearch);
 		currentBlock++;
 		blockToSearch = string_from_format("BLOQUE%dCOPIA%d",currentBlock,copyNumber);
+		free(blockBytesKey);
+		blockBytesKey = string_from_format("BLOQUE%dBYTES",currentBlock);
 	}
 	free(blockToSearch);
+	free(blockBytesKey);
 	config_destroy(fileConfig);
 	return block;
 }
@@ -4111,7 +4115,7 @@ void fs_dumpBlockArrayOfSize(t_block *blockArray, int size){
 	int currentCopy = 0;
 	log_debug(logger,"file has %d blocks",size);
 	for (currentBlock = 0; currentBlock < size; currentBlock++) {
-		log_debug(logger,"block %d has %d copies",currentBlock,blockArray[currentBlock].copies);
+		log_debug(logger,"block %d has %d copies of size %d",currentBlock,blockArray[currentBlock].copies, blockArray[currentBlock].blockSize);
 		for(currentCopy = 0; currentCopy < blockArray[currentBlock].copies; currentCopy++){
 			log_debug(logger,"COPY %d: [%s,%d]",currentCopy,blockArray[currentBlock].nodeIds[currentCopy], blockArray[currentBlock].blockIds[currentCopy]);
 		}

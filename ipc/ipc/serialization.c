@@ -84,6 +84,9 @@ void *deserializeFSGetFileInfoResponse2(char *buffer) {
 		offset+=sizeof(uint32_t);
 		uint32_t numberOfCopies = (response->blocks)[blockIterator].copies;
 
+		memcpy(&((response->blocks)[blockIterator].blockSize),buffer+offset,sizeof(uint32_t));
+		offset+=sizeof(uint32_t);
+
 		(response->blocks)[blockIterator].blockIds = calloc(numberOfCopies, sizeof(uint32_t));
 		memcpy((response->blocks)[blockIterator].blockIds,buffer+offset,sizeof(uint32_t) * numberOfCopies);
 		offset+=sizeof(uint32_t) * numberOfCopies;
@@ -486,6 +489,7 @@ int getSizeOfBlockArrayOfBlockCount(t_block *block, int blockCount){
 	int copyIterator = 0;
 	int totalArraySize = 0;
 	for (blockIterator = 0; blockIterator < blockCount; blockIterator++) {
+		totalArraySize+= sizeof(uint32_t); //blockSize
 		totalArraySize+= sizeof(uint32_t); //copies
 		totalArraySize+= sizeof(uint32_t) * block[blockIterator].copies; // blockIds
 		totalArraySize+= sizeof(uint32_t) * block[blockIterator].copies; // ports
@@ -522,6 +526,9 @@ char *serializeFSGetFileInfoResponse2(void *data, int *size) {
 		memcpy(copiesPerBlock+blockIterator,&((response->blocks)[blockIterator].copies),sizeof(uint32_t));
 
 		memcpy(buffer+bufferOffset,&((response->blocks)[blockIterator].copies),sizeof(uint32_t));
+		bufferOffset+=sizeof(uint32_t);
+
+		memcpy(buffer+bufferOffset,&((response->blocks)[blockIterator].blockSize),sizeof(uint32_t));
 		bufferOffset+=sizeof(uint32_t);
 
 		memcpy(buffer+bufferOffset,(response->blocks)[blockIterator].blockIds,sizeof(uint32_t) * numberOfCopies);
