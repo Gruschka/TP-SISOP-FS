@@ -176,7 +176,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 			} else {
 				log_debug(logger, "No tiene disponibilidad. Le subo 1");
 				moves++;
-				clock->availability++;
+				clock->availability += baseAvailabilitySnapshot;
 				dictionary_put(incremented, clock->name, 1);
 			}
 
