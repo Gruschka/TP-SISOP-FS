@@ -140,6 +140,7 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 	Worker *clock = maximumAvailabilityWorker;
 	uint32_t offset = maximumAvailabilityWorkerIdx;
 	uint32_t baseAvailabilitySnapshot = scheduling_baseAvailability;
+	t_dictionary *incremented = dictionary_create();
 
 	int moves = 0; // cantidad de veces que movi el clock
 
@@ -148,37 +149,36 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 		ExecutionPlanEntry *currentPlanEntry = executionPlan->entries + i;
 		BlockInfo *blockInfo = response->entries + i;
 		int movesForBlock = 0;
-
 		int assigned = 0;
+		dictionary_clean(incremented);
 		log_debug(logger, "Scheduling block no. %d. 1st copy: %s. 2nd copy: %s", i, blockInfo->firstCopyNodeID, blockInfo->secondCopyNodeID);
 		while (!assigned) { // toda la vueltita bb
 			usleep(configuration.schedulingDelay);
-			//TODO Si se encuentra, se deberá reducir en 1 el valor de disponibilidad
-			// y avanzar el Clock al siguiente Worker.
-			// Si dicho clock fuera a ser asignado a un Worker cuyo nivel de disponibilidad fuera 0,
-			// se deberá restaurar la disponibilidad al valor de la disponibilidad base y luego,
-			// avanzar el clock al siguiente Worker, repitiendo el paso 2.
 
 			clock = circularlist_get(workersList, offset + moves);
 			Copy copy = workerContainsBlock(clock, blockInfo);
 			log_debug(logger, "Clock: node: %s. availability: %d", clock->name, clock->availability);
 
-			if (copy == NONE) { // no tiene el bloque, sigo avanzando
+			if (clock->availability > 0) {
+				if (copy == FIRST || copy == SECOND) {
+					// lo encontre y tiene disponibilidad
+					log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
+					clock->availability--;
+					clock = circularlist_get(workersList, offset + moves); moves++;
+					currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
+					currentPlanEntry->workerID = (copy == FIRST) ? strdup(blockInfo->firstCopyNodeID) : strdup(blockInfo->secondCopyNodeID);
+					currentPlanEntry->usedBytes = blockInfo->blockSize;
+					assigned = 1;
+				} else {
+					moves++;
+					log_debug(logger, "No tiene el bloque, sigo avanzando");
+				}
+			} else {
 				moves++;
-				log_debug(logger, "No tiene el bloque, sigo avanzando");
-			} else if (clock->availability > 0) { // lo encontre y tiene disponibilidad
-				log_debug(logger, "Tiene el bloque y disponibilidad. Asignado");
-				clock->availability--;
-				clock = circularlist_get(workersList, offset + moves); moves++;
-				currentPlanEntry->blockID = (copy == FIRST) ? blockInfo->firstCopyBlockID : blockInfo->secondCopyBlockID;
-				currentPlanEntry->workerID = (copy == FIRST) ? strdup(blockInfo->firstCopyNodeID) : strdup(blockInfo->secondCopyNodeID);
-				currentPlanEntry->usedBytes = blockInfo->blockSize;
-				assigned = 1;
-			} else { // tiene el bloque pero no tiene disponibilidad
-				log_debug(logger, "Tiene el bloque pero no tiene disponibilidad");
-				clock->availability = scheduling_baseAvailability;
-				moves++;
+				clock->availability++;
+				dictionary_put(incremented, clock->name, 1);
 			}
+
 			movesForBlock++;
 
 			if (movesForBlock % workersList_count == 0 && !assigned) { //es porque di toda la vuelta y no lo encontre.
@@ -186,7 +186,9 @@ ExecutionPlan *getExecutionPlan(FileInfo *response) {
 				int i;
 				for (i = 0; i < workersList_count; i++) {
 					Worker *worker = circularlist_get(workersList, i);
-					worker->availability += baseAvailabilitySnapshot;
+					// si no lo incremente antes, ahora si
+					if (!dictionary_has_key(incremented, worker->name))
+						worker->availability += baseAvailabilitySnapshot;
 				}
 			}
 		}
