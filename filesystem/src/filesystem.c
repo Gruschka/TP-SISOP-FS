@@ -2893,7 +2893,7 @@ t_block *fs_getBlocksFromFile(char *filePath){
 					block[currentBlock].nodeIps[copyNumber] = strdup(node->IP);
 					block[currentBlock].ports[copyNumber] = node->workerPortno;
 				}else{
-					block[currentBlock].nodeIps[copyNumber] = NULL;
+					block[currentBlock].nodeIps[copyNumber] = string_from_format("offline");
 					block[currentBlock].ports[copyNumber] = 0;
 				}
 				block[currentBlock].copyIds[copyNumber] = currentCopy;
